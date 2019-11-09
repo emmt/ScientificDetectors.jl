@@ -16,11 +16,11 @@ ScientificDetectors.PreprocessingParameters([T,] a, b, u, v) -> obj
 ```
 
 where `T` is the floating-point type for the computations (optional, if
-unspecified, deduced from the element type of the other arguments), `a` is the
-amplitude correction factor (in flux units per ADU), `b` is the bias correction
-(in ADU), `u` and `v` are variance terms.  Arguments `a`, `b`, `u` and `v` are
-pixelwise, they are broadcast to common dimensions (which should be that of the
-detector) and their elements converted to the same type `T`.
+unspecified, it is deduced from the element type of the other arguments), `a`
+is the amplitude correction factor (in flux units per ADU), `b` is the bias
+correction (in ADU), `u` and `v` are variance terms.  Arguments `a`, `b`, `u`
+and `v` are pixelwise, they are broadcast to common dimensions (which should be
+that of the detector) and their elements converted to the same type `T`.
 
 
 It is also possible to convert calibration parameters to preprocessing
@@ -223,55 +223,46 @@ function PreprocessingParameters(cal::ReducedCalibration{T,N},
     end
 end
 
+const DEFAULT_NOISE_MODEL = Val(:realistic)
+
 """
 
 ```julia
-ScientificDetectors.process(prm, raw, noise=Val(:static)) -> wgt, dat
+ScientificDetectors.process(prm, raw, noise=Val(:realistic)) -> wgt, dat
 ```
 
 yields a tuple of 2 arrays, `(wgt,dat)`, where `dat` gives the pixel values
-while `wgt` gives their respective weights.  both are the result of the
+while `wgt` gives their respective weights.  Both are the result of the
 pre-processing of the image `raw` acquired by the detector whose pre-processing
 parameters are given by `prm` (an instance of
 [`ScientificDetectors.PreprocessingParameters`](@ref)).  The `noise` argument
-indicates the model assumed to compute the statistical weights: `Val(:iid)` for
-i.i.d. (independent and identically distributed) noise, `Val(:static)` for
-static weights independent of `dat` or `Val(:poissonian)` for assuming
-Poissonian noise dependent of `dat`.  At least in the 2 first cases, the
-statistical weights are given up to a constant factor.
+indicates the model assumed to compute the statistical weights:
 
-```julia
-ScientificDetectors.process(Tao.WeightedArray, prm, raw,
-                               noise=Val(:static)) -> wgtimg
-```
+- `Val(:iid)` for i.i.d. (independent and identically distributed) noise;
 
-yields an instance of [`Tao.WeightedArray`](@ref) which is obtained by
-pre-processing the image `raw` acquired by the detector whose calibration
-parameters are given by `prm`.
+- `Val(:static)` for static weights independent of `dat`;
+
+- `Val(:realistic)` for assuming realistic noise dependent of `dat`.
+
+In the 2 first cases, the statistical weights are given up to a constant
+factor.
 
 The operation can be applied in-place:
 
 ```julia
 ScientificDetectors.process!(wgt, dat, prm, raw,
-                                noise=Val(:static)) -> wgt, dat
+                             noise=Val(:realistic)) -> wgt, dat
 ```
 
-or
-
-```julia
-ScientificDetectors.process(wgtimg, prm, raw,
-                               noise=Val(:static)) -> wgtimg
-```
-
-to overwrite the contents of `wgt` and `dat` or of `wgtimg` by the result of
-the pre-processing.
+to overwrite the contents of `wgt` and `dat` by the result of the
+pre-processing.  This is useful to avoid re-allocating arrays.
 
 See also: [`ScientificDetectors.calibrate`](@ref).
 
 """
 function process(prm::PreprocessingParameters{T,N},
                  raw::AbstractArray{<:Number,N},
-                 noise::Val = Val(:static)) where {T<:AbstractFloat,N}
+                 noise::Val = DEFAULT_NOISE_MODEL) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     return process!(Array{T,N}(undef, dims), Array{T,N}(undef, dims),
                     prm, raw, noise)
@@ -279,7 +270,7 @@ end
 
 function process!(wgt::AbstractArray, dat::AbstractArray,
                   prm::PreprocessingParameters, raw::AbstractArray)
-    return process!(wgt, dat, prm, raw, Val(:static))
+    return process!(wgt, dat, prm, raw, DEFAULT_NOISE_MODEL)
 end
 
 function process!(wgt::AbstractArray{T,N},
@@ -291,14 +282,15 @@ function process!(wgt::AbstractArray{T,N},
     @assert dimensions(wgt) == dims
     @assert dimensions(dat) == dims
     a, b = prm.a, prm.b
-    @assert dimensions(prm.a) == dims
-    @assert dimensions(prm.b) == dims
+    @assert dimensions(a) == dims
+    @assert dimensions(b) == dims
     @inbounds @simd for i in eachindex(raw, dat, a, b)
         dat[i] = (T(raw[i]) - b[i])*a[i]
     end
-    @inbounds @simd for i in eachindex(wgt)
-        wgt[i] = one(T)
-    end
+    #@inbounds @simd for i in eachindex(wgt)
+    #    wgt[i] = one(T)
+    #end
+    fill!(wgt, one(T))
     return wgt, dat
 end
 
@@ -311,15 +303,16 @@ function process!(wgt::AbstractArray{T,N},
     @assert dimensions(wgt) == dims
     @assert dimensions(dat) == dims
     a, b, u = prm.a, prm.b, prm.u
-    @assert dimensions(prm.a) == dims
-    @assert dimensions(prm.b) == dims
-    @assert dimensions(prm.u) == dims
+    @assert dimensions(a) == dims
+    @assert dimensions(b) == dims
+    @assert dimensions(u) == dims
     @inbounds @simd for i in eachindex(raw, dat, a, b)
         dat[i] = (T(raw[i]) - b[i])*a[i]
     end
-    @inbounds @simd for i in eachindex(wgt, u)
-        wgt[i] = u[i]
-    end
+    #@inbounds @simd for i in eachindex(wgt, u)
+    #    wgt[i] = u[i]
+    #end
+    copyto!(wgt, u)
     return wgt, dat
 end
 
@@ -327,15 +320,15 @@ function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
                   raw::AbstractArray{<:Number,N},
-                  ::Val{:poissonian}) where {T<:AbstractFloat,N}
+                  ::Val{:realistic}) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     @assert dimensions(wgt) == dims
     @assert dimensions(dat) == dims
     a, b, u, v = prm.a, prm.b, prm.u, prm.v
-    @assert dimensions(prm.a) == dims
-    @assert dimensions(prm.b) == dims
-    @assert dimensions(prm.u) == dims
-    @assert dimensions(prm.v) == dims
+    @assert dimensions(a) == dims
+    @assert dimensions(b) == dims
+    @assert dimensions(u) == dims
+    @assert dimensions(v) == dims
     if true
         # Compute dat and wgt separately.
         @inbounds @simd for i in eachindex(raw, dat, a, b)
