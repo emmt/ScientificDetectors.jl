@@ -22,16 +22,18 @@ correction (in ADU), `u` and `v` are variance terms.  Arguments `a`, `b`, `u`
 and `v` are pixelwise, they are broadcast to common dimensions (which should be
 that of the detector) and their elements converted to the same type `T`.
 
-
 It is also possible to convert calibration parameters to preprocessing
 parameters:
 
 ```julia
-ScientificDetectors.PreprocessingParameters([T,] cal::ReducedCalibration, Δt=0) -> obj
+ScientificDetectors.PreprocessingParameters([T,] cal::ReducedCalibration,
+                                            bg=0, Δt=0) -> obj
 ```
 
-with `Δt` the exposure time in seconds.
-
+with `T` the floating point type of the result, `cal` an instance of
+[`ScientificDetectors.ReducedCalibration`](@ref), `bg` the index or the
+identifier of the background source in `cal` and `Δt` the exposure time in
+seconds.
 
 The pre-processing of pixel `raw[i]` of an image given by the detector leads to
 compute the calibrated pixel value `dat[i]` and its corresponding precision
@@ -42,7 +44,11 @@ dat[i] = (raw[i] - b[i])*a[i]
 wgt[i] = u[i]/(max(zero(T), dat[i]) + v[i])
 ```
 
-Basic operations on `ScientificDetectors.PreprocessingParameters` instance `obj`:
+where the *realistic* noise model has been assumed.  These operations are
+efficiently done by the [`ScientificDetectors.process`](@ref) method.
+
+Basic operations on `ScientificDetectors.PreprocessingParameters` instance
+`obj`:
 
 ```julia
 size(obj)   # yields the dimensions of the detector
@@ -113,20 +119,20 @@ end
 # Outer constructors for PreprocessingParameters structure.
 
 function PreprocessingParameters(args::AbstractArray{<:Real,N}...) where {N}
-    # Stage 0: check arguments.
+    # Stage 0: Check arguments.
     length(args) == 4 ||
         error("bad number of preprocessing parameters")
     has_standard_indexing(args...) ||
         error("all arguments must have standard indexing")
 
-    # Stage 1: determine the element type from that of the arguments and
+    # Stage 1: Determine the element type from that of the arguments and
     #          broadcast dimensions.
     T = float(promote_type(map(eltype, args)...))
     dims = bcastdims(map(size, args)...)
     return _stage2(PreprocessingParameters{T,N}, dims, args)
 end
 
-# Stage 2: broadcast arguments to the same dimensions and to fast arrays with
+# Stage 2: Broadcast arguments to the same dimensions and to fast arrays with
 #          the given element type.
 function _stage2(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
                  args::NTuple{4,AbstractArray{<:Real,N}}) where {T<:AbstractFloat,N}
@@ -134,17 +140,17 @@ function _stage2(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
                    map(x -> fastarray(bcastlazy(T, x, dims)), args)...)
 end
 
-# Stage 3: arguments have all same size and element type, compute remaining
-#          preprocessing parameters and instanciate structure.
+# Stage 3: Arguments have all same size and element type, instanciate
+#          structure.  If Stage 2 failed to produce arrays of same type,
+#          convert them to regular Array's.
 function _stage3(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
-                 a::A, b::A, u::A, v::A)  where {T<:AbstractFloat,N,
-                                                 A<:DenseArray{T,N}}
+                 a::A, b::A, u::A, v::A) where {T<:AbstractFloat,N,
+                                                A<:DenseArray{T,N}}
     return PreprocessingParameters{T,N,A}(dims, a, b, u, v)
 end
 function _stage3(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
-                 a::DenseArray{T,N}, b::DenseArray{T,N}, u::DenseArray{T,N},
-                 v::DenseArray{T,N})  where {T<:AbstractFloat,N}
-    # Stage 2 failed to produce arrays of same type, convert them to regular Array's.
+                 a::AbstractArray{T,N}, b::AbstractArray{T,N}, u::AbstractArray{T,N},
+                 v::AbstractArray{T,N})  where {T<:AbstractFloat,N}
     A = Array{T,N}
     return PreprocessingParameters{T,N,A}(dims, map(x -> convert(A, x), (a, b, u, v))...)
 end
