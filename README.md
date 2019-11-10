@@ -11,17 +11,16 @@ have to clone the repository.  In Julia, hit the `]` key to switch to the
 package manager REPL (you should get a `... pkg>` prompt) and type:
 
 ```julia
-pkg> add https://github.com/emmt/ScientificDetectors.jl#master
+pkg> add https://github.com/emmt/ScientificDetectors.jl
 ```
 
 if you use HTTPS, or:
 
 ```julia
-pkg> add git@github.com:emmt/ScientificDetectors.jl#master
+pkg> add git@github.com:emmt/ScientificDetectors.jl
 ```
 
-if you use SSH.  If you do not want to follow the master version, remove the
-`#master` prefix in the URLs above.
+if you use SSH.
 
 The above commands may fail because some other *non-official* packages
 ([ArrayTools](https://github.com/emmt/ArrayTools.jl) and
@@ -29,8 +28,8 @@ The above commands may fail because some other *non-official* packages
 way to install them (assuming SSH) is to type:
 
 ```julia
-pkg> add https://github.com/emmt/ArrayTools.jl#master
-pkg> add https://github.com/emmt/EasyFITS.jl#master
+pkg> add https://github.com/emmt/ArrayTools.jl
+pkg> add https://github.com/emmt/EasyFITS.jl
 ```
 
 [doc-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
