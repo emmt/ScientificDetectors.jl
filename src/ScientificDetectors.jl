@@ -26,6 +26,11 @@ include("calibration.jl")
 import .Calibration: ReducedCalibration
 
 include("preprocessing.jl")
-import .Preprocessing: PreprocessingParameters
+import .Preprocessing:
+    IndependentIdenticallyDistributedNoise,
+    NoiseModel,
+    PreprocessingParameters,
+    RealisticNoise,
+    StaticNoise
 
 end # module

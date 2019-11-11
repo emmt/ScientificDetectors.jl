@@ -4,6 +4,13 @@ import ..ScientificDetectors: ReducedCalibration, process, process!
 
 using ArrayTools
 
+abstract type NoiseModel end
+struct RealisticNoise <: NoiseModel end
+struct IndependentIdenticallyDistributedNoise <: NoiseModel end
+struct StaticNoise <: NoiseModel end
+
+const DEFAULT_NOISE_MODEL = RealisticNoise()
+
 """
 
 `ScientificDetectors.PreprocessingParameters{T}` stores the pre-processing
@@ -239,12 +246,10 @@ Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters{T}) where {T} = ob
 Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =
     PreprocessingParameters{T}(obj)
 
-const DEFAULT_NOISE_MODEL = Val(:realistic)
-
 """
 
 ```julia
-ScientificDetectors.process(prm, raw, noise=Val(:realistic)) -> wgt, dat
+ScientificDetectors.process(prm, raw, noise=RealisticNoise()) -> wgt, dat
 ```
 
 yields a tuple of 2 arrays, `(wgt,dat)`, where `dat` gives the pixel values
@@ -278,10 +283,11 @@ See also: [`ScientificDetectors.calibrate`](@ref).
 """
 function process(prm::PreprocessingParameters{T,N},
                  raw::AbstractArray{<:Real,N},
-                 noise::Val = DEFAULT_NOISE_MODEL) where {T<:AbstractFloat,N}
+                 noisemodel::NoiseModel =
+                 DEFAULT_NOISE_MODEL) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     return process!(Array{T,N}(undef, dims), Array{T,N}(undef, dims),
-                    prm, raw, noise)
+                    prm, raw, noisemodel)
 end
 
 function process!(wgt::AbstractArray, dat::AbstractArray,
@@ -293,77 +299,181 @@ function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
                   raw::AbstractArray{<:Real,N},
-                  ::Val{:iid}) where {T<:AbstractFloat,N}
-    dims = dimensions(raw)
-    @assert dimensions(wgt) == dims
-    @assert dimensions(dat) == dims
-    a, b = prm.a, prm.b
-    @assert dimensions(a) == dims
-    @assert dimensions(b) == dims
-    @inbounds @simd for i in eachindex(raw, dat, a, b)
-        dat[i] = (T(raw[i]) - b[i])*a[i]
-    end
-    #@inbounds @simd for i in eachindex(wgt)
-    #    wgt[i] = one(T)
-    #end
-    fill!(wgt, one(T))
-    return wgt, dat
+                  ::IndependentIdenticallyDistributedNoise) where {T<:AbstractFloat,N}
+    # FIXME: _checkshape(....)
+    affinecorrection!(dat, prm.a, prm.b, raw)
+    iidweights!(wgt, dat, prm)
 end
 
 function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
                   raw::AbstractArray{<:Real,N},
-                  ::Val{:static}) where {T<:AbstractFloat,N}
-    dims = dimensions(raw)
-    @assert dimensions(wgt) == dims
-    @assert dimensions(dat) == dims
-    a, b, u = prm.a, prm.b, prm.u
-    @assert dimensions(a) == dims
-    @assert dimensions(b) == dims
-    @assert dimensions(u) == dims
-    @inbounds @simd for i in eachindex(raw, dat, a, b)
-        dat[i] = (T(raw[i]) - b[i])*a[i]
-    end
-    #@inbounds @simd for i in eachindex(wgt, u)
-    #    wgt[i] = u[i]
-    #end
-    copyto!(wgt, u)
-    return wgt, dat
+                  ::StaticNoise) where {T<:AbstractFloat,N}
+    # FIXME: _checkshape(....)
+    affinecorrection!(dat, prm, raw)
+    staticweights!(wgt, dat, prm)
 end
 
 function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
                   raw::AbstractArray{<:Real,N},
-                  ::Val{:realistic}) where {T<:AbstractFloat,N}
-    dims = dimensions(raw)
-    @assert dimensions(wgt) == dims
-    @assert dimensions(dat) == dims
-    a, b, u, v = prm.a, prm.b, prm.u, prm.v
-    @assert dimensions(a) == dims
-    @assert dimensions(b) == dims
-    @assert dimensions(u) == dims
-    @assert dimensions(v) == dims
-    if true
-        # Compute dat and wgt separately.
-        @inbounds @simd for i in eachindex(raw, dat, a, b)
-            dat[i] = (T(raw[i]) - b[i])*a[i]
-        end
-        @inbounds @simd for i in eachindex(wgt, dat, u, v)
-            wgt[i] = u[i]/(v[i] + max(dat[i], zero(T)))
-        end
-    else
-        # Compute dat and wgt jointly.
-        @inbounds @simd for i in eachindex(raw, wgt, dat, a, b, u, v)
-            d = (T(raw[i]) - b[i])*a[i]
-            dat[i] = d
-            wgt[i] = u[i]/(v[i] + max(d, zero(T)))
-        end
-    end
-    return wgt, dat
+                  ::RealisticNoise) where {T<:AbstractFloat,N}
+    affinecorrection!(dat, prm, raw)
+    realisticweights!(wgt, dat, prm)
 end
 
 @doc @doc(process) process!
+
+#
+# It is faster to compute the data and the weights separately.  So we provide 2
+# methods for that.
+#
+# Using Julia `@.` macro  yields a much slower code:
+#
+#     @. dat = (T(raw) - prm.b)*prm.a
+#     @. wgt = prm.u/(prm.v + max(dat, zero(T)))
+#
+
+"""
+
+```julia
+affinecorrection!(dat, prm, raw) -> dat
+```
+
+overwrites `dat` with the affine correction specified by the preprocessing
+parameters `prm` and applied to the detector data `raw`.
+
+```julia
+affinecorrection!(dat, a, b, raw) -> dat
+```
+
+does the same but the affine correction being specified by `a` and `b`.
+
+"""
+function affinecorrection!(dat::AbstractArray{T,N},
+                           prm::PreprocessingParameters{T,N},
+                           raw::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    affinecorrection!(dat, prm.a, prm.b, raw)
+end
+
+function affinecorrection!(dat::AbstractArray{T,N},
+                           a::AbstractArray{T,N},
+                           b::AbstractArray{T,N},
+                           raw::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    axes(dat) == axes(a) == axes(b) == axes(raw) || incompatible_indices()
+    @inbounds @simd for i in eachindex(dat, raw, a, b)
+        dat[i] = (T(raw[i]) - b[i])*a[i]
+    end
+    return dat
+end
+
+"""
+
+```julia
+realisticweights!(wgt, dat, prm) -> wgt, dat
+```
+
+overwrites `wgt` with realistic weights computed from the pre-processed data
+`dat` and using the preprocessing parameters `prm`.
+
+```julia
+realisticweights!(wgt, dat, u, v) -> wgt, dat
+```
+
+does the same with the preprocessing parameters specified by `u` and `v`.
+
+"""
+function realisticweights!(wgt::AbstractArray{T,N},
+                           dat::AbstractArray{T,N},
+                           prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
+    realisticweights!(wgt, dat, prm.u, prm.v)
+end
+
+function realisticweights!(wgt::AbstractArray{T,N},
+                           dat::AbstractArray{T,N},
+                           u::AbstractArray{T,N},
+                           v::AbstractArray{T,N}) where {T<:AbstractFloat,N}
+    axes(wgt) == axes(dat) == axes(u) == axes(v) || incompatible_indices()
+    @inbounds @simd for i in eachindex(wgt, dat, u, v)
+        wgt[i] = u[i]/(v[i] + max(dat[i], zero(T)))
+    end
+    return wgt, dat
+end
+
+"""
+
+```julia
+iidweights!(wgt, dat, args...) -> wgt, dat
+```
+
+overwrites `wgt` with weights corresponding to independentid
+enticallydistributed (i.i.d.) noise, that is fill `wgt` with ones.
+
+"""
+function iidweights!(wgt::AbstractArray{T,N},
+                     dat::AbstractArray{T,N},
+                     prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
+    iidweights!(wgt, dat, prm.u, prm.v)
+end
+
+function iidweights!(wgt::AbstractArray{T,N},
+                     dat::AbstractArray{T,N},
+                     u::AbstractArray{T,N},
+                     v::AbstractArray{T,N}) where {T<:AbstractFloat,N}
+    axes(wgt) == axes(dat) == axes(u) == axes(v) || incompatible_indices()
+    if false
+        @inbounds @simd for i in eachindex(wgt)
+            wgt[i] = one(T)
+        end
+    else
+        fill!(wgt, one(T))
+    end
+    return wgt, dat
+end
+
+"""
+
+```julia
+staticweights!(wgt, dat, prm) -> wgt, dat
+```
+
+overwrites `wgt` with static weights that only depend on the preprocessing
+parameters `prm` and do not depend on the pre-processed data `dat`.
+
+```julia
+staticweights!(wgt, dat, u, v) -> wgt, dat
+```
+
+does the same with the preprocessing parameters specified by `u` and `v`.
+
+"""
+function staticweights!(wgt::AbstractArray{T,N},
+                        dat::AbstractArray{T,N},
+                        prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
+    staticweights!(wgt, dat, prm.u, prm.v)
+end
+
+function staticweights!(wgt::AbstractArray{T,N},
+                        dat::AbstractArray{T,N},
+                        u::AbstractArray{T,N},
+                        v::AbstractArray{T,N}) where {T<:AbstractFloat,N}
+    axes(wgt) == axes(dat) == axes(u) == axes(v) || incompatible_indices()
+    if false
+        @inbounds @simd for i in eachindex(wgt, u)
+            wgt[i] = u[i]
+        end
+    else
+        copyto!(wgt, u)
+    end
+    return wgt, dat
+end
+
+@noinline incompatible_dimensions() =
+    throw(DimensionMismatch("incompatible dimensions"))
+
+@noinline incompatible_indices() =
+    throw(DimensionMismatch("incompatible indices"))
 
 end # module
