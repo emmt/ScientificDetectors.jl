@@ -49,8 +49,9 @@ Basic operations on `ScientificDetectors.ReducedCalibration` instance `obj`:
 ```julia
 size(obj)   # yields the dimensions of the detector
 size(obj,k) # yields the `k`-th dimension of the detector
+length(obj) # yields the number of elements of the detector
 eltype(obj) # yields the floating-point type of the calibration data
-T(obj)      # convert contents of `obj` to floating-point type `T`
+T.(obj)     # convert contents of `obj` to floating-point type `T`
 ```
 
 """
@@ -124,6 +125,25 @@ struct ReducedCalibration{T<:AbstractFloat,N}
         return new{T,N}(dims, xoff, yoff, xbin, ybin, a, z, g, s, c, cids)
     end
 end
+
+#
+# Outer constructors for ReducedCalibration structure.
+#
+
+# A constructor of an immutable structure can return its argument.
+ReducedCalibration(obj::ReducedCalibration) = obj
+ReducedCalibration{T}(obj::ReducedCalibration{T}) where {T} = obj
+ReducedCalibration{T,N}(obj::ReducedCalibration{T,N}) where {T,N} = obj
+ReducedCalibration{T,N}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
+    ReducedCalibration{T}(obj)
+ReducedCalibration{T}(obj::ReducedCalibration{<:Any,N}) where {T<:AbstractFloat,N} =
+    ReducedCalibration{T,N}(obj.dims, obj.xoff, obj.yoff, obj.xbin, obj.ybin,
+                            convert(Array{T,N}, obj.a),
+                            convert(Array{T,N}, obj.z),
+                            convert(Array{T,N}, obj.g),
+                            convert(Array{T,N}, obj.s),
+                            map(x -> convert(Array{T,N}, x), obj.c),
+                            obj.cids)
 
 function ReducedCalibration(a::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
@@ -231,29 +251,20 @@ function ReducedCalibration(::Type{T},
                                    a, z, g, s, c, cids)
 end
 
-
-
+#
 # Basic operations on ReducedCalibration structure.
-
+#
 Base.eltype(::ReducedCalibration{T}) where {T} = T
 Base.size(obj::ReducedCalibration) = obj.dims
 Base.size(obj::ReducedCalibration, k) = obj.dims[k]
+Base.length(obj::ReducedCalibration) = prod(size(obj))
 Base.convert(::Type{ReducedCalibration}, obj::ReducedCalibration) = obj
-Base.convert(::Type{ReducedCalibration{T}}, obj::ReducedCalibration) where {T} = T(obj)
+Base.convert(::Type{ReducedCalibration{T}}, obj::ReducedCalibration) where {T<:AbstractFloat} = T.(obj)
 
-for T in (:Float32, :Float64)
-    @eval begin
-        Base.$T(obj::ReducedCalibration{$T}) = obj
-        Base.$T(obj::ReducedCalibration{<:Any,N}) where {N} =
-            ReducedCalibration{$T,N}(obj.dims, obj.xoff, obj.yoff, obj.xbin, obj.ybin,
-                                     convert(Array{$T,N}, obj.a),
-                                     convert(Array{$T,N}, obj.z),
-                                     convert(Array{$T,N}, obj.g),
-                                     convert(Array{$T,N}, obj.s),
-                                     map(x -> convert(Array{$T,N}, x), obj.c),
-                                     obj.cids)
-    end
-end
+# Allow for `T.(obj)` to work with `T` a floating-point type.
+Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration{T}) where {T} = obj
+Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration) where {T<:AbstractFloat} =
+    ReducedCalibration{T}(obj)
 
 """
 

@@ -1,13 +1,13 @@
 # Julia package for working with scientific detectors
 
-`ScientificDetectors` is a  [Julia][julia-url] package for calibrating and pre-processing
-data from scientific detectors.
+`ScientificDetectors` is a [Julia][julia-url] package for calibrating and
+pre-processing data from scientific detectors.
 
 
 ## Installation
 
 `ScientificDetectors` is not yet an [official Julia package][julia-pkgs-url] so you
-have to clone the repository.  In Julia, hit the `]` key to switch to the
+have to clone its repository.  In Julia, hit the `]` key to switch to the
 package manager REPL (you should get a `... pkg>` prompt) and type:
 
 ```julia

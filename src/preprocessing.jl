@@ -53,8 +53,9 @@ Basic operations on `ScientificDetectors.PreprocessingParameters` instance
 ```julia
 size(obj)   # yields the dimensions of the detector
 size(obj,k) # yields the `k`-th dimension of the detector
+length(obj) # yields the number of elements of the detector
 eltype(obj) # yields the floating-point type of the preprocessing data
-T(obj)      # convert contents of `obj` to floating-point type `T`
+T.(obj)     # convert contents of `obj` to floating-point type `T`
 ```
 
 """
@@ -96,27 +97,21 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
     end
 end
 
-# Basic operations on PreprocessingParameters structure.
-
-Base.eltype(::PreprocessingParameters{T}) where {T} = T
-Base.size(obj::PreprocessingParameters) = obj.dims
-Base.size(obj::PreprocessingParameters, k) = obj.dims[k]
-Base.convert(::Type{PreprocessingParameters}, obj::PreprocessingParameters) = obj
-Base.convert(::Type{PreprocessingParameters{T}}, obj::PreprocessingParameters) where {T} = T(obj)
-
-for T in (:Float32, :Float64)
-    @eval begin
-        Base.$T(obj::PreprocessingParameters{$T}) = obj
-        Base.$T(obj::PreprocessingParameters{<:Any,N}) where {N} =
-            PreprocessingParameters(obj.dims,
-                                    convert(Array{$T,N}, obj.a),
-                                    convert(Array{$T,N}, obj.b),
-                                    convert(Array{$T,N}, obj.u),
-                                    convert(Array{$T,N}, obj.v))
-    end
-end
-
+#
 # Outer constructors for PreprocessingParameters structure.
+#
+
+# A constructor of an immutable structure can return its argument.
+PreprocessingParameters(obj::PreprocessingParameters) = obj
+PreprocessingParameters{T}(obj::PreprocessingParameters{T}) where {T} = obj
+PreprocessingParameters{T,N}(obj::PreprocessingParameters{T,N}) where {T,N} = obj
+PreprocessingParameters{T,N}(obj::PreprocessingParameters{<:Any,N}) where {T,N} =
+    PreprocessingParameters{T}(obj)
+PreprocessingParameters{T}(obj::PreprocessingParameters{<:Any,N}) where {T<:AbstractFloat,N} =
+    PreprocessingParameters(convert(Array{T,N}, obj.a),
+                            convert(Array{T,N}, obj.b),
+                            convert(Array{T,N}, obj.u),
+                            convert(Array{T,N}, obj.v))
 
 function PreprocessingParameters(args::AbstractArray{<:Real,N}...) where {N}
     # Stage 0: Check arguments.
@@ -229,6 +224,21 @@ function PreprocessingParameters(cal::ReducedCalibration{T,N},
     end
 end
 
+#
+# Basic operations on PreprocessingParameters structure.
+#
+Base.eltype(::PreprocessingParameters{T}) where {T} = T
+Base.size(obj::PreprocessingParameters) = obj.dims
+Base.size(obj::PreprocessingParameters, k) = obj.dims[k]
+Base.length(obj::PreprocessingParameters) = prod(size(obj))
+Base.convert(::Type{PreprocessingParameters}, obj::PreprocessingParameters) = obj
+Base.convert(::Type{PreprocessingParameters{T}}, obj::PreprocessingParameters) where {T<:AbstractFloat} = T.(obj)
+
+# Allow for `T.(obj)` to work with `T` a floating-point type.
+Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters{T}) where {T} = obj
+Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =
+    PreprocessingParameters{T}(obj)
+
 const DEFAULT_NOISE_MODEL = Val(:realistic)
 
 """
@@ -267,7 +277,7 @@ See also: [`ScientificDetectors.calibrate`](@ref).
 
 """
 function process(prm::PreprocessingParameters{T,N},
-                 raw::AbstractArray{<:Number,N},
+                 raw::AbstractArray{<:Real,N},
                  noise::Val = DEFAULT_NOISE_MODEL) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     return process!(Array{T,N}(undef, dims), Array{T,N}(undef, dims),
@@ -282,7 +292,7 @@ end
 function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
-                  raw::AbstractArray{<:Number,N},
+                  raw::AbstractArray{<:Real,N},
                   ::Val{:iid}) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     @assert dimensions(wgt) == dims
@@ -303,7 +313,7 @@ end
 function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
-                  raw::AbstractArray{<:Number,N},
+                  raw::AbstractArray{<:Real,N},
                   ::Val{:static}) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     @assert dimensions(wgt) == dims
@@ -325,7 +335,7 @@ end
 function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
-                  raw::AbstractArray{<:Number,N},
+                  raw::AbstractArray{<:Real,N},
                   ::Val{:realistic}) where {T<:AbstractFloat,N}
     dims = dimensions(raw)
     @assert dimensions(wgt) == dims
