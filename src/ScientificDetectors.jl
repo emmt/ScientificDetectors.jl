@@ -17,10 +17,11 @@ module ScientificDetectors
 export
     write!
 
+import EasyFITS: write!
+
 function calibrate end
 function process end
 function process! end
-function write! end
 
 include("calibration.jl")
 import .Calibration: ReducedCalibration

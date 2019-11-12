@@ -2,14 +2,15 @@ module Calibration
 
 import Base: read, write
 
-import ..ScientificDetectors: write!
-
 using Statistics, Printf
-using EasyFITS, ArrayTools
+using ArrayTools
+
+using EasyFITS
+using EasyFITS: exists, throw_file_already_exists
+import EasyFITS: write!, hduname
 
 # FIXME: add fitting of the smooth model
 
-const HDU_NAME_OF_REDUCED_CALIBRATION = "REDUCED-DETECTOR-CALIBRATION"
 const Colons{N} = NTuple{N,Colon}
 
 """
@@ -410,6 +411,8 @@ write!(path::AbstractString, calib::ReducedCalibration) =
 
 function write(path::AbstractString, calib::ReducedCalibration;
                overwrite::Bool=false, kwds...)
+    (overwrite == false && exists(path)) &&
+        throw_file_already_exists(path, "call `write!` or use `overwrite=true`")
     FitsIO(path, (overwrite ? "w!" : "w")) do io
         write(io, calib)
     end
@@ -431,10 +434,10 @@ function write(io::FitsIO, calib::ReducedCalibration{T,N}) where {T,N}
     end
 
     # Create FITS header.
+    name, vers = hduname(calib)
     hdr = FitsHeader(
-        HDUNAME  = (HDU_NAME_OF_REDUCED_CALIBRATION,
-                    "Reduced detector calibration"),
-        HDUVERS  = (1, "Version of this format"),
+        HDUNAME  = (name, "Reduced detector calibration"),
+        HDUVERS  = (vers, "Version of this format"),
         XOFFSET  = (calib.xoff, "Horizontal offset (in physical pixels)"),
         YOFFSET  = (calib.yoff, "Vertical offset (in physical pixels)"),
         XBINNING = (calib.xbin, "Horizontal binning (in physical pixels)"),
@@ -449,6 +452,9 @@ function write(io::FitsIO, calib::ReducedCalibration{T,N}) where {T,N}
     nothing
 end
 
+# Extend EasyFITS method to provide HDU name and revision number.
+hduname(::Type{<:ReducedCalibration}) = ("REDUCED-DETECTOR-CALIBRATION", 1)
+
 function read(::Type{T}, path::AbstractString) where {T<:ReducedCalibration}
     FitsIO(path, "r") do io
         return read(T, io)
@@ -457,8 +463,8 @@ end
 
 function read(::Type{T}, io::FitsIO) where {T<:ReducedCalibration}
     # Find HDU with calibration parameters.
-    k = findfirst(hdu -> read(String, hdu, "HDUNAME", nothing)
-                  == HDU_NAME_OF_REDUCED_CALIBRATION, io)
+    name, vers = hduname(T)
+    k = findfirst(hdu -> read(String, hdu, "HDUNAME", nothing) == name, io)
     k === nothing && error("no reduced detector calibration found")
     hdu = io[k]
     isa(hdu, FitsImageHDU) || error("unexpected non-IMAGE HDU")
@@ -474,11 +480,11 @@ end
 
 function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     # Check HDUNAME, HDUVERS and BITPIX.
-    name = read(String, hdu, "HDUNAME", "")
-    name == HDU_NAME_OF_REDUCED_CALIBRATION ||
-        error(string("unexpected HDUNAME \"", name, "\""))
-    vers = read(Int, hdu, "HDUVERS", 1)
-    vers == 1 || error(string("unsupported format revision ", vers))
+    name, vers = hduname(T)
+    cname = read(String, hdu, "HDUNAME", "")
+    cname == name || error(string("unexpected HDUNAME \"", cname, "\""))
+    cvers = read(Int, hdu, "HDUVERS", 1)
+    cvers == vers || error(string("unsupported format revision ", cvers))
     bitpix = read(Int, hdu, "BITPIX")
     bitpix == -32 || bitpix == -64 ||
         @warn("To avoid loss of precision, save reduced calibration data "*
@@ -522,8 +528,5 @@ end
 
 @noinline dimension_mismatch(mesg::AbstractString) =
     throw(DimensionMismatch(mesg))
-
-@noinline file_already_exists(filename::AbstractString) =
-    error("file \"$filename\" already exists (consider using `write!`)")
 
 end # module
