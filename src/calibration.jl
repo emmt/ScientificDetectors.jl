@@ -418,7 +418,11 @@ function write(path::AbstractString, calib::ReducedCalibration;
     end
 end
 
-function write(io::FitsIO, calib::ReducedCalibration{T,N}) where {T,N}
+write(io::FitsIO, calib::ReducedCalibration{T,N}; kwds...) =
+    write(io, calib, FitsHeader(; kwds...))
+
+function write(io::FitsIO, calib::ReducedCalibration{T,N},
+               hdr::FitsHeader) where {T,N}
 
     # Create data array.
     dims = size(calib)
@@ -435,14 +439,12 @@ function write(io::FitsIO, calib::ReducedCalibration{T,N}) where {T,N}
 
     # Create FITS header.
     name, vers = hduname(calib)
-    hdr = FitsHeader(
-        HDUNAME  = (name, "Reduced detector calibration"),
-        HDUVERS  = (vers, "Version of this format"),
-        XOFFSET  = (calib.xoff, "Horizontal offset (in physical pixels)"),
-        YOFFSET  = (calib.yoff, "Vertical offset (in physical pixels)"),
-        XBINNING = (calib.xbin, "Horizontal binning (in physical pixels)"),
-        YBINNING = (calib.ybin, "Vertical binning (in physical pixels)")
-    )
+    hdr.HDUNAME  = (name, "Reduced detector calibration")
+    hdr.HDUVERS  = (vers, "Version of this format")
+    hdr.XOFFSET  = (calib.xoff, "Horizontal offset (in physical pixels)")
+    hdr.YOFFSET  = (calib.yoff, "Vertical offset (in physical pixels)")
+    hdr.XBINNING = (calib.xbin, "Horizontal binning (in physical pixels)")
+    hdr.YBINNING = (calib.ybin, "Vertical binning (in physical pixels)")
     for k in eachindex(calib.cids)
         hdr[string("CALIB",k)] = calib.cids[k]
     end
