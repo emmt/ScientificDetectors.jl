@@ -11,13 +11,13 @@ have to clone its repository.  In Julia, hit the `]` key to switch to the
 package manager REPL (you should get a `... pkg>` prompt) and type:
 
 ```julia
-pkg> add https://github.com/emmt/ScientificDetectors.jl
+pkg> add https://git-cral.univ-lyon1.fr/emmt/scientificdetectors.git
 ```
 
 if you use HTTPS, or:
 
 ```julia
-pkg> add git@github.com:emmt/ScientificDetectors.jl
+pkg> add git@git-cral.univ-lyon1.fr:emmt/scientificdetectors.git
 ```
 
 if you use SSH.
