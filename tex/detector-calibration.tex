@@ -976,7 +976,7 @@ with $\V\theta_j = \Paren[\big]{z_j, \V c_j, g_j, u_j}$ and:
 \begin{equation}
   \varphi_j(\V\theta_j) = \sum_{k,\ell} \Paren*{
     g_j\,\frac{
-      \Paren*{d_{j,k,\ell} - c_{j,\ell}\,\Delta t_{k,\ell} + z_j}^2
+      \Paren*{d_{j,k,\ell} - c_{j,\ell}\,\Delta t_{k,\ell} - z_j}^2
     }{
       c_{j,\ell}\,\Delta t_{k,\ell} + u_j
     }
@@ -996,7 +996,7 @@ with:
 \begin{align}
   \psi_j(\V c, u)
   &= \sum_{k,\ell} g^+_j(\V c, u)\,\frac{
-    \Paren*{d_{j,k,\ell} - c_{\ell}\,\Delta t_{k,\ell} + z^+_j(\V c, u)}^2
+    \Paren*{d_{j,k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+_j(\V c, u)}^2
   }{
     c_{\ell}\,\Delta t_{k,\ell} + u
   } \notag\\
@@ -1012,7 +1012,7 @@ BOBYQA or VMLMB. To simplify the equations, we introduce the \emph{residuals}
 and the precision (divided by the gain):
 \begin{align}
   x_{j,k,\ell}(\V c, u)
-  &= d_{j,k,\ell} - c_{\ell}\,\Delta t_{k,\ell} + z^+_j(\V c, u) \,, \\
+  &= d_{j,k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+_j(\V c, u) \,, \\
   w_{k,\ell}(\V c, u)
   &= \Paren*{c_{\ell}\,\Delta t_{k,\ell} + u}^{-1}\,,
 \end{align}
