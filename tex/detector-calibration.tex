@@ -995,7 +995,7 @@ jointly minimized in $z_j$ and $g_j$ so the problem reduces to:
 with:
 \begin{align}
   \psi_j(\V c, u)
-  &= \sum_{k,\ell} g^+_j(\V c, u)\,\frac{
+  &= g^+_j(\V c, u)\,\sum_{k,\ell} \frac{
     \Paren*{d_{j,k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+_j(\V c, u)}^2
   }{
     c_{\ell}\,\Delta t_{k,\ell} + u
@@ -1005,6 +1005,7 @@ with:
 \end{align}
 with $n$ the number of terms in $\sum_{k,\ell}$.
 
+\paragraph{Non-linear optimization}
 There is no closed form for the minimum of $\psi_j(\V c, u)$, but starting from
 some initial guess, $\psi_j(\V c, u)$ can be minimized by a nonlinear
 multi-dimensional optimization algorithm implementing bound constraints, \eg
@@ -1110,9 +1111,97 @@ the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 %  } \, .
 %\end{equation}
 
-
+\paragraph{Iterative Reweighted Least Squares}
 Another possibility would be to use an Iterative Reweighted Least Squares 
 (IRLS) method.
+
+\paragraph{Initial solution} Whatever the chosen non-linear optimization
+method, the problem being non-convex, providing a starting point not too far
+from the solution is an important point. We note that if the bias $z_j$ and
+$\tau_{j,\ell} = u/c_{j,\ell} > 0$ are assumed known, the \emph{current} terms
+$c_{j,\ell}$ are solutions of simple independent linear least squares problems:
+\begin{align}
+  c^+_{j,\ell}(z,\tau)
+  &= \argmin_{{j,\ell}}\phi(\V\theta)
+  \quad\text{s.t.\ $u = \tau\,c_{j,\ell}$}\quad \notag\\
+  &= \argmin_{c}\sum_{k} \frac{
+    \Paren*{d_{j,k,\ell} - c\,\Delta t_{k,\ell} -  z}^2
+  }{
+    \Delta t_{k,\ell} + \tau
+  } \notag\\
+  &= \frac{
+    \sum_{k} \frac{
+      \Paren*{d_{j,k,\ell} - z}\,\Delta t_{k,\ell}
+    }{
+      \Delta t_{k,\ell} + \tau
+    }
+  }{
+    \sum_{k} \frac{\Delta t_{k,\ell}^2}{\Delta t_{k,\ell} + \tau}
+  } \,.
+  \label{eq:simple-c}
+\end{align}
+In practice, we choose the initial estimation of the bias for a given pixel $j$
+to be the least pixel value for all frames:
+\begin{equation}
+  z\Iter0_j = \min_{k,\ell} d_{j,k,\ell} \,.
+  \label{eq:initial-bias}
+\end{equation}
+We further impose impose that $\tau_{j,\ell} = \tau$ be the same for all kinds
+of illuminations $\ell$ and for all pixels $j$ and negligible compared to all
+non-zero exposure times:
+\begin{equation}
+  \tau = \varepsilon_1\,
+  \min_{\substack{
+      k,\ell\\
+      \Delta t_{k,\ell} > 0
+  }} \Delta t_{k,\ell} \,,
+  \label{eq:tau}
+\end{equation}
+where  $\varepsilon_1 > 0$ is a small factor, and then choose the initial
+\emph{current} terms according to Eq.~\eqref{eq:simple-c}:
+\begin{equation}
+  c\Iter0_{j,\ell} = c^+_{j,\ell}\Paren[\big]{z\Iter0,\tau}
+  = \frac{
+    \sum_{k} \frac{
+      \Paren*{d_{j,k,\ell} - z\Iter0}\,\Delta t_{k,\ell}
+    }{
+      \Delta t_{k,\ell} + \tau
+    }
+  }{
+    \sum_{k} \frac{\Delta t_{k,\ell}^2}{\Delta t_{k,\ell} + \tau}
+  }\,.
+  \label{eq:initial-c}
+\end{equation}
+To select the initial value $u_j\Iter0$ of $u_{j}$, we assume that the readout
+noise is small for most cases and take the initial value to be the least
+nonzero value of $c_{j,\ell}\Iter0\,\Delta t_{k,\ell}$ times a small factor
+$\varepsilon_2 > 0$:
+\begin{equation}
+  u_j\Iter0 = \varepsilon_2 \,
+  \min_{\substack{
+      k,\ell\\
+      c_{j,\ell}\Iter0\,\Delta t_{k,\ell} > 0
+  }} c_{j,\ell}\Iter0\,\Delta t_{k,\ell} \,.
+  \label{eq:initial-u}
+\end{equation}  
+This choice ensures that $u_j\Iter0 > 0$.  Finally the initial estimate of the 
+pixelwise gain is given by Eq.~\eqref{eq:best-gain} but using the initial bias
+instead of the best bias given $\V c\Iter0_j$ and $u\Iter0_j$:
+\begin{equation}
+  g\Iter0_j = \Avg*{
+    \frac{
+      \Paren[\big]{
+        d_{j,k,\ell} -c\Iter0_{j,\ell}\,\Delta t_{k,\ell} - z\Iter0_j
+      }^2
+    }{
+      c\Iter0_{j,\ell}\,\Delta t_{k,\ell} + u\Iter0_j
+    }
+  }_{\!\!k,\ell}^{-1} \, .
+  \label{eq:initial-gain}
+\end{equation}
+Thus the initial solution is determined by the choice of two small positive 
+constants.  In practice, we take $\varepsilon_1 = \varepsilon_2 = 1/10$.
+
 
 
 \oops{Below is certainly rubbish until next section}
