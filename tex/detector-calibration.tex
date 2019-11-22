@@ -7,7 +7,7 @@
 
 
 \newcommand*{\Title}{Notes about detector calibration}
-\newcommand*{\Authors}{Éric Thiébaut}
+\newcommand*{\Authors}{Éric Thiébaut et al.}
 
 
 \usepackage{lmodern}
@@ -850,11 +850,11 @@ for parameters:
   \V\theta_{j,\ell} = \Paren*{z_j, c_{j,\ell}, g_j, \sigma_j} \, .
 \end{equation}
 
-The readout noise accounts for all detector noises, including the digitization
-errors.  Hence assuming rounding to the nearest ADU yields $\sigma_j ≥
-1/\sqrt{12}$.  Other constraints are $c_{j,\ell} ≥ 0$ and $g_j > 0$ because the
-incident light level and the dark current are nonnegative and the gain is
-strictly positive.
+The readout noise $\sigma_j$ accounts for all detector noises, including the
+digitization errors.  Hence assuming rounding to the nearest ADU yields
+$\sigma_j ≥ 1/\sqrt{12}$.  Other constraints are $c_{j,\ell} ≥ 0$ and $g_j > 0$
+because the incident light level and the dark current are nonnegative and the
+gain is strictly positive.
 
 In spite of the fact that it is separable in pixels, the maximum likelihood
 criterion is not trivial to jointly minimize in all the parameters accounting
@@ -882,11 +882,11 @@ and the maximum likelihood criterion becomes:
     + \log\Paren*{c_{j,\ell}\,\Delta t_{k,\ell} + u_j} - \log g_j
   } \,.
 \end{equation}
-This expression is trivial to minimize with respect to the bias $z_j$ leading
-to the maximum likelihood estimator of the bias knowing the other parameters.
-Introducing $\V c_j = \Paren*{c_{j,\ell}}_{\ell=1}^L$ with $L$ the number of
-considered illuminations, the maximum likelihood estimator of the bias knowing
-the other parameters is given by:
+This expression is straightforward to minimize with respect to the bias $z_j$
+leading to the maximum likelihood estimator of the bias knowing the other
+parameters. Introducing $\V c_j = \Paren*{c_{j,\ell}}_{\ell=1}^L$ with $L$ the
+number of considered illuminations, the maximum likelihood estimator of the
+bias knowing the other parameters is given by:
 \begin{align*}
   z^+_j(\V c_j, u_j)
   &\bydef \argmin_{z_j} \phi(\V\theta) \notag\\
@@ -1007,7 +1007,7 @@ with $n$ the number of terms in $\sum_{k,\ell}$.
 
 There is no closed form for the minimum of $\psi_j(\V c, u)$, but starting from
 some initial guess, $\psi_j(\V c, u)$ can be minimized by a nonlinear
-multi-dimensional minimization algorithm implementing bound constraints, \eg
+multi-dimensional optimization algorithm implementing bound constraints, \eg
 BOBYQA or VMLMB. To simplify the equations, we introduce the \emph{residuals}
 and the precision (divided by the gain):
 \begin{align}
@@ -1019,20 +1019,20 @@ and the precision (divided by the gain):
 so that:
 \begin{equation}
   \psi_j(\V c, u) = \sum_{k,\ell} \Paren*{
-    g^+_j(\V c, u)\,w_{k,\ell}(\V c, u)\,x_{j,k,\ell}^2(\V c, u)
-   - \log g^+_j(\V c, u) - \log w_{k,\ell}(\V c, u)
- } \, .
+    g^+_j\,w_{k,\ell}\,x_{j,k,\ell}^2 - \log g^+_j - \log w_{k,\ell}
+ } \, ,
 \end{equation}
-The partial derivatives of the criterion are needed by VMLMB:
+where the dependency of all the terms of the right hand side with $\V c$ and
+$u$ is implicitly assumed to simplify the expression. The partial derivatives
+of the criterion are needed by VMLMB. After simplification, one can obtain:
 \begin{align}
   \PDer{\psi(\V c, u)}{c_{\ell}}
-  &=\sum_{k} w_{k,\ell}(\V c, u)\,\Paren*{
-    1 - g^+_j(\V c, u)\,\,x_{j,k,\ell}(\V c, u)\,
-    \Paren*{2 + w_{k,\ell}(\V c, u)\,x_{j,k,\ell}(\V c, u)}
+  &=\sum_{k} w_{k,\ell}\,\Paren*{
+    1 - g^+_j\,\,x_{j,k,\ell}\,\Paren*{2 + w_{k,\ell}\,x_{j,k,\ell}}
   }\,\Delta t_{k,\ell} \,,\\
   \PDer{\psi(\V c, u)}{u}
-  &= \sum_{k,\ell} w_{k,\ell}(\V c, u)\,\Paren*{
-    1 - g^+_j(\V c, u)\,w_{k,\ell}(\V c, u) \, x_{j,k,\ell}^2(\V c, u)
+  &= \sum_{k,\ell} w_{k,\ell}\,\Paren*{
+    1 - g^+_j\,w_{k,\ell} \, x_{j,k,\ell}^2
   } \,.
 \end{align}
 To obtain these expressions one has to account for the fact that $z^+_j(\V c,
@@ -1040,21 +1040,36 @@ u)$ and $g^+_j(\V c, u)$ minimize $\varphi_j(z_j,\V c, g_j,u)$ given $\V c$ and
 $u$.
 
 To speedup iterations, a diagonal preconditioner can be implemented using the
-following approximations for the second derivatives: \oops{CHECK!!!}
+following approximations for the second derivatives:
 \begin{align}
   \PDer{^2\psi(\V c, u)}{c_{\ell}^2}
-  &= \sum_{k} w_{k,\ell}\,\Paren*{
-    2\,g^+_j\,\Paren*{1 + w_{k,\ell}\,x_{j,k,\ell}}^2 - w_{k,\ell}
-  }\,\Delta t_{k,\ell}^2 \notag\\
-  &\approx \sum_{k} w_{k,\ell}\,\Paren*{2\,g^+_j + w_{k,\ell}}
-  \,\Delta t_{k,\ell}^2 \,,\\
+  &= 2\,g^+_j\,\sum_{k} w_{k,\ell}\,
+    \Paren*{1 + w_{k,\ell}\,x_{j,k,\ell}}^2\,\Delta t_{k,\ell}^2
+    - \sum_{k} w_{k,\ell}^2\,\Delta t_{k,\ell}^2
+  \notag\\
+  &\quad - \PDer{g^+_j}{c_\ell}\,\sum_{k} w_{k,\ell}\,x_{j,k,\ell}\,
+  \Paren*{2 + w_{k,\ell}\,x_{j,k,\ell}}\,\Delta t_{k,\ell}
+  \notag\\
+  &\quad + 2\,g^+_j\,\sum_{k} w_{k,\ell}\,\Paren*{
+    1 + w_{k,\ell}\,x_{j,k,\ell}
+  }\,\Delta t_{k,\ell}\,\PDer{z^+_j}{c_\ell}
+  \notag\\
+  &\oops{
+    \approx \sum_{k} w_{k,\ell}\,\Paren*{2\,g^+_j + w_{k,\ell}}
+    \,\Delta t_{k,\ell}^2
+  } \,,\\
+  %
   \PDer{^2\psi(\V c, u)}{u^2}
-  &= \sum_{k,\ell} w_{k,\ell}^2\,\Paren*{
-    2\,g^+_j\,w_{k,\ell}\,x_{j,k,\ell}^2 - 1
-  } - w\,\PDer{g^+_j(\V c, u)}{u}\notag\\
-  &\approx \sum_{k,\ell} w_{k,\ell}^2 \,,
+  &= 2\,g^+_j\,\sum_{k,\ell} w_{k,\ell}^3\,x_{j,k,\ell}^2
+   - \sum_{k,\ell} w_{k,\ell}^2
+  \notag\\
+  &\quad - \PDer{g^+_j}{u}\,\sum_{k,\ell} w_{k,\ell}^2\,x_{j,k,\ell}^2
+  \notag\\
+  &\quad+ 2\,g^+_j\,\sum_{k,\ell} w_{k,\ell}^2\,x_{j,k,\ell}\,\PDer{z^+_j}{u}
+  \notag\\
+  &\oops{\approx \sum_{k,\ell} w_{k,\ell}^2} \,,
 \end{align}
-where the two approximations comes from the following approximate and exact
+where the two approximations follows from the following approximate and exact
 averaged values:
 \begin{align*}
   \Avg[\big]{w_{k,\ell}(\V c, u)\,x_{j,k,\ell}(\V c, u)}_{k}
@@ -1063,7 +1078,7 @@ averaged values:
     x_{j,\ell}^2(\V c, u)}_{k,\ell} 
   &= 1\,,
 \end{align*}
-the latter coming from Eq.~\eqref{eq:best-gain}.
+the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 
 %We therefore drop the pixel index $j$ in what follows for the sake of
 %simplicity and attempt to solve:
