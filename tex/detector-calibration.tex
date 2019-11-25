@@ -11,8 +11,9 @@
 
 
 \usepackage{lmodern}
-\DeclareUnicodeCharacter{2264}{\le} % ≤
-\DeclareUnicodeCharacter{2265}{\ge} % ≥
+\DeclareUnicodeCharacter{00B5}{\ensuremath{\mu}} % µ
+\DeclareUnicodeCharacter{2264}{\ensuremath{\le}} % ≤
+\DeclareUnicodeCharacter{2265}{\ensuremath{\ge}} % ≥
 \DeclareUnicodeCharacter{22C5}{\!\cdot\!}
 
 %\newcommand*{\DeleteColor}{\color{orange}}
@@ -34,6 +35,7 @@
 \graphicspath{{figs/}}
 
 \usepackage{amsmath,amsfonts,amssymb}
+\usepackage{amsthm}
 \usepackage{mathtools}
 \usepackage[authoryear,round,semicolon]{natbib}
 \usepackage[left=25mm, right=25mm, top=25mm, bottom=25mm,columnsep=8mm]{geometry}
@@ -221,6 +223,8 @@
 \newcommand{\TwoByTwoMatrix}[4]{\Matrix{cc}{#1 & #2 \\ #3 & #4 \\}}
 \newcommand{\TwoByTwoSymmetricMatrix}[3]{\TwoByTwoMatrix{#1}{#3}{#3}{#2}}
 
+\newcommand*{\smallfrac}[2]{\ensuremath{\textstyle\frac{#1}{#2}}}
+
 %\newcommand*{\One}{1\hspace*{-0.8ex}1}
 %\newcommand*{\Zero}{0\hspace*{-0.8ex}0}
 %\newcommand*{\One}{\mathbbm{1}}
@@ -229,6 +233,16 @@
 \newcommand*{\Zero}{\mathds{O}}
 %\newcommand*{\Zero}{\V 0}
 %\newcommand*{\One}{\V 1}
+
+% Macros to add a bit of spacing around text in equations.
+%    \TextSpace     = insert some amount of spacing
+%    \MidText{text} = insert text in the middle of equations
+%    \EndText{text} = insert text at the end of an equation
+%    \BegText{text} = insert text at the beginning of an equation
+\newcommand*{\TextSpace}{\mspace{12mu}}
+\newcommand*{\MidText}[1]{\TextSpace\text{#1}\TextSpace}
+\newcommand*{\EndText}[1]{\TextSpace\text{#1}}
+\newcommand*{\BegText}[1]{\text{#1}\TextSpace}
 
 %------------------------------------------------------------------------------
 % Ref: Alexander R. Perlis., "A complement to \smash, \llap, and \rlap,"
@@ -251,6 +265,24 @@
 \newcommand{\CodeBlock}[1]{\begin{array}{l}#1\end{array}}
 \newcommand{\FloorBlock}[1]{\left\lfloor\CodeBlock{#1}\right.}
 \newcommand{\VertBlock}[1]{\left\lvert\CodeBlock{#1}\right.}
+
+
+%---------------------------------------------------------THEOREM ENVIRONMENTS -
+
+\theoremstyle{plain} %% This is the default, anyway
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\newtheorem{example}{Example}
+\newtheorem{notation}{Notation}
+\newtheorem{terminology}[notation]{Terminology}
 
 %------------------------------------------------------------------- NOTATIONS -
 
@@ -339,6 +371,123 @@ perturbations than rounding errors and shot noise ($n_j$ is a random variable
 with Poissonian distribution).  Other possible of errors or noise are: the
 cross-talk between close pixels, electrons loss/gain during the charge transfer
 (for charge coupled devices, CCD, or EMCCD).
+
+\begin{figure}
+\centering
+\includegraphics[width=120mm]{figs/means}
+
+\caption{Difference between the mean of the detector signal and $\mu/g$ for
+various fluxes $\mu$ and gains $g$ (the offset is $z = 0$). \label{fig:means}}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=120mm]{figs/variances}
+
+\caption{Difference between the variance of the detector signal and $\mu/g^2$ for
+various fluxes $\mu$ and gains $g$ (the offset is zero). \label{fig:variances}}
+\end{figure}
+
+The number of electrons $n$ follows a Poissonian distribution of parameter $\mu
+= \Expect{n}$ the mean number of electrons.  Then, assuming $\Round{\ldots}$
+denotes rounding to the nearest integer\footnote{a different assumption is
+equivalent to change the offset $z$} toward zero, the detector value $d$
+implies for the actual number $n$ of electrons to be such that:
+\begin{align}
+   d = \Round*{n/g + z}\quad
+   &\Longleftrightarrow\quad
+   \Paren*{d - z - \smallfrac12}\,g ≤ n < \Paren*{d - z + \smallfrac12}\,g
+   \quad\text{and}\quad n \in \Set{N} \notag\\
+   &\Longleftrightarrow\quad
+    n_\Tag{inf}(d) ≤ n ≤ n_\Tag{sup}(d)
+\end{align}
+where $n_\Tag{inf}(d)$ and $n_\Tag{sup}(d)$ are two integer valued functions of
+$d$ (for given gain $g$ and offset $z$) given by:
+\begin{align}
+   n_\Tag{inf}(d)&= \max\Paren*{0, \Ceil*{\Paren*{d - z - \smallfrac12}\,g}} \,,\\
+   n_\Tag{sup}(d)&= \max\Paren*{0, \Ceil*{\Paren*{d - z + \smallfrac12}\,g} - 1} \,,
+\end{align}
+with $\Ceil{\ldots}$ the ceil function (see
+Appendix~\ref{sec:floor-ceil-functions}). The probability of getting a value
+$g$ knowing the mean number of electrons is:
+\begin{align}
+  \Pr\Paren*{d \Given \mu} = \mathe^{-\mu} \,\sum_{n = n_\Tag{inf}(d)}^{n_\Tag{sup}(d)}
+  \frac{\mu^n}{n!}
+  \label{eq:pdf-detector-model}
+\end{align}
+where the sum is equal to zero if $n_\Tag{sup}(d) < n_\Tag{inf}(d)$. 
+Figure~\ref{fig:histograms} shows this probability as a function of $d$ for
+$\mu = 200$, $g = 3.2$ and $z = 0$.  
+
+The mean number of levels that yield a given sensor value $d$ is equal to the
+gain $g$ but the exact number of levels which (neglecting saturation) is given
+by:
+\begin{equation}
+  n_\Tag{lev}(d)
+  = \max\Paren*{n_\Tag{sup}(d) - n_\Tag{inf}(d) + 1,0}
+\end{equation}
+is variable. The uneven number of electrons that yield a given number of ADU's
+leads to irregular distributions show by Fig.~\ref{fig:histograms} unless the
+gain $g$ is integer.  Approximating the sum in Eq.~\eqref{eq:pdf-detector-model} by
+the mean number of terms (that is $g$) times the median value of the terms yields:
+\begin{align}
+  \Pr\Paren*{d \Given \mu}
+  \approx \frac{g\,\mathe^{-\mu}\,\mu^{(d - z)\,g}}{\Gamma\Paren*{(d - z)\,g + 1}}
+  \label{eq:pdf-detector-approx}
+\end{align}
+not accounting for saturation.
+
+The mean and variance of the measured number of ADU are given by:
+\begin{align}
+  \Expect*{d \Given \mu}
+  &= \sum_d d\,\Pr\Paren*{d \Given \mu} \, ,
+  \label{eq:exact-detector-mean}
+  \\
+  \Var*{d \Given \mu}
+  &= \sum_d \Paren*{d - \Expect*{d \Given \mu}}^2\,\Pr\Paren*{d \Given \mu} \, .
+  \label{eq:exact-detector-variance}
+\end{align}
+There are no closed form expressions for these quantities. Without the rounding
+errors due to conversion to an integer number of ADU, the expectation and
+variance of the signal are given by:
+\begin{align}
+  \Expect*{n/g + z \Given \mu}
+  &= \mu/g + z \, ,
+  \label{eq:detector-mean-with-no-rounding-errors}
+   \\
+  \Var*{n/g + z \Given \mu} &= \mu/g^2 \, .
+  \label{eq:detector-variance-with-no-rounding-errors}
+\end{align}
+Figures~\ref{fig:means} and \ref{fig:variances} plot the differences between
+the mean and variance accounting and not accounting for rounding errors, that
+is between Eq.~\eqref{eq:exact-detector-mean} and
+Eq.~\eqref{eq:detector-mean-with-no-rounding-errors} for Fig.~\ref{fig:means}
+and between Eq.~\eqref{eq:exact-detector-variance} and
+Eq.~\eqref{eq:detector-variance-with-no-rounding-errors} for
+Fig.~\ref{fig:variances}.  Clearly there is a vanishing bias for the estimation
+of the mean given by Eq.~\eqref{eq:detector-mean-with-no-rounding-errors}
+while, except for $g=1$ (the photon-counting case), there is a constant bias
+for the variance given by
+Eq.~\eqref{eq:detector-variance-with-no-rounding-errors}.  The variance bias
+can be approximately estimated if one assume that rounding errors uniformly are
+distributed on the range $[-\smallfrac12,+\smallfrac12]$.  Under this
+assumption, the variance due to rounding errors is:
+\begin{equation}
+   \int_{-\smallfrac12}^{+\smallfrac12}u ^2\,\mathd u = \frac{1}{12}
+   \simeq 0.083 \, \text{ADU}^2\, ,
+\end{equation}
+which is a good approximation of the variance bias in Fig.~\ref{fig:variances},
+again except for the unit gain case.
+ 
+\begin{figure}
+\centering
+\includegraphics[width=120mm]{figs/histograms}
+
+\caption{Distributions of probabilities of the detector levels for a mean number of electrons $\mu = 200$ and variable gains $g \sim 3$. The offsets $z$ have been chosen to separate the different distributions. \label{fig:histograms}}
+\end{figure}
+
+
+\subsection{Assumed Statistical Model}
 
 If no saturation or other defects occur, the mean value of $n_j/g_j$ in the
 $j$-th pixel is proportional to the exposure time $\Delta t$ and can be
@@ -1577,10 +1726,11 @@ The probability of all the events is given by the multinomial law:
   = \frac{\Paren*{\sum_{i=1}^{m} n_i}!}{\prod_{i=1}^{m} n_i!}\,
   \prod_{i=1}^{m} p_i^{n_i} \, ,
 \end{equation}
-where $m$ is the number of bins, $n_i$ is the number of events occurring in the $i$-th bin and $p_i$ is the probability of occurrence in this bin.
+where $m$ is the number of bins, $n_i$ is the number of events occurring in the
+$i$-th bin and $p_i$ is the probability of occurrence in this bin.
 
-The maximum likelihood estimator $\estim{\V\theta}$ of the parameters $\V\theta$ of
-the distribution $p_i(\V\theta)$ is thus given by:
+The maximum likelihood estimator $\estim{\V\theta}$ of the parameters
+$\V\theta$ of the distribution $p_i(\V\theta)$ is thus given by:
 \begin{equation}
   \estim{\V\theta} =
   \argmax_{\V\theta} \sum_{i=1}^{m} n_i\,\log\Paren*{p_i(\V\theta)}
@@ -1592,6 +1742,84 @@ Approximation by a Gaussian distribution...
 
 \appendix
 
+\section{Floor and ceil functions}
+\label{sec:floor-ceil-functions}
+
+This appendix summarizes the definitions and properties of the floor and ceil
+functions. \oops{Add the rounding to the nearest integer function.}
+
+\begin{definition}[floor function]
+\label{def:floor}
+For any real $x$, the floor function $\Floor{x}$ yields the largest integer
+which is smaller or equal $x$:
+\begin{equation}
+  p = \Floor{x} \quad\Longleftrightarrow\quad
+  p \in \Integers \MidText{and} p ≤ x < p + 1
+  \label{eq:floor-definition}
+\end{equation}
+\end{definition}
+
+\begin{definition}[ceil function]
+\label{def:ceil}
+For any real $x$, the ceil function $\Ceil{x}$ yields the smallest integer
+which is greater or equal $x$:
+\begin{equation}
+  p = \Ceil{x} \quad\Longleftrightarrow\quad
+  p \in \Integers \MidText{and} p - 1 < x ≤ p
+  \label{eq:ceil-definition}
+\end{equation}
+\end{definition}
+
+\begin{proposition}
+\label{prop:ceil-floor}
+\begin{equation}
+  \forall x \in \Reals, \quad \Ceil{-x} = -\Floor{x} \,.
+  \label{eq:ceil-floor}
+\end{equation}
+\begin{proof}
+\begin{align*}
+  p = \Ceil{-x}
+  \quad\Longleftrightarrow\quad&
+  p \in \Integers \MidText{and} p - 1 < -x ≤ p \notag \\
+  \quad\Longleftrightarrow\quad&
+  p \in \Integers \MidText{and} -p ≤ x < 1 - p \notag \\
+  \quad\Longleftrightarrow\quad&
+  -p = \Floor{x}
+\end{align*}
+\end{proof}
+\end{proposition}
+
+\begin{proposition}
+\label{prop:greatest-integer-strictly-less-than}
+$p = \Ceil{x - 1}$ is the greatest integer $p \in \Integers$
+such that $p < x$.
+\begin{proof}
+\begin{align*}
+  &p \in \Integers \MidText{and} p < x ≤ p + 1 \notag \\
+  \Longleftrightarrow\quad
+  &p \in \Integers \MidText{and} p - 1 < x - 1 ≤ p \notag \\
+  \Longleftrightarrow\quad
+  &p = \Ceil{x - 1}
+\end{align*}
+\end{proof}
+\end{proposition}
+
+\begin{proposition}
+\label{prop:least-integer-strictly-greater-than}
+$p = \Floor{x + 1}$ is the least integer $p \in \Integers$
+such that $p > x$.
+\begin{proof}
+\begin{align*}
+  &p \in \Integers \MidText{and} p - 1 ≤ x < p \notag \\
+  \Longleftrightarrow\quad
+  &p \in \Integers \MidText{and} p ≤ x + 1 < p + 1 \notag \\
+  \Longleftrightarrow\quad
+  &p = \Floor{x + 1}
+\end{align*}
+\end{proof}
+\end{proposition}
+
+
 \section{File formats}
 
 \newcommand*{\FitsVariable}[1]{\text{\ttfamily\slshape#1}}
@@ -1601,7 +1829,7 @@ Approximation by a Gaussian distribution...
 
 This section describes the version 1 of a FITS file format to store reduced
 calibration data. The calibration data is stored in a FIT Image extension
-whose keyword \FitsKeyword{HDUNAME} is \FitsString{REDUCED\-DETECTOR\-CALIBRATION}. 
+whose keyword \FitsKeyword{HDUNAME} is \FitsString{REDUCED-DETECTOR-CALIBRATION}. 
 Using \FitsKeyword{HDUNAME} instead of \FitsKeyword{EXTNAME} is to allow
 for storing the reduced calibration data in the primary Header Data Unit
 (HDU) of the FITS file.
