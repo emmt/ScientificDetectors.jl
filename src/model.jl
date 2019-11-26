@@ -159,22 +159,39 @@ function plot_approximations(savefigs::Bool=false)
     end
 end
 
-function plot_biases(savefigs::Bool=false)
-    z = 0.0
-    x = 0:2000
+function plot_biases(; savefigs::Bool=false, averaging::Bool=true)
 
-    means = [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 300.0, 1000]
+    fluxes = exp.(range(0,7,length=41))
+    #fluxes = [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 300.0, 1000]
     gains = [1.0, 2.0, 2.3, 3.0, 3.2, 3.4, 5.0, 6.0, 7.0, 8.1]
 
-    res = Array{Float64}(undef, 2, length(means), length(gains))
+    res = Array{Float64}(undef, 2, length(fluxes), length(gains))
     for j in eachindex(gains)
         g = gains[j]
-        for i in eachindex(means)
-            µ = means[i]
-            y = pdf(x, µ, g, z)
-            m, v = stat(x, y)
-            res[1,i,j] = m
-            res[2,i,j] = v
+        for i in eachindex(fluxes)
+            µ = fluxes[i]
+            if averaging
+                Σm = 0.0
+                Σv = 0.0
+                n = 100
+                for k in 0:(n-1)
+                    z = k/n
+                    x = 0:ceil(Int, (µ/g + z) + 10*µ/g^2)
+                    y = pdf(x, µ, g, z)
+                    m, v = stat(x, y)
+                    Σm += m - z
+                    Σv += v
+                end
+                res[1,i,j] = Σm/n
+                res[2,i,j] = Σv/n
+            else
+                x = 0:ceil(Int,  (µ/g + z) + 10*µ/g^2)
+                z = 0.0
+                y = pdf(x, µ, g, z)
+                m, v = stat(x, y)
+                res[1,i,j] = m - z
+                res[2,i,j] = v
+            end
         end
     end
     if PLOTTING
@@ -183,7 +200,7 @@ function plot_biases(savefigs::Bool=false)
         for j in eachindex(gains)
             g = gains[j]
             q = 1/g
-            plt.plot(means, res[1,:,j] .- q.*means, label="gain = $g")
+            plt.plot(fluxes, res[1,:,j] .- q.*fluxes, label="gain = $g")
         end
         #plt.title("Mean of detector signal")
         plt.xlabel("Flux \$\\mu\$ (electrons)")
@@ -200,7 +217,7 @@ function plot_biases(savefigs::Bool=false)
         for j in eachindex(gains)
             g = gains[j]
             q = 1/g^2
-            plt.plot(means, res[2,:,j] .- q.*means, label="gain = $g")
+            plt.plot(fluxes, res[2,:,j] .- q.*fluxes, label="gain = $g")
         end
         #plt.title("Variance of detector signal")
         plt.xlabel("Flux \$\\mu\$ (electrons)")
