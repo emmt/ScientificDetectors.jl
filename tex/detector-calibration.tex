@@ -346,16 +346,16 @@ conversion in ADU introduces some rounding errors.
 \subsection{Simple statistical model}
 \label{sec:statistical-model}
 
-Let $n_j$ be the number of electrons transferred\footnote{electrons captured by
+Let $n$ be the number of electrons transferred\footnote{electrons captured by
 the pixel well plus the gains and minus the losses occurring during the
 transfer} by the $j$-th pixel to the analog to digital converter (ADC), then
 the digitized value is approximately given by:
 \begin{equation}
-  d_j \approx
-  \min\Paren*{\max\Paren*{0, \Round*{n_j/g_j + z_j}}, 2^{n_\Tag{bits}} - 1}
+  d \approx
+  \min\Paren*{\max\Paren*{0, \Round*{n/g + z}}, 2^{n_\Tag{bits}} - 1}
   \label{eq:conversion}
 \end{equation}
-where $g_j$ and $z_j$ are respectively the \emph{gain} and the \emph{bias} of
+where $g$ and $z$ are respectively the \emph{gain} and the \emph{bias} of
 the analog-digital converter and $n_\Tag{bits}$ is the number of bits to encode
 the output value.  The gain is in electrons per \emph{Analog-Digital Units}
 (ADU) while the bias is in ADU.  The symbol $\Round{⋅}$ denotes the conversion
@@ -367,7 +367,7 @@ Note that the upper clipping bound is due to the finite maximum value that can
 be represented for a digitized value, this is not the same thing as the
 saturation phenomenon which is due to the finite capacity of the pixel wells.
 The $\approx$ sign in Eq.~\eqref{eq:conversion} is to account for other random
-perturbations than rounding errors and shot noise ($n_j$ is a random variable
+perturbations than rounding errors and shot noise ($n$ is a random variable
 with Poissonian distribution).  Other possible of errors or noise are: the
 cross-talk between close pixels, electrons loss/gain during the charge transfer
 (for charge coupled devices, CCD, or EMCCD).
@@ -377,7 +377,8 @@ cross-talk between close pixels, electrons loss/gain during the charge transfer
 \includegraphics[width=120mm]{figs/means}
 
 \caption{Difference between the mean of the detector signal and $\mu/g$ for
-various fluxes $\mu$ and gains $g$ (the offset is $z = 0$). \label{fig:means}}
+various fluxes $\mu$ and gains $g$.  The curves have been averaged with respect
+to the offset $z $. \label{fig:means}}
 \end{figure}
 
 \begin{figure}
@@ -385,7 +386,7 @@ various fluxes $\mu$ and gains $g$ (the offset is $z = 0$). \label{fig:means}}
 \includegraphics[width=120mm]{figs/variances}
 
 \caption{Difference between the variance of the detector signal and $\mu/g^2$ for
-various fluxes $\mu$ and gains $g$ (the offset is zero). \label{fig:variances}}
+various fluxes $\mu$ and gains $g$. The curves have been averaged with respect to the offset $z $. \label{fig:variances}}
 \end{figure}
 
 The number of electrons $n$ follows a Poissonian distribution of parameter $\mu
@@ -437,12 +438,13 @@ The mean and variance of the measured number of ADU are given by:
   \label{eq:exact-detector-mean}
   \\
   \Var*{d \Given \mu}
-  &= \sum_d \Paren*{d - \Expect*{d \Given \mu}}^2\,\Pr\Paren*{d \Given \mu} \, .
+  &= \sum_d \Paren*{d - \Expect*{d \Given \mu}}^2\,\Pr\Paren*{d \Given \mu} \, ,
   \label{eq:exact-detector-variance}
 \end{align}
-There are no closed form expressions for these quantities. Without the rounding
-errors due to conversion to an integer number of ADU, the expectation and
-variance of the signal are given by:
+where the probability $\Pr\Paren*{d \Given \mu}$ is given in
+Eq.~\eqref{eq:pdf-detector-model}.  There are no closed form expressions for
+these quantities. Without the rounding errors due to conversion to an integer
+number of ADU, the expectation and variance of the signal are given by:
 \begin{align}
   \Expect*{n/g + z \Given \mu}
   &= \mu/g + z \, ,
@@ -452,16 +454,16 @@ variance of the signal are given by:
   \label{eq:detector-variance-with-no-rounding-errors}
 \end{align}
 Figures~\ref{fig:means} and \ref{fig:variances} plot the differences between
-the mean and variance accounting and not accounting for rounding errors, that
-is between Eq.~\eqref{eq:exact-detector-mean} and
+the mean and the variance accounting and not accounting for rounding errors,
+that is between Eq.~\eqref{eq:exact-detector-mean} and
 Eq.~\eqref{eq:detector-mean-with-no-rounding-errors} for Fig.~\ref{fig:means}
 and between Eq.~\eqref{eq:exact-detector-variance} and
 Eq.~\eqref{eq:detector-variance-with-no-rounding-errors} for
-Fig.~\ref{fig:variances}.  Clearly there is a vanishing bias for the estimation
-of the mean given by Eq.~\eqref{eq:detector-mean-with-no-rounding-errors}
-while, except for $g=1$ (the photon-counting case) and there is a constant bias
-for the variance given by
-Eq.~\eqref{eq:detector-variance-with-no-rounding-errors}.  The variance bias
+Fig.~\ref{fig:variances}.  Clearly there is a small variable bias for the
+estimation of the mean given by
+Eq.~\eqref{eq:detector-mean-with-no-rounding-errors} while, except for $g=1$
+(the photon-counting case) and there is a constant bias for the variance given
+by Eq.~\eqref{eq:detector-variance-with-no-rounding-errors}.  The variance bias
 can be approximately estimated assuming that rounding errors are uniformly
 distributed on the range $[-\smallfrac12,+\smallfrac12]$.  Under this
 assumption, the variance due to rounding errors is:
@@ -504,7 +506,7 @@ Eqs.~\eqref{eq:detector-mean-with-no-rounding-errors}-\eqref{eq:detector-varianc
 with $\sigma$ the standard deviation of, at least, rounding errors. The two
 approximate distributions and the exact one are shown by
 Fig.~\ref{fig:pdf-approx}.  The two approximations appears as good as each
-other.  The Gaussian approximation is however easier to manipulate.
+other.  The Gaussian approximation is however easier to handle.
 
 \begin{figure}
 \centering
