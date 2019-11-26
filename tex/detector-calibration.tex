@@ -413,7 +413,7 @@ $g$ knowing the mean number of electrons is:
 \begin{align}
   \Pr\Paren*{d \Given \mu} = \mathe^{-\mu} \,\sum_{n = n_\Tag{inf}(d)}^{n_\Tag{sup}(d)}
   \frac{\mu^n}{n!}
-  \label{eq:pdf-detector-model}
+  \label{eq:pdf-ADU-exact}
 \end{align}
 where the sum is equal to zero if $n_\Tag{sup}(d) < n_\Tag{inf}(d)$. 
 Figure~\ref{fig:histograms} shows this probability as a function of $d$ for
@@ -427,15 +427,8 @@ by:
   = \max\Paren*{n_\Tag{sup}(d) - n_\Tag{inf}(d) + 1,0}
 \end{equation}
 is variable. The uneven number of electrons that yield a given number of ADU's
-leads to irregular distributions show by Fig.~\ref{fig:histograms} unless the
-gain $g$ is integer.  Approximating the sum in Eq.~\eqref{eq:pdf-detector-model} by
-the mean number of terms (that is $g$) times the median value of the terms yields:
-\begin{align}
-  \Pr\Paren*{d \Given \mu}
-  \approx \frac{g\,\mathe^{-\mu}\,\mu^{(d - z)\,g}}{\Gamma\Paren*{(d - z)\,g + 1}}
-  \label{eq:pdf-detector-approx}
-\end{align}
-not accounting for saturation.
+leads to irregular distributions shown by Fig.~\ref{fig:histograms} unless the
+gain $g$ is integer.
 
 The mean and variance of the measured number of ADU are given by:
 \begin{align}
@@ -466,15 +459,16 @@ and between Eq.~\eqref{eq:exact-detector-variance} and
 Eq.~\eqref{eq:detector-variance-with-no-rounding-errors} for
 Fig.~\ref{fig:variances}.  Clearly there is a vanishing bias for the estimation
 of the mean given by Eq.~\eqref{eq:detector-mean-with-no-rounding-errors}
-while, except for $g=1$ (the photon-counting case), there is a constant bias
+while, except for $g=1$ (the photon-counting case) and there is a constant bias
 for the variance given by
 Eq.~\eqref{eq:detector-variance-with-no-rounding-errors}.  The variance bias
-can be approximately estimated if one assume that rounding errors uniformly are
+can be approximately estimated assuming that rounding errors are uniformly
 distributed on the range $[-\smallfrac12,+\smallfrac12]$.  Under this
 assumption, the variance due to rounding errors is:
 \begin{equation}
    \int_{-\smallfrac12}^{+\smallfrac12}u ^2\,\mathd u = \frac{1}{12}
    \simeq 0.083 \, \text{ADU}^2\, ,
+   \label{eq:rounding-errors-variance}
 \end{equation}
 which is a good approximation of the variance bias in Fig.~\ref{fig:variances},
 again except for the unit gain case.
@@ -483,8 +477,54 @@ again except for the unit gain case.
 \centering
 \includegraphics[width=120mm]{figs/histograms}
 
-\caption{Distributions of probabilities of the detector levels for a mean number of electrons $\mu = 200$ and variable gains $g \sim 3$. The offsets $z$ have been chosen to separate the different distributions. \label{fig:histograms}}
+\caption{Distributions of probabilities of the detector levels for a mean
+number of electrons $\mu = 200$ and variable gains $g \sim 3$. The offsets $z$
+have been chosen to separate the different distributions.
+\label{fig:histograms}}
 \end{figure}
+
+Approximating the sum in Eq.~\eqref{eq:pdf-ADU-exact} by the mean number
+of terms (that is $g$) times the median value of the terms yields:
+\begin{align}
+  \Pr\Paren*{d \Given \mu}
+  \approx \frac{g\,\mathe^{-\mu}\,\mu^{(d - z)\,g}}{\Gamma\Paren*{(d - z)\,g + 1}}
+  \label{eq:pdf-ADU-median-approx}
+\end{align}
+not accounting for saturation.  Another possibility is to approximate the
+distribution of the measured ADU's in Eq.~\eqref{eq:pdf-ADU-exact} by a
+Gaussian of mean $\mu/g + z$ and variance $\mu/g^2 + 1/12$ which amounts to
+neglecting rounding errors except for the variance, see
+Eqs.~\eqref{eq:detector-mean-with-no-rounding-errors}-\eqref{eq:detector-variance-with-no-rounding-errors} and \eqref{eq:rounding-errors-variance}.  This approximation yields:
+\begin{align}
+  \Pr\Paren*{d \Given \mu}
+  \approx \frac{1}{\sqrt{2\,\pi\,\Paren*{\mu/g^2 + \sigma^2}}}\,
+  \mathe^{-\frac{\Paren*{d - \mu/g - z}^2}{2\,\Paren*{\mu/g^2 + \sigma^2}}}
+  \label{eq:pdf-ADU-Gaussian-approx}
+\end{align}
+with $\sigma$ the standard deviation of, at least, rounding errors. The two
+approximate distributions and the exact one are shown by
+Fig.~\ref{fig:pdf-approx}.  The two approximations appears as good as each
+other.  The Gaussian approximation is however easier to manipulate.
+
+\begin{figure}
+\centering
+\includegraphics[width=120mm]{figs/pdf-approx}
+
+\caption{Exact distribution of the measured ADU's and its \emph{median} and
+Gaussian approximations for a mean number of electrons $\mu = 200$, a gain $g
+\sim 3.2$ and a bias $z = 0$. The three distributions are respectively given by
+Eqs.~\eqref{eq:pdf-ADU-exact}, \eqref{eq:pdf-ADU-median-approx} and
+\eqref{eq:pdf-ADU-Gaussian-approx}. \label{fig:pdf-approx}}
+\end{figure}
+
+An additional source of noise in the measured ADU's is the so-called
+\emph{readout noise}.  The readout noise may be modeled as a random number of
+electrons following a Poissonian distribution with a given mean \oops{(ref?)}.
+In that case, the distribution given in Eq.~\eqref{eq:pdf-ADU-exact} is
+correct provided the mean number of electrons $\mu$ or the bias $z$ accounts
+for this additional contribution \oops{(explain better)}. In any case, we will
+assume the Gaussian approximation of the distribution of ADU's in the
+following. \oops{Justify a bit more.}
 
 
 \subsection{Assumed Statistical Model}
@@ -2010,7 +2050,7 @@ The signal to noise ratio of the sample variance estimators are:
 
 
 \bibliographystyle{plainnat}
-\bibliography{journals-short,biblio}
+\bibliography{detetctor-calibration}
 
 
 \end{document}
