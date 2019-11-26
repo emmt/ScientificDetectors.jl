@@ -110,10 +110,10 @@ function plot_histograms(savefigs::Bool=false)
     g2, z2 = 3.1,  35
     g3, z3 = 3.2,  70
     g4, z4 = 3.5, 105
-    h1 = DetectorModel.pdf(x, mu, g1, z1)
-    h2 = DetectorModel.pdf(x, mu, g2, z2)
-    h3 = DetectorModel.pdf(x, mu, g3, z3)
-    h4 = DetectorModel.pdf(x, mu, g4, z4)
+    h1 = pdf(x, mu, g1, z1)
+    h2 = pdf(x, mu, g2, z2)
+    h3 = pdf(x, mu, g3, z3)
+    h4 = pdf(x, mu, g4, z4)
     plt.figure(1)
     plt.clf()
     plt.step(x, h1, where="mid", label="\$\\mu\$ = $mu, \$g\$ = $g1, \$z\$ = $z1")
@@ -126,6 +126,36 @@ function plot_histograms(savefigs::Bool=false)
     plt.legend()
     if savefigs
         plt.savefig(joinpath(FIGDIR,"histograms.pdf"), format="pdf")
+    end
+end
+
+gaussian(x::AbstractVector{<:Real}, μ::Real, σ²::Real) =
+    exp.(-1/(2*σ²)*(x .- μ).^2).*(1/sqrt(2*π*σ²))
+
+function plot_approximations(savefigs::Bool=false)
+    x1 = 0:255
+    mu = 200
+    g = 3.2
+    z = 0
+    h1 = pdf(x1, mu, g, z)
+    x2 = range(first(x1), last(x1), step=0.1)
+    µ = BigFloat(mu)
+    γ = BigFloat(g)
+    t = γ.*BigFloat.(x2 .- z)
+    h2 = Float64.((γ*exp(-µ)).*(µ.^t)./gamma.(t .+ 1))
+    x3 = x2
+    h3 = gaussian(x3, mu/g, mu/g^2 + 1/12)
+    plt.figure(2)
+    plt.clf()
+    plt.step(x1, h1, where="mid", label="exact")#"\$\\mu\$ = $mu, \$g\$ = $g, \$z\$ = $z")
+    plt.plot(x2, h2, label="median approx.")
+    plt.plot(x3, h3, label="Gaussian approx.")
+    plt.xlabel("Data Level (ADU)")
+    plt.axis(xmin=44, xmax=81)
+    plt.ylabel("Probability")
+    plt.legend()
+    if savefigs
+        plt.savefig(joinpath(FIGDIR,"pdf-approx.pdf"), format="pdf")
     end
 end
 
@@ -148,7 +178,7 @@ function plot_biases(savefigs::Bool=false)
         end
     end
     if PLOTTING
-        plt.figure(2)
+        plt.figure(3)
         plt.clf()
         for j in eachindex(gains)
             g = gains[j]
@@ -165,7 +195,7 @@ function plot_biases(savefigs::Bool=false)
             plt.savefig(joinpath(FIGDIR,"means.pdf"), format="pdf")
         end
 
-        plt.figure(3)
+        plt.figure(4)
         plt.clf()
         for j in eachindex(gains)
             g = gains[j]
