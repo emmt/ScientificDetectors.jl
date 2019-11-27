@@ -372,22 +372,17 @@ with Poissonian distribution).  Other possible of errors or noise are: the
 cross-talk between close pixels, electrons loss/gain during the charge transfer
 (for charge coupled devices, CCD, or EMCCD).
 
-\begin{figure}
-\centering
-\includegraphics[width=120mm]{figs/means}
-
-\caption{Difference between the mean of the detector signal and $\mu/g$ for
-various fluxes $\mu$ and gains $g$.  The curves have been averaged with respect
-to the offset $z $. \label{fig:means}}
-\end{figure}
 
 \begin{figure}
 \centering
-\includegraphics[width=120mm]{figs/variances}
+\includegraphics[width=120mm]{figs/histograms}
 
-\caption{Difference between the variance of the detector signal and $\mu/g^2$ for
-various fluxes $\mu$ and gains $g$. The curves have been averaged with respect to the offset $z $. \label{fig:variances}}
+\caption{Distributions of probabilities of the detector levels for a mean
+number of electrons $\mu = 200$ and variable gains $g \sim 3$. The offsets $z$
+have been chosen to separate the different distributions.
+\label{fig:histograms}}
 \end{figure}
+
 
 The number of electrons $n$ follows a Poissonian distribution of parameter $\mu
 = \Expect{n}$ the mean number of electrons.  Then, assuming $\Round{\ldots}$
@@ -442,9 +437,9 @@ The mean and variance of the measured number of ADU are given by:
   \label{eq:exact-detector-variance}
 \end{align}
 where the probability $\Pr\Paren*{d \Given \mu}$ is given in
-Eq.~\eqref{eq:pdf-detector-model}.  There are no closed form expressions for
-these quantities. Without the rounding errors due to conversion to an integer
-number of ADU, the expectation and variance of the signal are given by:
+Eq.~\eqref{eq:pdf-ADU-exact}.  There are no closed form expressions for these
+quantities. Without the rounding errors due to conversion to an integer number
+of ADU, the expectation and variance of the signal are given by:
 \begin{align}
   \Expect*{n/g + z \Given \mu}
   &= \mu/g + z \, ,
@@ -459,8 +454,8 @@ that is between Eq.~\eqref{eq:exact-detector-mean} and
 Eq.~\eqref{eq:detector-mean-with-no-rounding-errors} for Fig.~\ref{fig:means}
 and between Eq.~\eqref{eq:exact-detector-variance} and
 Eq.~\eqref{eq:detector-variance-with-no-rounding-errors} for
-Fig.~\ref{fig:variances}.  Clearly there is a small variable bias for the
-estimation of the mean given by
+Fig.~\ref{fig:variances}.  Clearly there is a small variable bias $\lesssim
+0.005\,\text{ADU}$ for the estimation of the mean given by
 Eq.~\eqref{eq:detector-mean-with-no-rounding-errors} while, except for $g=1$
 (the photon-counting case) and there is a constant bias for the variance given
 by Eq.~\eqref{eq:detector-variance-with-no-rounding-errors}.  The variance bias
@@ -475,18 +470,31 @@ assumption, the variance due to rounding errors is:
 which is a good approximation of the variance bias in Fig.~\ref{fig:variances},
 again except for the unit gain case.
  
+
 \begin{figure}
 \centering
-\includegraphics[width=120mm]{figs/histograms}
+\includegraphics[width=120mm]{figs/means}
 
-\caption{Distributions of probabilities of the detector levels for a mean
-number of electrons $\mu = 200$ and variable gains $g \sim 3$. The offsets $z$
-have been chosen to separate the different distributions.
-\label{fig:histograms}}
+\caption{Difference between the mean of the detector signal and $\mu/g$ for
+various fluxes $\mu$ and gains $g$.  The curves have been averaged with respect
+to the offset $z $. \label{fig:means}}
 \end{figure}
 
-Approximating the sum in Eq.~\eqref{eq:pdf-ADU-exact} by the mean number
-of terms (that is $g$) times the median value of the terms yields:
+\begin{figure}
+\centering
+\includegraphics[width=120mm]{figs/variances}
+
+\caption{Difference between the variance of the detector signal and $\mu/g^2$
+for various fluxes $\mu$ and gains $g$. The curves have been averaged with
+respect to the offset $z $. \label{fig:variances}}
+\end{figure}
+
+
+Using the probability given in Eq.~\eqref{eq:pdf-ADU-exact} is not very
+convenient and we want to derive more practical approximations of the
+distribution of the measured ADU's.  Approximating the sum in
+Eq.~\eqref{eq:pdf-ADU-exact} by the mean number of terms (that is $g$) times
+the median value of the terms yields:
 \begin{align}
   \Pr\Paren*{d \Given \mu}
   \approx \frac{g\,\mathe^{-\mu}\,\mu^{(d - z)\,g}}{\Gamma\Paren*{(d - z)\,g + 1}}
@@ -506,7 +514,8 @@ Eqs.~\eqref{eq:detector-mean-with-no-rounding-errors}-\eqref{eq:detector-varianc
 with $\sigma$ the standard deviation of, at least, rounding errors. The two
 approximate distributions and the exact one are shown by
 Fig.~\ref{fig:pdf-approx}.  The two approximations appears as good as each
-other.  The Gaussian approximation is however easier to handle.
+other.  The Gaussian approximation is however easier to handle and has the
+flexibility to account for additional noise via the $\sigma$ parameter.
 
 \begin{figure}
 \centering
@@ -521,16 +530,16 @@ Eqs.~\eqref{eq:pdf-ADU-exact}, \eqref{eq:pdf-ADU-median-approx} and
 
 An additional source of noise in the measured ADU's is the so-called
 \emph{readout noise}.  The readout noise may be modeled as a random number of
-electrons following a Poissonian distribution with a given mean \oops{(ref?)}.
-In that case, the distribution given in Eq.~\eqref{eq:pdf-ADU-exact} is
-correct provided the mean number of electrons $\mu$ or the bias $z$ accounts
-for this additional contribution \oops{(explain better)}. In any case, we will
-assume the Gaussian approximation of the distribution of ADU's in the
-following. \oops{Justify a bit more.}
+electrons following a Poissonian distribution with a given mean. In that case,
+the distribution given in Eq.~\eqref{eq:pdf-ADU-exact} is correct provided the
+mean number of electrons $\mu$ and the bias $z$ account for this additional
+contribution. In any case, we will assume the Gaussian approximation of the
+distribution of ADU's in the following. \oops{Justify a bit more.}
 
 
 \subsection{Assumed Statistical Model}
 
+\oops{Transition.}
 If no saturation or other defects occur, the mean value of $n_j/g_j$ in the
 $j$-th pixel is proportional to the exposure time $\Delta t$ and can be
 expressed as:
