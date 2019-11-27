@@ -10,39 +10,66 @@ if PLOTTING
     const plt = PyPlot
 end
 
-# ~ 10 times faster `BigFloat(factorial(big(n)))` compared to `factorial(BigFloat(n))`.
+# It is ~ 10 times faster to do `BigFloat(factorial(big(n)))` rather than
+# `factorial(BigFloat(n))`.
+
 # Lookup tables for factorials.
 const FACT_INT = Array{BigInt}(undef, 0)
 const FACT_FLT = Array{BigFloat}(undef, 0)
 
+"""
+```julia
+fact(T, n) -> n!
+```
+
+yields the value of `n!` for integer `n ≥ 0`.  Argument `T` (`BigFloat` or
+`BigInt`) is the type of the result.  Using a type able to represent large
+numbers is mandatory as `n!` quickly grows with `n`.  An internal look-up table
+is used to speed up computations.  As a result `fact(n)` is much faster than
+`factorial(n)` if `n!` is needed more than once for the same value of `n` or
+for close values of `n`.
+
+The method `grow_factorial_tables(n)` may be called to pre-compute factorials
+up to `n`.
+
+Also see: [`factorial`](@ref).
+
+See https://www.johndcook.com/blog/2010/08/16/how-to-compute-log-factorial/
+for a method to compute `log(n!)` with a sufficient precision.
+
+"""
 function fact(::Type{BigInt}, n::Integer)
     n == 0 && return one(BigInt)
     n < 0 && throw(ArgumentError("invalid negative value"))
-    n ≤ length(FACT_INT) || grow_fact_tables(n)
-    FACT_INT[n]
+    n ≤ length(FACT_INT) || grow_factorial_tables(round(Int, sqrt(2)*n))
+    return @inbounds FACT_INT[n]
 end
 
 function fact(::Type{BigFloat}, n::Integer)
     n == 0 && return one(BigFloat)
     n < 0 && throw(ArgumentError("invalid negative value"))
-    n ≤ length(FACT_FLT) || grow_fact_tables(n)
-    FACT_FLT[n]
+    n ≤ length(FACT_FLT) || grow_factorial_tables(round(Int, sqrt(2)*n))
+    return @inbounds FACT_FLT[n]
 end
 
-function grow_fact_tables(n::Integer)
+function grow_factorial_tables(n::Integer)
     oldlen = min(length(FACT_INT), length(FACT_FLT))
-    newlen = round(Int, sqrt(2)*n)
-    resize!(FACT_INT, newlen)
-    resize!(FACT_FLT, newlen)
-    val = (oldlen < 1 ? one(BigInt) : FACT_INT[oldlen])
-    num = BigInt(oldlen)
-    @inbounds for i in (oldlen+1):newlen
-        num += 1
-        val *= num
-        FACT_INT[i] = val
-        FACT_FLT[i] = BigFloat(val)
+    newlen = Int(n)
+    if oldlen < newlen
+        resize!(FACT_INT, newlen)
+        resize!(FACT_FLT, newlen)
+        val = (oldlen < 1 ? one(BigInt) : FACT_INT[oldlen])
+        num = BigInt(oldlen)
+        @inbounds for i in (oldlen+1):newlen
+            num += 1
+            val *= num
+            FACT_INT[i] = val
+            FACT_FLT[i] = BigFloat(val)
+        end
     end
 end
+
+@doc @doc(fact) grow_factorial_tables
 
 """
 ```julia
@@ -65,7 +92,10 @@ function stat(x::AbstractVector{<:Integer}, y::AbstractVector{<:Real})
         s0 += Float64(y[i])
         s1 += Float64(y[i]*x[i])
     end
-    s0 ≈ 1 || @warn "the PDF is not normalized"
+    if abs(s0 - 1) > 2e-6
+        printstyled(stderr, "Warning: ", bold=true, color=:yellow)
+        print(stderr, "The PDF is not normalized (Σpdf = $s0).\n")
+    end
     µ = s1/s0
 
     # Second compute the variance.
@@ -78,7 +108,41 @@ function stat(x::AbstractVector{<:Integer}, y::AbstractVector{<:Real})
     return µ, σ²
 end
 
+"""
+```julia
+pdf(d, µ, γ, β) -> p
+```
+
+yields the probability of measuring the ADU's in vector `d` for a mean number
+of electrons `µ` with a detector gain `γ` and bias `β`.
+
+"""
 function pdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
+    T = Float64
+    mu = T(µ)
+    logmu = log(mu)
+    h = Array{Float64}(undef, length(D))
+    i = 0
+    for d in D
+        i += 1
+        ninf = max(0, ceil(Int, (d - z - 0.5)*g))
+        nsup = max(0, ceil(Int, (d - z + 0.5)*g) - 1)
+        if nsup ≥ ninf
+            r = one(T)
+            for n in nsup:-1:ninf+1
+                r = one(T) + r*mu/n
+            end
+            h[i] = exp(ninf*logmu - mu - loggamma(ninf + 1))*r
+        else
+            h[i] = 0
+        end
+    end
+    return h
+end
+
+# This version uses large number arithmetic and is typically 40 times slower than the
+# fast version.
+function slowpdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
     h = Array{Float64}(undef, length(D))
     i = 0
     mu = BigFloat(µ)
@@ -103,7 +167,8 @@ function pdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
     return h
 end
 
-function plot_histograms(savefigs::Bool=false)
+
+function plot_histograms(; savefigs::Bool=false)
     mu = 200;
     x = 0:255;
     g1, z1 = 3.0,   0
@@ -132,19 +197,21 @@ end
 gaussian(x::AbstractVector{<:Real}, μ::Real, σ²::Real) =
     exp.(-1/(2*σ²)*(x .- μ).^2).*(1/sqrt(2*π*σ²))
 
-function plot_approximations(savefigs::Bool=false)
-    x1 = 0:255
+function plot_approximations(; savefigs::Bool=false)
     mu = 200
     g = 3.2
     z = 0
+
+    x1 = 0:255
     h1 = pdf(x1, mu, g, z)
+
     x2 = range(first(x1), last(x1), step=0.1)
-    µ = BigFloat(mu)
-    γ = BigFloat(g)
-    t = γ.*BigFloat.(x2 .- z)
-    h2 = Float64.((γ*exp(-µ)).*(µ.^t)./gamma.(t .+ 1))
+    t = (x2 .- z).*g
+    h2 = exp.((log(g) - mu) .+ log(mu).*t .- loggamma.(t .+ 1))
+
     x3 = x2
     h3 = gaussian(x3, mu/g, mu/g^2 + 1/12)
+
     plt.figure(2)
     plt.clf()
     plt.step(x1, h1, where="mid", label="exact")#"\$\\mu\$ = $mu, \$g\$ = $g, \$z\$ = $z")
@@ -159,9 +226,9 @@ function plot_approximations(savefigs::Bool=false)
     end
 end
 
-function plot_biases(; savefigs::Bool=false, averaging::Bool=true)
+function plot_biases(; savefigs::Bool=false, averaging::Bool=true, npts::Integer=201)
 
-    fluxes = exp.(range(0,7,length=41))
+    fluxes = exp.(range(0,7,length=npts))
     #fluxes = [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 300.0, 1000]
     gains = [1.0, 2.0, 2.3, 3.0, 3.2, 3.4, 5.0, 6.0, 7.0, 8.1]
 
@@ -176,7 +243,7 @@ function plot_biases(; savefigs::Bool=false, averaging::Bool=true)
                 n = 100
                 for k in 0:(n-1)
                     z = k/n
-                    x = 0:ceil(Int, (µ/g + z) + 10*µ/g^2)
+                    x = 0:ceil(Int, (µ/g + z) + 10*(µ/g^2 + 1/12))
                     y = pdf(x, µ, g, z)
                     m, v = stat(x, y)
                     Σm += m - z
@@ -185,7 +252,7 @@ function plot_biases(; savefigs::Bool=false, averaging::Bool=true)
                 res[1,i,j] = Σm/n
                 res[2,i,j] = Σv/n
             else
-                x = 0:ceil(Int,  (µ/g + z) + 10*µ/g^2)
+                x = 0:ceil(Int,  (µ/g + z) + 10*(µ/g^2 + 1/12))
                 z = 0.0
                 y = pdf(x, µ, g, z)
                 m, v = stat(x, y)
