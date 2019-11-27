@@ -4,6 +4,7 @@ import Base: read, write
 
 using Statistics, Printf
 using ArrayTools
+using OptimPackNextGen
 
 using EasyFITS
 using EasyFITS: exists, throw_file_already_exists
@@ -279,6 +280,508 @@ Base.convert(::Type{ReducedCalibration{T}}, obj::ReducedCalibration) where {T<:A
 Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration{T}) where {T} = obj
 Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration) where {T<:AbstractFloat} =
     ReducedCalibration{T}(obj)
+
+
+
+
+#------------------------------------------------------------------------------
+
+# Union of acceptable identifer types.
+const Identifiers = Union{AbstractString,Symbol,Integer}
+
+# FIXME: put this in ArrayTools and progate use.
+indices() = error("expecting at least one array argument")
+@inline indices(args::AbstractArray...) = begin
+    inds = axes(args[1])
+    @inbounds for d in 2:length(args)
+        @assert axes(args[d]) == inds
+    end
+    return eachindex(args...)
+end
+
+function keys2types(A::AbstractVector{K}) where {K<:Identifiers}
+    # Use a dictionary to collect a unique list of keys and then to store the
+    # corresponding unique type number.
+    dict = Dict{K,Int}()
+    for key in A
+        dict[key] = 1
+    end
+    l = 0
+    for key in sort(collect(keys(dict)))
+        l += 1
+        dict[key] = l
+    end
+    return dict
+end
+
+category(arg::String) = arg
+category(arg::AbstractString) = String(arg)
+category(arg::Integer) = string("#",arg)
+category(arg::Symbol) = String(arg)
+
+function uniquetypes(A::AbstractVector{K}) where {K}
+    dict = keys2types(A)
+    type = Vector{Int}(undef, length(A))
+    cat = Vector{String}(undef, length(dict))
+    i = 0
+    for key in A
+        i += 1
+        type[i] = dict[key]
+    end
+    for key in keys(dict)
+        cat[dict[key]] = category(key)
+    end
+    return type, cat
+end
+
+
+
+
+
+
+
+
+mutable struct FitResult{T}
+    f::T         # figure of merit
+    z::T         # bias
+    g::T         # gain
+    u::T         # variance of readout-noise divided by gain
+    c::Vector{T} # currents
+end
+
+struct CalibrationData{P<:Real,N,T<:AbstractFloat}
+    nframes::Int             # total number of calibration frames
+    ntypes::Int              # number of types of calibration
+    dims::NTuple{N,Int}      # dimensions of frames
+    data::Vector{Array{P,N}} # data[i][j] is j-th pixel of frame i
+    Δt::Vector{T}            # Δt[i] yields the exposure time for frame i
+    type::Vector{Int}        # type[i] yields the calibration index for frame i
+    cat::Vector{String}      # cat[l] is the name of l-th calibration category
+    function CalibrationData{P,N,T}(data::AbstractVector{Array{T,N}},
+                                    id::AbstractVector{<:Identifiers},
+                                    Δt::AbstractVector{T}) where {P<:Real,N,
+                                                                  T<:AbstractFloat}
+        nframes = length(data)
+        @assert nframes > 0
+        @assert length(id) == nframes
+        @assert length(Δt) == nframes
+        dims = size(first(data))
+        for A in data
+            @assert size(A) == dims
+        end
+        @assert minimum(Δt) ≥ 0
+
+        type, cat = uniquetypes(id)
+        ntypes = maximum(type)
+
+        new{P,N,T}(nframes, ntypes, dims,
+                   convert(Vector{Array{P,N}}, data),
+                   convert(Vector{T}, Δt), type, cat)
+    end
+end
+
+Base.size(obj::CalibrationData) = obj.dims
+Base.size(obj::CalibrationData{P,N,T}, d::Integer) where {P,N,T} =
+    (d < 1 ? error("invalid dimension index") :
+     d ≤ N ? size(obj)[d] : 1)
+
+
+
+
+
+
+
+
+function fit(cal::CalibrationData{P,N,T}) where {P,N,T}
+    nframes = cal.nframes
+    ntypes = cal.ntypes
+    d = Array{T,1}(undef, nframes)
+    dims = size(cal)
+    len = prod(dims)
+
+    @assert length(cal.cat) == ntypes
+
+    Δt = cal.Δt
+
+
+    # Check exposure times.
+    @assert length(Δt) == nframes
+    flag = false
+    for i in 1:nframes
+        if !isfinite(Δt[i]) || Δt[i] < 0
+            error("invalid exposure time(s)")
+        end
+        if Δt[i] > 0
+            flag = true
+        end
+    end
+    if !flag
+        error("no non-zero exposure times!")
+    end
+
+    out = ReducedCalibration(
+        Array{T,N}(undef, dims), # f
+        Array{T,N}(undef, dims), # z
+        Array{T,N}(undef, dims), # g
+        Array{T,N}(undef, dims), # σ
+        [Array{T,N}(undef, dims) for k in 1:ntypes], # c
+        cal.cat)
+
+    res = FitResult{T}(Inf,NaN,NaN,NaN,
+                       fill!(Array{T}(undef, ntypes), NaN));
+
+    for j in 1:len
+        # Collect the pixel data.
+        for i in 1:nframes
+            d[i] = cal.data[i][j]
+        end
+        # Fit the detector parameters and save them.
+        fit!(res, d, cal.type, cal.Δt)
+        for l in 1:ntypes
+            out.c[l][j] = res.c[l]
+        end
+        out.f[j] = res.f
+        out.z[j] = res.z
+        out.g[j] = res.g
+        out.s[j] = sqrt(res.u/res.g)
+    end
+    return out
+end
+
+function fit!(res::FitResult{T}, d::Vector{T},
+              id::Vector{Int}, Δt::Vector{T}) where {T<:AbstractFloat}
+    ntypes = length(res.c)
+    nframes = length(d)
+    @assert length(id) == nframes
+    @assert length(Δt) == nframes
+
+    # Initial weights are 1/(Δt + τ) with τ a small value.
+    τ = leastpositive(Δt)/10
+    τ > 0 || error("no non-zero exposure times")
+    w = Array{T}(undef, nframes)
+    @inbounds for i in 1:nframes
+        w[i] = 1/(Δt[i] + τ)
+    end
+
+    # Initial bias.
+    z = minimum(d)
+
+    # Initial current terms are given by a simple constrained linear
+    # least-squares fit.
+    a = fill!(Array{T,1}(undef, ntypes), 0)
+    b = fill!(Array{T,1}(undef, ntypes), 0)
+    @inbounds for i in 1:nframes
+        l = id[i]
+        a[l] += w[i]*Δt[i]^2
+        b[l] += w[i]*Δt[i]*(d[i] - z)
+    end
+    c = Array{T,1}(undef, ntypes)
+    @inbounds for l in 1:ntypes
+        c[l] = (b[l] > 0 ? b[l]/a[l] : zero(T))
+    end
+
+    # Initial variance (times the gain) is a strictly positive value small
+    # compared to c⋅Δt.
+    cΔt = Array{T}(undef, nframes)
+    update_cΔt!(cΔt, c, Δt, id)
+    u = leastpositive(cΔt)/10
+
+    # Initialize initial variables and bounds.
+    x = Array{T}(undef, ntypes+1)
+    xmin = Array{T}(undef, ntypes+1)
+    @inbounds for l in 1:ntypes
+        x[l] = c[l]
+        xmin[l] = zero(T)
+    end
+    x[end] = u
+    xmin[end] = 1e-20 # FIXME: set a better limit
+
+    # Initialize result so as to store best solution so far.
+    res.f = Inf
+    res.z = NaN
+    res.g = NaN
+    res.u = NaN
+    fill!(res.c, NaN)
+
+    # FIXME: allocate r
+    r = Array{T}(undef, nframes)
+
+    function fg!(x::Vector{T}, gx::Vector{T})
+        # Extract parameters.
+        @assert length(x) == length(gx) == ntypes + 1
+        @inbounds for l in 1:ntypes
+            c[l] = x[l]
+        end
+        u = x[end]
+
+        # Update.
+        update_cΔt!(cΔt, c, Δt, id, true)
+        update_w!(w, cΔt, u)
+        z = best_bias(w, d, cΔt)
+        update_r!(r, d, cΔt, z)
+        g = best_gain(w, r)
+
+        # Compute the cost function.
+        fx = zero(T)
+        @inbounds @simd for i in 1:nframes # FIXME: use SIMD?
+            # (5 ops + 1 log)/frames ~ 28 ops/frames
+            fx += g*w[i]*r[i]^2 - log(w[i])
+        end
+        fx -= nframes*log(g)
+
+        # Maybe update best solution so far.
+        if fx < res.f
+            res.f = fx
+            res.z = z
+            res.g = g
+            res.u = u
+            copyto!(res.c, c)
+        end
+
+        # Compute gradients with respect to c and u.
+        @inbounds for l in 1:ntypes
+            gx[l] = zero(T)
+        end
+        gu = zero(T)
+        @inbounds for i in 1:nframes # FIXME: split the loop for SIMD?
+            # 13 ops/frames
+            l = id[i]
+            gx[l] += w[i]*(1 - g*r[i]*(2 + w[i]*r[i]))*Δt[i]
+            gu += w[i]*(1 - g*w[i]*r[i]^2)
+        end
+        gx[end] = gu
+
+        return fx
+    end
+
+    # FIXME: stopping criterion
+    vmlmb!(fg!, x, mem=5, lower=xmin)
+end
+
+"""
+
+```julia
+checkindices(I, len)
+```
+
+checks that all indices in `I` are in the range `1:len`.  An error is thrown
+if `len ≤ 0` of if any values in `I` is outside the range `1:len`.
+
+"""
+function checkindices(I::AbstractArray{U}, len::Integer) where {U<:Unsigned}
+    len > 0 || error("invalid length")
+    if len < typemax(U)
+        lim = U(len)
+        @inbounds for i in I
+            i - one(U) < lim || error("out of bound type index")
+        end
+    end
+end
+
+function checkindices(I::AbstractArray{S}, len::Integer) where {S<:Signed}
+    len > 0 || error("invalid length")
+    if len < typemax(S)
+        U = unsigned(S)
+        lim = U(len)
+        @inbounds for i in I
+            (i % U) - one(U) < lim || error("out of bound type index")
+        end
+    else
+        # Just check for sign.
+        @inbounds for i in I
+            i > zero(U) || error("out of bound type index")
+        end
+    end
+end
+
+"""
+
+```julia
+update_w!(w, cΔt, u) -> w
+```
+
+overwrites `w` with `1/(c⋅Δt + u)`, that is do `∀i: w[i] = 1/(cΔt[i] + u)`, and
+returns `w`.
+
+See also [`update_cΔt!`](@ref).
+
+"""
+update_w!(w::Vector{T}, cΔt::Vector{T}, u::Real) where {T<:AbstractFloat} =
+    update_w!(w, cΔt, T(u))
+
+function update_w!(w::Vector{T}, cΔt::Vector{T}, u::T) where {T<:AbstractFloat}
+    #nframes = length(w)
+    #@assert length(cΔt) == nframes
+    #@inbounds @simd for i in 1:nframes
+    #    w[i] = one(T)/(cΔt[i] + u)
+    #end
+    @inbounds @simd for i in indices(w, cΔt)
+       w[i] = one(T)/(cΔt[i] + u)
+    end
+    return w
+end
+
+
+"""
+
+```julia
+update_cΔt!(cΔt, c, Δt, id, nochecks=false) -> cΔt
+```
+
+overwrites `cΔt` with `c⋅Δt`, that is do `∀i: cΔt[i] = c[id[i]]*Δt[i]`, and
+returns `cΔt`.  Set optional argument `nochecks` to `true` to skip testing
+`id`.
+
+See also  [`update_w!`](@ref), [`checkindices`](@ref).
+
+"""
+function update_cΔt!(cΔt::Vector{T}, c::Vector{T},
+                     Δt::Vector{T}, id::Vector{Int},
+                     nochecks::Bool = false) where {T<:AbstractFloat}
+    nframes = length(cΔt)
+    @assert length(Δt) == nframes
+    @assert length(id) == nframes
+    nochecks || checkindices(id, length(c))
+    @inbounds for i in 1:nframes
+        l = id[i]
+        cΔt[i] = c[l]*Δt[i]
+    end
+    return cΔt
+end
+
+
+"""
+
+```julia
+update_r!(r, d, cΔt, z) -> r
+```
+
+overwrites array `r` with the residuals given the data `d`, the contribution
+`cΔt` of the different sources and the bias `z`. The destination `r` is
+returned.  The residuals are computed as:
+
+```julia
+∀i: r[i] = d[i] - cΔt[i] - z
+```
+
+See also [`update_cΔt!`](@ref), [`best_bias`](@ref).
+
+"""
+function update_r!(r::AbstractVector{T},
+                   d::AbstractVector{T},
+                   cΔt::AbstractVector{T},
+                   z::Real) where {T<:AbstractFloat}
+    @assert length(r) == length(d) == length(cΔt)
+    z′ = T(z)
+    @inbounds for i in eachindex(r, d, cΔt)
+        r[i] = d[i] - (cΔt[i] + z′)
+    end
+    return r
+end
+"""
+
+```julia
+best_bias(w, d, cΔt) -> z
+```
+
+yields the best bias given the weights `w`, the data `d` and the contribution
+`cΔt` of the different sources.
+
+See also [`update_w!`](@ref), [`update_cΔt!`](@ref), [`best_gain`](@ref).
+
+"""
+function best_bias(w::AbstractVector{T},
+                   d::AbstractVector{T},
+                   cΔt::AbstractVector{T}) where {T<:AbstractFloat}
+    nframes = length(d)
+    @assert length(w) == nframes
+    @assert length(cΔt) == nframes
+    a = zero(T)
+    b = zero(T)
+    @inbounds @simd for i in eachindex(w, d, cΔt)
+        a += w[i]
+        b += w[i]*(d[i] - cΔt[i])
+    end
+    return b/a
+end
+
+"""
+
+```julia
+best_gain(w, d, cΔt, z) -> g
+```
+
+yields the best gain given the weights `w`, the data `d`, the contribution `cΔt`
+of the different sources and the bias `z`.
+
+Alternatively, if the residuals `r = d - cΔt - z` are vailable, just call:
+
+```julia
+best_gain(w, r) -> g
+```
+
+See also [`update_w!`](@ref), [`update_cΔt!`](@ref), [`update_r!`](@ref),
+[`best_bias`](@ref).
+
+"""
+function best_gain(w::AbstractVector{T},
+                   d::AbstractVector{T},
+                   cΔt::AbstractVector{T},
+                   z::Real) where {T<:AbstractFloat}
+    return best_gain(w, d, cΔt, T(z))
+end
+
+function best_gain(w::AbstractVector{T},
+                   d::AbstractVector{T},
+                   cΔt::AbstractVector{T},
+                   z::T) where {T<:AbstractFloat}
+    nframes = length(d)
+    s = zero(T)
+    @assert length(w) == nframes
+    @assert length(Δt) == nframes
+    @inbounds @simd for i in eachindex(w, d, cΔt)
+        s += w[i]*(cΔt[i] + z - d[i])^2
+    end
+    return nframes/s
+end
+
+function best_gain(w::AbstractVector{T},
+                   r::AbstractVector{T}) where {T<:AbstractFloat}
+    nframes = length(w)
+    s = zero(T)
+    @assert length(w) == length(r)
+    @inbounds @simd for i in eachindex(w, r)
+        s += w[i]*r[i]^2
+    end
+    return nframes/s
+end
+
+"""
+
+```julia
+leastpositive(A)
+```
+
+yields the least strictly positive value of array `A` or zero if all values of
+`A` are nonpositive.
+
+"""
+function leastpositive(A::AbstractArray{T}) where {T}
+    res = zero(T)
+    @inbounds for val in A
+        if val > zero(T) && (res > val || res == zero(T))
+            res = val
+        end
+    end
+    return res
+end
+
+
+
+
+
+
+#------------------------------------------------------------------------------
 
 """
 
