@@ -1927,7 +1927,11 @@ column-major ordering:
 
 The \emph{flux units} are arbitrary \oops{(could be indicated by a FITS keyword like BUNITS)}.
 
-FITS keyword \FitsKeyword{CALIB}\FitsVariable{n} with \FitsVariable{n} an integer number specifies the identifier (a string) of the calibration source which is responsible of the \FitsVariable{n}-th \emph{current} term (in ADUs/second).  There can be from 0 to 999 such sources.  The number is equal to $\FitsKeyword{NAXIS4} - 4$.
+FITS keyword \FitsKeyword{CAT}\FitsVariable{n} with \FitsVariable{n} an 
+integer number specifies the identifier (a string) of the calibration source 
+which is responsible of the \FitsVariable{n}-th \emph{current} term (in 
+ADUs/second).  There can be from 0 to 999 such sources.  The number is equal 
+to $\FitsKeyword{NAXIS4} - 4$.
 
 \section{Moments of the sample mean and variance}
 \label{sec:sample-statistics}
