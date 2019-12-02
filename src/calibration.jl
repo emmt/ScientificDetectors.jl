@@ -411,7 +411,7 @@ struct CalibrationData{P<:Real,N,T<:AbstractFloat}
     cat::Vector{Int}         # cat[i] yields the category index of i-th frame
     uid::Vector{String}      # uid[l] is the unique identifer of l-th
                              # calibration category
-    function CalibrationData{P,N,T}(data::AbstractVector{Array{T,N}},
+    function CalibrationData{P,N,T}(data::AbstractVector{Array{P,N}},
                                     keys::AbstractVector{<:Identifiers},
                                     Δt::AbstractVector{T}
                                     ) where {P<:Real,N,T<:AbstractFloat}
