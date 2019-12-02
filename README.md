@@ -23,13 +23,17 @@ pkg> add git@git-cral.univ-lyon1.fr:emmt/scientificdetectors.git
 if you use SSH.
 
 The above commands may fail because some other *non-official* packages
-([ArrayTools](https://github.com/emmt/ArrayTools.jl) and
-[EasyFITS](https://github.com/emmt/EasyFITS.jl)) are required.  The recommanded
-way to install them (assuming SSH) is to type:
+([ArrayTools](https://github.com/emmt/ArrayTools.jl),
+[EasyFITS](https://github.com/emmt/EasyFITS.jl),
+[LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) and
+[OptimPackNextGen](https://github.com/emmt/OptimPackNextGen.jl)) are required.
+The recommanded way to install them (assuming HTTPS) is to type:
 
 ```julia
 pkg> add https://github.com/emmt/ArrayTools.jl
 pkg> add https://github.com/emmt/EasyFITS.jl
+pkg> add https://github.com/emmt/LazyAlgebra.jl
+pkg> add https://github.com/emmt/OptimPackNextGen.jl
 ```
 
 [doc-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
