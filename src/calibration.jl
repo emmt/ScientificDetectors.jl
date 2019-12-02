@@ -987,10 +987,6 @@ write(io::FitsIO, calib::ReducedCalibration{T,N}; kwds...) where {T,N} =
 
 function write(io::FitsIO, calib::ReducedCalibration{T,N},
                hdr::FitsHeader) where {T,N}
-
-    # Check contents of calibration.
-    checkvalues(calib)
-
     # Create data array.
     dims = size(calib)
     dat = Array{T,N+1}(undef, dims..., 4 + length(calib.c))
