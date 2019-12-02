@@ -24,7 +24,7 @@ function process end
 function process! end
 
 include("calibration.jl")
-import .Calibration: ReducedCalibration
+import .Calibration: ReducedCalibration, CalibrationData
 
 include("preprocessing.jl")
 import .Preprocessing:
