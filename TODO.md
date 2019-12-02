@@ -5,3 +5,4 @@
 - Check what is faster between existing methods `copyto!`, `fill!` and `@simd`
   loops.
 - Check what is faster between computing `wgt` and `dat` separately or jointly.
+- Calibration procedures can be multi-threaded.
