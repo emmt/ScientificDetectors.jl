@@ -22,15 +22,15 @@ parameters with `T` the floating-point type for the computations.
 Constructor is called as:
 
 ```julia
-ScientificDetectors.ReducedCalibration([T,] f, z, g, s, args...; kwds...) -> cal
+ScientificDetectors.ReducedCalibration([T,] f, z, g, σ, args...; kwds...) -> cal
 ```
 
 where `T` is the floating-point type for the computations (optional, if
 unspecified, it is deduced from the element type of the other arguments), `a`
 is the amplitude correction factor (in flux units per ADU), `z` is the *zero
 level* that is the constant bias set by the analog to digital converter (in
-ADU), `g` is the detector gain (in electrons per ADU) and `s` is the standard
-deviation of the readout noise (in ADU/frame).  Arguments `a`, `z`, `g` and `s`
+ADU), `g` is the detector gain (in electrons per ADU) and `σ` is the standard
+deviation of the readout noise (in ADU/frame).  Arguments `a`, `z`, `g` and `σ`
 are pixelwise, they are broadcast to common dimensions (which should be that of
 the detector) and their elements converted to the same type `T`.
 
@@ -49,11 +49,25 @@ horizontal and vertical binning factors (in physical pixels).
 Basic operations on `ScientificDetectors.ReducedCalibration` instance `obj`:
 
 ```julia
-size(obj)   # yields the dimensions of the detector
-size(obj,k) # yields the `k`-th dimension of the detector
-length(obj) # yields the number of elements of the detector
-eltype(obj) # yields the floating-point type of the calibration data
-T.(obj)     # convert contents of `obj` to floating-point type `T`
+size(obj)       # yields the dimensions of the detector
+size(obj,k)     # yields the `k`-th dimension of the detector
+length(obj)     # yields the number of elements of the detector
+eltype(obj)     # yields the floating-point type of the calibration data
+T.(obj)         # convert contents of `obj` to floating-point type `T`
+```
+
+Other implemented methods (must be imported or prefixed by
+`ScientificDetectors.Calibration`):
+
+```julia
+cologlikelihood(obj) # yields th co-log-likelihood map
+detectorbias(obj)    # yields the constant detector bias (in ADU)
+detectorgain(obj)    # yields the detector gain (in e-/ADU)
+detectornoise(obj)   # yields the standard deviation of the detector noise (in ADU)
+currents(obj)        # yields all the current terms
+current(obj)         # yields the k-th current term (in ADU/s)
+categories(obj)      # yields all the names of the current terms
+category(obj, k)     # yields the name of the k-th current term
 ```
 
 """
@@ -72,26 +86,22 @@ struct ReducedCalibration{T<:AbstractFloat,N}
     # Co-log-likelihood.
     f::Array{T,N}
 
-    #FIXME: # Amplitude correction factor (in flux units per ADU):
-    #FIXME: a::Array{T,N}
-
     # Zero-level (constant bias in ADU):
     z::Array{T,N}
 
     # Detector gain (in electrons per ADU):
     g::Array{T,N}
 
-    # FIXME: s -> σ
     # Standard deviation of the readout noise (in ADU/frame):
-    s::Array{T,N}
+    σ::Array{T,N}
 
     # Time dependent bias, e.g. dark current and background flux, (in
     # ADU/second), may be empty or zero-filled:
     c::Vector{Array{T,N}}
 
-    # Identifiers of the calibration sources responsible of the different
+    # Categories of the different sources responsible of the different
     # time-dependent bias terms.
-    cids::Vector{String}
+    cat::Vector{String}
 
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N}(dims::NTuple{N,Int},
@@ -102,9 +112,9 @@ struct ReducedCalibration{T<:AbstractFloat,N}
                                      f::Array{T,N},
                                      z::Array{T,N},
                                      g::Array{T,N},
-                                     s::Array{T,N},
+                                     σ::Array{T,N},
                                      c::Vector{Array{T,N}},
-                                     cids::Vector{String};
+                                     cat::Vector{String};
                                      check::Bool = false
                                      ) where {T<:AbstractFloat,N}
         @assert xoff ≥ 0
@@ -114,13 +124,25 @@ struct ReducedCalibration{T<:AbstractFloat,N}
         @assert size(f) == dims
         @assert size(z) == dims
         @assert size(g) == dims
-        @assert size(s) == dims
-        @assert length(cids) == length(c)
-        obj = new{T,N}(dims, xoff, yoff, xbin, ybin, f, z, g, s, c, cids)
+        @assert size(σ) == dims
+        @assert length(cat) == length(c)
+        for k ∈ eachindex(c)
+            @assert size(c[k]) == dims
+        end
+        obj = new{T,N}(dims, xoff, yoff, xbin, ybin, f, z, g, σ, c, cat)
         check && checkvalues(obj)
         return obj
     end
 end
+
+cologlikelihood(obj::ReducedCalibration) = obj.f
+detectorbias(obj::ReducedCalibration) = obj.z
+detectorgain(obj::ReducedCalibration) = obj.g
+detectornoise(obj::ReducedCalibration) = obj.σ
+currents(obj::ReducedCalibration) = obj.c
+current(obj::ReducedCalibration, k::Integer) = getindex(currents(obj), k)
+categories(obj::ReducedCalibration) = obj.cat
+category(obj::ReducedCalibration, k::Integer) = getindex(categories(obj), k)
 
 #
 # Outer constructors for ReducedCalibration structure.
@@ -137,43 +159,43 @@ ReducedCalibration{T}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
                             convert(Array{T,N}, obj.f),
                             convert(Array{T,N}, obj.z),
                             convert(Array{T,N}, obj.g),
-                            convert(Array{T,N}, obj.s),
+                            convert(Array{T,N}, obj.σ),
                             map(x -> convert(Array{T,N}, x), obj.c),
-                            obj.cids)
+                            obj.cat)
 
 function ReducedCalibration(f::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
                             g::AbstractArray{<:Any,N},
-                            s::AbstractArray{<:Any,N};
+                            σ::AbstractArray{<:Any,N};
                             kwds...) where {N}
-    return ReducedCalibration(promote_eltype(f, z, g, s), f, z, g, s; kwds...)
+    return ReducedCalibration(promote_eltype(f, z, g, σ), f, z, g, σ; kwds...)
 end
 
 function ReducedCalibration(::Type{T},
                             f::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
                             g::AbstractArray{<:Any,N},
-                            s::AbstractArray{<:Any,N};
+                            σ::AbstractArray{<:Any,N};
                             kwds...) where {T,N}
-    return ReducedCalibration(T, f, z, g, s, Array{T,N}[], String[]; kwds...)
+    return ReducedCalibration(T, f, z, g, σ, Array{T,N}[], String[]; kwds...)
 end
 
 function ReducedCalibration(f::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
                             g::AbstractArray{<:Any,N},
-                            s::AbstractArray{<:Any,N},
+                            σ::AbstractArray{<:Any,N},
                             args...;
                             kwds...) where {N}
-    return ReducedCalibration(f, z, g, s, _getc(args...)...; kwds...)
+    return ReducedCalibration(f, z, g, σ, _getc(args...)...; kwds...)
 end
 
 function ReducedCalibration(::Type{T},
                             f::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
                             g::AbstractArray{<:Any,N},
-                            s::AbstractArray{<:Any,N},
+                            σ::AbstractArray{<:Any,N},
                             args...; kwds...) where {T,N}
-    return ReducedCalibration(T, f, z, g, s, _getc(args...)...; kwds...)
+    return ReducedCalibration(T, f, z, g, σ, _getc(args...)...; kwds...)
 end
 
 # Convert pairs like "key1"=>arr1, :key2=>arr2, ... in a list of
@@ -193,24 +215,35 @@ _string(x::Symbol) = String(x)
 function ReducedCalibration(f::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
                             g::AbstractArray{<:Any,N},
-                            s::AbstractArray{<:Any,N},
+                            σ::AbstractArray{<:Any,N},
                             c::AbstractVector{<:AbstractArray{<:Any,N}},
-                            cids::AbstractVector;
+                            cat::AbstractVector;
                             kwds...) where {N}
-    T = _promote_eltype(promote_eltype(f, z, g, s), c, length(c))
-    return ReducedCalibration(T, f, z, g, s, c, cids; kwds...)
+    T = _promote_eltype(promote_eltype(f, z, g, σ), c, length(c))
+    return ReducedCalibration(T, f, z, g, σ, c, cat; kwds...)
 end
 
+"""
+```julia
+checkvalues(obj)
+```
+
+throws an error if some values in the reduced calibration object `obj` are
+invalid.
+
+"""
 function checkvalues(cal::ReducedCalibration)
-    f, z, g, σ, c = cal.f, cal.z, cal.g, cal.s, cal.c
+    f, z, g, σ, c = cal.f, cal.z, cal.g, cal.σ, cal.c
     dims = size(cal)
+    @assert size(f) == dims
+    @assert size(z) == dims
+    @assert size(g) == dims
+    @assert size(σ) == dims
     for k ∈ eachindex(c)
         @assert size(c[k]) == dims
         all(x -> isfinite(x) && x ≥ 0, c[k]) ||
             error("some invalid values in time-dependent bias")
     end
-    #FIXME: all(x -> isfinite(x) && x ≥ 0, a) ||
-    #FIXME:     error("some invalid values in amplitude correction")
     all(x -> isfinite(x), z) ||
         error("some invalid values in constant bias")
     all(x -> isfinite(x) && x ≥ 0, g) ||
@@ -235,9 +268,9 @@ function ReducedCalibration(::Type{T},
                             f::AbstractArray{<:Any,N},
                             z::AbstractArray{<:Any,N},
                             g::AbstractArray{<:Any,N},
-                            s::AbstractArray{<:Any,N},
+                            σ::AbstractArray{<:Any,N},
                             c::AbstractVector{<:AbstractArray{<:Any,N}},
-                            cids::AbstractVector;
+                            cat::AbstractVector;
                             kwds...) where {T<:AbstractFloat,N}
     T <: AbstractFloat ||
         error("promoted element types must be floating-point")
@@ -245,9 +278,9 @@ function ReducedCalibration(::Type{T},
                               convert(Array{T,N}, f),
                               convert(Array{T,N}, z),
                               convert(Array{T,N}, g),
-                              convert(Array{T,N}, s),
+                              convert(Array{T,N}, σ),
                               map(x -> convert(Array{T,N}, x), c),
-                              map(x -> convert(String, x), cids);
+                              map(x -> convert(String, x), cat);
                               kwds...)
 end
 
@@ -255,15 +288,15 @@ function ReducedCalibration(::Type{T},
                             f::Array{T,N},
                             z::Array{T,N},
                             g::Array{T,N},
-                            s::Array{T,N},
+                            σ::Array{T,N},
                             c::Vector{Array{T,N}},
-                            cids::Vector{String};
+                            cat::Vector{String};
                             xoff::Integer = 0,
                             yoff::Integer = 0,
                             xbin::Integer = 1,
                             ybin::Integer = 1) where {T<:AbstractFloat,N}
     return ReducedCalibration{T,N}(size(f), xoff, yoff, xbin, ybin,
-                                   f, z, g, s, c, cids)
+                                   f, z, g, σ, c, cat)
 end
 
 #
@@ -475,7 +508,7 @@ function ReducedCalibration(cal::CalibrationData{P,N,T}) where {P,N,T}
         out.f[j] = res.f
         out.z[j] = res.z
         out.g[j] = res.g
-        out.s[j] = sqrt(res.u/res.g)
+        out.σ[j] = sqrt(res.u/res.g)
     end
 
     # Return reduced calibration data.
@@ -558,7 +591,7 @@ function fit!(res::FitResult{T}, d::Vector{T},
 
         # Compute the objective function.
         fx = zero(T)
-        @inbounds @simd for i in 1:nframes # FIXME: really use SIMD?
+        @inbounds @simd for i in 1:nframes
             # (5 ops + 1 log)/frames ~ 28 ops/frames
             fx += g*w[i]*r[i]^2 - log(w[i])
         end
@@ -864,7 +897,7 @@ function calibrate(md::AbstractArray{T,N},
     #FIXME: a = Array{T}(undef, dims)
     z = Array{T}(undef, dims)
     g = Array{T}(undef, dims)
-    s  = Array{T}(undef, dims)
+    σ  = Array{T}(undef, dims)
 
     # The minimum variance, in (ADU/pixel/frame)^2, should be 1/12 which is the
     # variance of rounding to the nearest integer.  This is not used for now.
@@ -892,11 +925,11 @@ function calibrate(md::AbstractArray{T,N},
             z[i] = 0
         end
 
-        # s = sqrt(vd)
+        # σ = sqrt(vd)
         if isfinite(vd[i]) && vd[i] > minvar
-            s[i] = sqrt(vd[i])
+            σ[i] = sqrt(vd[i])
         else
-            s[i] = 0
+            σ[i] = 0
         end
 
         # g = (ms - md)/(vs - vd)
@@ -909,7 +942,7 @@ function calibrate(md::AbstractArray{T,N},
 
     end
 
-    return ReducedCalibration(a, z, g, s; kwds...)
+    return ReducedCalibration(a, z, g, σ; kwds...)
 end
 
 """
@@ -964,7 +997,7 @@ function write(io::FitsIO, calib::ReducedCalibration{T,N},
     dat[…,1] .= calib.f
     dat[…,2] .= calib.z
     dat[…,3] .= calib.g
-    dat[…,4] .= calib.s
+    dat[…,4] .= calib.σ
     k = 4
     for c in calib.c
         k += 1
@@ -979,8 +1012,8 @@ function write(io::FitsIO, calib::ReducedCalibration{T,N},
     hdr.YOFFSET  = (calib.yoff, "Vertical offset (in physical pixels)")
     hdr.XBINNING = (calib.xbin, "Horizontal binning (in physical pixels)")
     hdr.YBINNING = (calib.ybin, "Vertical binning (in physical pixels)")
-    for k ∈ eachindex(calib.cids)
-        hdr[string("CAT",k)] = calib.cids[k]
+    for k ∈ eachindex(calib.cat)
+        hdr[string("CAT",k)] = calib.cat[k]
     end
 
     # Write FITS HDU.
@@ -1042,9 +1075,9 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
         xbin = get(hdr, "XBINNING", 1),
         ybin = get(hdr, "YBINNING", 1),
     )
-    cids = Vector{String}(undef, nc)
+    cat = Vector{String}(undef, nc)
     for k in 1:nc
-        cids[k] = get(hdr, string("CAT",k), "")
+        cat[k] = get(hdr, string("CAT",k), "")
     end
 
     # Read data and build instance.
@@ -1052,12 +1085,12 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     f = read(hdu, colons..., 1)
     z = read(hdu, colons..., 2)
     g = read(hdu, colons..., 3)
-    s = read(hdu, colons..., 4)
+    σ = read(hdu, colons..., 4)
     c = Vector{typeof(f)}(undef, nc)
     for k in 1:nc
         c[k] = read(hdu, colons..., 4 + k)
     end
-    return convert(T, ReducedCalibration(f, z, g, s, c, cids; kwds...))
+    return convert(T, ReducedCalibration(f, z, g, σ, c, cat; kwds...))
 end
 
 @noinline dimension_mismatch() =
