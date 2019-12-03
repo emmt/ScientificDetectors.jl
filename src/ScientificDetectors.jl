@@ -15,6 +15,16 @@
 module ScientificDetectors
 
 export
+    CalibrationData,
+    IndependentIdenticallyDistributedNoise,
+    NoiseModel,
+    PreprocessingParameters,
+    RealisticNoise,
+    ReducedCalibration,
+    StaticNoise,
+    calibrate,
+    process!,
+    process,
     write!
 
 import EasyFITS: write!
