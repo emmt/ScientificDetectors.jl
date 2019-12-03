@@ -1761,6 +1761,105 @@ the other parameters.  The estimator $\estim{a}_j$ of the intensity correction
 factor results from Eq.~\eqref{eq:Themis-sun-avg} using the estimators of the
 other parameters.
 
+From Eq.~\eqref{eq:integrated-max-likelihood}, the co-log-likelihood of the
+$j$-th pixel in the dark and stable images\footnote{The flat images are only
+  taken into account to compute the flux correction factors $a_j$}. writes:
+\begin{align}
+  \varphi_j(\V\theta_j)
+  &= N^\Tag{dark}\,\Paren*{
+    \frac{v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z_j}^2}{\sigma^2_j}
+    + \log\sigma^2_j
+  } \notag\\
+  &\quad+ N^\Tag{led}\,\Paren*{
+    \frac{v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z_j - x_j}^2}
+         {x_j/g_j + \sigma^2_j}
+    + \log\Paren*{x_j/g_j + \sigma^2_j}
+  } \notag\\
+  &= g_j\,\Paren*{
+    N^\Tag{dark}\,\frac{v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z_j}^2}
+                       {u_j} +
+    N^\Tag{led}\,\frac{v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z_j - x_j}^2}
+                      {u_j + x_j}
+  } \notag\\
+  &\quad - \Paren*{N^\Tag{dark} + N^\Tag{led}}\log g_j
+    + N^\Tag{dark}\,\log u_j
+    + N^\Tag{led}\,\log\Paren*{u_j + x_j}
+\end{align}
+with $x_j = c^\Tag{led}_j\,\Delta t$ and $u_j = g_j\,\sigma^2_j$ as before
+but with $\V\theta = (z_j, g_j, u_j, x_j)$ this time.
+
+It appears that conventional calibration amounts to first maximize the
+likelihood of the dark images in the bias $z_j$ and the readout noise
+$\sigma_j$ and then maximize the likelihood of the led images in the remaining
+detector parameters.
+
+The best bias does not depend on the gain:
+\begin{align}
+  z^+_j(u,x)
+  &\bydef \argmin_{z} \varphi_j(z,g,u,x) \notag\\
+  &= \frac{
+    \frac{N^\Tag{dark}\,m^\Tag{dark}_j}{u} +
+    \frac{N^\Tag{led}\,\Paren*{m^\Tag{led}_j - xj}}{u + x}
+  }{
+    \frac{N^\Tag{dark}}{u} +
+    \frac{N^\Tag{led}}{u + x}
+  } \, .
+\end{align}
+The best gain is given by:
+\begin{align}
+  g^+_j(u,x)
+  &\bydef \argmin_{g > 0} \Brace*{\min_{z} \varphi_j(z,g,u,x} \notag\\
+  &= \frac{
+    N^\Tag{dark} + N^\Tag{led}
+  }{
+    N^\Tag{dark}\,\frac{
+      v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z^+_j(u,x)}^2
+    }{
+      u
+    } + N^\Tag{led}\,\frac{
+      v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z^+_j(u,x) - x}^2
+    }{
+      u + x
+    }
+  } \, .
+\end{align}
+
+We define:
+\begin{align}
+  \varphi^+_j(u, x)
+  &\bydef \min_{z,g>0} \varphi_j(z,g,u,x) \notag\\
+  &= \varphi_j\Paren*{z^+_j(u,x),g^+_j(u,x),u,x} \,
+\end{align}
+and we minimize this function in $(u,x)$ under the constraints $u>0$ and $x≥0$.
+To apply VMLM-B, the following partial derivatives are needed:
+\begin{align}
+  \PDer{\varphi^+_j(u, x)}{u}
+  &= \frac{N^\Tag{dark}}{u} - N^\Tag{dark}\,g^ +_j(u,x)\,\frac{
+      v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z^+_j(u,x)}^2
+    }{
+      u^2
+    } \notag\\
+  &\quad + \frac{N^\Tag{led}}{u + x} - N^\Tag{led}\,g^+_j(u,x)\,\frac{
+      v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z^+_j(u,x) - x}^2
+    }{
+      \Paren*{u + x}^2
+    }
+    \, , \\
+  \PDer{\varphi^+_j(u, x)}{x}
+  &= 2\,N^\Tag{led}\,g^+_j(u,x)\,\frac{
+       z^+_j(u,x) + x - m^\Tag{led}_j
+    }{
+      u + x
+    } \notag\\
+  &\quad + \frac{N^\Tag{led}}{u + x} - N^\Tag{led}\,g^+_j(u,x)\,\frac{
+    v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z^+_j(u,x) - x}^2
+  }{
+    \Paren*{u + x}^2
+  }
+  \, .
+\end{align}
+
+\oops{Alternatively, one can use BOBYQA.}
 
 \section{Extraction of calibration data}
 
