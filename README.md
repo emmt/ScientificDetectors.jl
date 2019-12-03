@@ -4,6 +4,82 @@
 pre-processing data from scientific detectors.
 
 
+## Usage
+
+### Reduce calibration data
+
+Assuming `dir` is the path to the directory where are stored FITS files with
+calibration data, reduced calibration data can be obtained as follows:
+
+```julia
+using ScientificDetectors
+include("test/SphereData.jl")
+lst = SphereData.listcalibrations(dir)
+dat = SphereData.readcalibrations(Float32, lst, 401:600, 401:600)
+cal = ReducedCalibration(dat)
+```
+
+Then reduced calibration data can be saved into a FITS file for further use:
+
+```julia
+write("calib.fits", cal)
+```
+
+In order to read the reduced calibration data, call:
+
+```julia
+cal = read(ReducedCalibration, "calib.fits.gz");
+```
+
+
+### Using reduced calibration
+
+To read the reduced calibration data:
+
+```julia
+using ScientificDetectors
+cal = read(ReducedCalibration, "calib.fits.gz")
+```
+
+Convert reduced calibration into pre-processing parameters for 3 seconds
+exposure time:
+
+```julia
+prm = PreprocessingParameters(cal; flat="FLAT_FIELD_RAW_2",
+                              bg="DARK_RAW", Δt=3);
+```
+
+Idem but explicitly specifying the floating-point type:
+
+```julia
+prm = PreprocessingParameters{Float32}(cal; flat="FLAT_FIELD_RAW_2",
+                                       bg="DARK_RAW", Δt=3);
+```
+
+Note that a second argument (after `cal`) may be specified to indicate the
+location of defective pixels.  This optional argument is an array of booleans
+of same size the data frames and with true values where pixels should be
+considered as defective.  In addition to this bad pixel map, pixels for which
+the calibration parameters yield invalid pre-processing parameters are also
+considered as defective.
+
+Read some raw data and apply pre-processings to the 7-th raw frame:
+
+```julia
+using EasyFITS
+raw = read(FitsImage, "SPHER.2018-06-22T04.00.04.544IRD_SCIENCE_DPI_RAW.fits.gz");
+wgt, dat = process(prm, raw[:,:,7]);
+```
+
+this yields 2 arrays: `dat` contains the pre-processed pixel values while `wgt`
+gives their statistical weights.  To avoid allocating arrays, the `process!`
+method can be called:
+
+```julia
+process!(wgt, dat, prm, raw[:,:,7]);
+```
+
+
 ## Installation
 
 `ScientificDetectors` is not yet an [official Julia package][julia-pkgs-url] so you
