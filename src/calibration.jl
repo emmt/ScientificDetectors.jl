@@ -65,7 +65,7 @@ detectorbias(obj)    # yields the constant detector bias (in ADU)
 detectorgain(obj)    # yields the detector gain (in e-/ADU)
 detectornoise(obj)   # yields the standard deviation of the detector noise (in ADU)
 currents(obj)        # yields all the current terms
-current(obj)         # yields the k-th current term (in ADU/s)
+current(obj, k)      # yields the k-th current term (in ADU/s)
 categories(obj)      # yields all the names of the current terms
 category(obj, k)     # yields the name of the k-th current term
 ```
@@ -222,6 +222,35 @@ function ReducedCalibration(f::AbstractArray{<:Any,N},
     T = _promote_eltype(promote_eltype(f, z, g, σ), c, length(c))
     return ReducedCalibration(T, f, z, g, σ, c, cat; kwds...)
 end
+
+
+"""
+```julia
+find(obj, key) -> j
+```
+
+yields the index `j` of the current term in reduced calibration data which match `key`
+or `0` if not found.
+
+"""
+find(obj::ReducedCalibration, key::Nothing) = 0
+
+function find(obj::ReducedCalibration, key::AbstractString)
+    cat = categories(obj)
+    n = 0
+    j = 0
+    for i in 1:length(cat)
+        if cat[i] == key
+            j = i
+            n += 1
+        end
+    end
+    n > 1 && error("non-unique category identifier")
+    return j
+end
+
+find(obj::ReducedCalibration, j::Integer) =
+    (1 ≤ j ≤ length(categories(obj)) ? Int(j) : 0)
 
 """
 ```julia
@@ -395,12 +424,16 @@ integers, symbols or strings.  A given key uniquely identify the category of
 the corresponding data frame. Exposure times are in seconds.
 
 ```julia
-numberofdataframes(obj) # yields the number of data frames
-numberofcategories(obj) # yields the number of different categories
-dataframes(obj)         # yields the vector of data frames
-categories(obj)         # yields the category indices of the data frames
-exposuretimes(obj)      # yields the exposure times of the data frames
-uniqueidentifiers(obj)  # yields the list of unique identifiers of categories
+numberofdataframes(obj)  # yields the number of data frames
+numberofcategories(obj)  # yields the number of different categories
+dataframes(obj)          # yields the vector of data frames
+dataframe(obj, i)        # yields the i-th data frame
+categories(obj)          # yields the category indices of the data frames
+category(obj, i)         # yields the category index of the i-th data frame
+exposuretimes(obj)       # yields the exposure times of the data frames
+exposuretime(obj, i)     # yields the exposure time of the i-th data frame
+uniqueidentifiers(obj)   # yields the list of unique identifiers of categories
+uniqueidentifier(obj, l) # yields the l-th unique identifier of categories
 ```
 
 """
@@ -438,12 +471,20 @@ Base.size(obj::CalibrationData) = obj.dims
 Base.size(obj::CalibrationData{P,N,T}, d::Integer) where {P,N,T} =
     (d < 1 ? error("invalid dimension index") :
      d ≤ N ? size(obj)[d] : 1)
-numberofdataframes(obj::CalibrationData) = length(dataframes(obj))
-numberofcategories(obj::CalibrationData) = length(uniqueidentifiers(obj))
+
 dataframes(obj::CalibrationData) = obj.data
 categories(obj::CalibrationData) = obj.cat
 exposuretimes(obj::CalibrationData) = obj.Δt
 uniqueidentifiers(obj::CalibrationData) = obj.uid
+
+numberofdataframes(obj::CalibrationData) = length(dataframes(obj))
+numberofcategories(obj::CalibrationData) = length(uniqueidentifiers(obj))
+
+dataframe(obj::CalibrationData, i::Integer) = getindex(dataframes(obj), i)
+category(obj::CalibrationData, i::Integer) = getindex(categories(obj), i)
+exposuretime(obj::CalibrationData, i::Integer) = getindex(exposuretime(obj), i)
+uniqueidentifier(obj::CalibrationData, l::Integer) =
+    getindex(uniqueidentifiers(obj), l)
 
 """
 ```julia
