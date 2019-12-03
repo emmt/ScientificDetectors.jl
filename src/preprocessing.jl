@@ -2,6 +2,9 @@ module Preprocessing
 
 import ..ScientificDetectors: ReducedCalibration, process, process!
 
+using ..Calibration: detectorbias, detectorgain, detectornoise,
+    categories, exposuretimes, currents, find
+
 using ArrayTools
 
 abstract type NoiseModel end
@@ -13,13 +16,13 @@ const DEFAULT_NOISE_MODEL = RealisticNoise()
 
 """
 
-`ScientificDetectors.PreprocessingParameters{T}` stores the pre-processing
+`PreprocessingParameters{T}` stores the pre-processing
 parameters with `T` the floating-point type for the computations.
 
 Constructor is called as:
 
 ```julia
-ScientificDetectors.PreprocessingParameters([T,] a, b, p, q) -> obj
+PreprocessingParameters([T,] a, b, p, q) -> obj
 ```
 
 where `T` is the floating-point type for the computations (optional, if
@@ -29,33 +32,38 @@ correction (in ADU), `p` and `q` are variance terms.  Arguments `a`, `b`, `p`
 and `q` are pixelwise, they are broadcast to common dimensions (which should be
 that of the detector) and their elements converted to the same type `T`.
 
-It is also possible to convert calibration parameters to preprocessing
+It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
 ```julia
-ScientificDetectors.PreprocessingParameters([T,] cal::ReducedCalibration,
-                                            bg=0, Δt=0) -> obj
+PreprocessingParameters([T,] cal::ReducedCalibration,
+                        bad=zeros(Bool, size(cal));
+                        flat=nothing, flatbg=nothing,
+                        bg=nothing, Δt=0) -> obj
 ```
 
 with `T` the floating point type of the result, `cal` an instance of
-[`ScientificDetectors.ReducedCalibration`](@ref), `bg` the index or the
-identifier of the background source in `cal` and `Δt` the exposure time in
-seconds.
+[`ReducedCalibration`](@ref), `bad` a boolean mask
+indicating the bad pixels, `flat` the identifier of the flat calibration
+source, `flatbg` the identifier of the background source for the flat, `bg` the
+identifier of the background source and `Δt` the exposure time in seconds.
+Identifiers `flat`, `flatbg` and/or `bg` can be `nothing` if irrelevant or an
+integer or a string that corresponds to a specific current term in the reduced
+calibration data `cal`.
 
 The pre-processing of pixel `raw[i]` of an image given by the detector leads to
 compute the calibrated pixel value `dat[i]` and its corresponding precision
 `wgt[i]` as follows:
 
 ```julia
-dat[i] = (raw[i] - b[i])*a[i]
+dat[i] = (T(raw[i]) - b[i])*a[i]
 wgt[i] = p[i]/(max(zero(T), dat[i]) + q[i])
 ```
 
 where the *realistic* noise model has been assumed.  These operations are
-efficiently done by the [`ScientificDetectors.process`](@ref) method.
+efficiently done by the [`process`](@ref) method.
 
-Basic operations on `ScientificDetectors.PreprocessingParameters` instance
-`obj`:
+Basic operations on `PreprocessingParameters` instance `obj`:
 
 ```julia
 size(obj)   # yields the dimensions of the detector
@@ -64,6 +72,8 @@ length(obj) # yields the number of elements of the detector
 eltype(obj) # yields the floating-point type of the preprocessing data
 T.(obj)     # convert contents of `obj` to floating-point type `T`
 ```
+
+Also see [`process`](@ref).
 
 """
 struct PreprocessingParameters{T<:AbstractFloat,N,
@@ -157,78 +167,117 @@ function _stage3(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
     return PreprocessingParameters{T,N,A}(dims, map(x -> convert(A, x), (a, b, p, q))...)
 end
 
-# This version converts calibration parameters to preprocessing parameters.
-function PreprocessingParameters(cal::ReducedCalibration{T,N},
-                                 bg::Union{Integer,String}=0,
-                                 Δt::Real=0) :: PreprocessingParameters{T,N} where {T,N}
-    # Check arguments.
-    dims = size(cal)
-    a, z, g, s, c, cids = cal.a, cal.z, cal.g, cal.s, cal.c, cal.cids
-    @assert size(a) == dims
-    @assert size(z) == dims
-    @assert size(g) == dims
-    @assert size(s) == dims
+# This version converts reduced calibration parameters to preprocessing parameters.
+PreprocessingParameters(cal::ReducedCalibration{T}, args...; kwds...) where {T} =
+    PreprocessingParameters(T, cal, args...; kwds...)
+
+function PreprocessingParameters(::Type{T},
+                                 cal::ReducedCalibration{R,N},
+                                 bad::AbstractArray{Bool,N} = zeros(Bool, size(cal));
+                                 flat::Union{Nothing,Integer,String} = nothing,
+                                 flatbg::Union{Nothing,Integer,String} = nothing,
+                                 bg::Union{Nothing,Integer,String} = nothing,
+                                 Δt::Real=0) where {T<:AbstractFloat,R,N}
+
+    # Get index of flat term and its background.
+    jflat = find(cal, flat)
+    jflat != 0 ||
+        error("`flat` keyword must be specified with a valid identifier/index")
+    jflatbg = find(cal, flatbg)
+    (flatbg !== nothing && jflatbg == 0 ) &&
+        error("invalid identifier/index of background source for the flat")
+
+    # Get index of background term.
+    jbg = find(cal, bg)
+    (bg !== nothing && jbg == 0 ) &&
+        error("invalid identifier/index of background source")
+
+    # Get exposure time.
     (isfinite(Δt) && Δt ≥ 0) ||
         error("exposure time must be nonnegative")
-    local k::Int
-    nc = length(c)
-    if nc == 0
-        Δt == 0 ||
-            error("no time dependent bias specified in calibration data")
-        k = 0
-    elseif isa(bg, Integer)
-        1 ≤ bg ≤ nc ||
-            error("out of range index of background source")
-        k = bg
-    else
-        k = -1
-        for i in 1:nc
-            if cids[i] == bg
-                k = i
-                break
-            end
-        end
-        k ≥ 1 ||
-            error("identifier of background source not found")
+    (jbg != 0 && Δt == 0) &&
+        error("no time dependent bias specified in calibration data")
+
+    # Check arguments.
+    dims = size(cal)
+    z = detectorbias(cal)
+    g = detectorgain(cal)
+    σ = detectornoise(cal)
+    c = currents(cal)
+    cat = categories(cal)
+    @assert size(bad) == dims
+    @assert size(z) == dims
+    @assert size(g) == dims
+    @assert size(σ) == dims
+    @assert size(c[jflat]) == dims
+    if jflatbg != 0
+        @assert size(c[jflatbg]) == dims
     end
-    if k > 0
-        @assert size(c[k]) == dims
+    if jbg != 0
+        @assert size(c[jbg]) == dims
     end
 
-    # Allocate arrays and compute variance terms (first assuming Δt = 0).
-    p = similar(a)
-    q = similar(a)
-    pbad = zero(T) # value of p[i] for defective data
-    qbad = one(T)  # idem for q[i] but to avoid division by zero
-    @inbounds for i in eachindex(p, q, a, g, s)
-        if (isfinite(a[i]) && a[i] > 0 &&
-            isfinite(g[i]) && g[i] > 0 &&
-            isfinite(s[i]) && s[i] > 0)
-            p[i] = g[i]/a[i]
-            q[i] = a[i]*g[i]*s[i]^2
-        else
-            p[i] = pbad
-            q[i] = qbad
+    # Compute the flux correction term.  Bad pixels have a[i] = 0.
+    a = Array{T}(undef, dims)
+    cflat = c[jflat]
+    if jflatbg != 0
+        cflatbg = c[jflatbg]
+        @inbounds for i in eachindex(bad, a, cflat, cflatbg)
+            val = cflat[i] - cflatbg[i]
+            a[i] = (bad[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
+        end
+    else
+        @inbounds for i in eachindex(bad, a, cflat)
+            val = cflat[i]
+            a[i] = (bad[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
         end
     end
-    if k > 0
-        # Account for the contribution of the background and the dark current
-        # in the bias and the variance.
+
+    # Compute the bias correction and the variance terms.  Bad pixels have
+    # a[i] = 0, b[i] = 0, p[i] = 0 and q[i] = 1, to have zero precision and
+    # avoid division by zero.
+    b = Array{T}(undef, dims)
+    p = Array{T}(undef, dims)
+    q = Array{T}(undef, dims)
+    if jbg != 0
+        cbg = c[jbg]
         dt = T(Δt)
-        b = similar(a)
-        @inbounds for i in eachindex(p, q, a, g, s)
-            if (p[i] > 0 && isfinite(c[i]) && c[i] ≥ 0)
-                cdt = c[i]*dt
-                q[i] += a[i]*cdt
-                b[i] = z[i] + cdt
+        @inbounds for i in eachindex(bad, a, b, g, p, q, σ, cbg)
+            cdt = cbg[i]*dt
+            b_i = z[i] + cdt
+            p_i = g[i]/a[i]
+            q_i = a[i]*(g[i]*σ[i]^2 + cdt)
+            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(p_i) & (p_i ≥ 0)) |
+                !(isfinite(q_i) & (q_i > 0)))
+                a[i] = zero(T)
+                b[i] = zero(T)
+                p[i] = zero(T)
+                q[i] = one(T)
             else
-                b[i] = z[i]
+                b[i] = b_i
+                p[i] = p_i
+                q[i] = q_i
             end
         end
-        return PreprocessingParameters(a, b, p, q)
     else
-        return PreprocessingParameters(a, z, p, q)
+        @inbounds for i in eachindex(bad, a, b, g, p, q, σ)
+            b_i = z[i]
+            p_i = g[i]/a[i]
+            q_i = a[i]*g[i]*σ[i]^2
+            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(p_i) & (p_i ≥ 0)) |
+                !(isfinite(q_i) & (q_i > 0)))
+                a[i] = zero(T)
+                b[i] = zero(T)
+                p[i] = zero(T)
+                q[i] = one(T)
+            else
+                b[i] = b_i
+                p[i] = p_i
+                q[i] = q_i
+            end
+        end
     end
+    return PreprocessingParameters(a, b, p, q)
 end
 
 #
@@ -249,15 +298,15 @@ Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:Abstrac
 """
 
 ```julia
-ScientificDetectors.process(prm, raw, noise=RealisticNoise()) -> wgt, dat
+process(prm, raw, noise=RealisticNoise()) -> wgt, dat
 ```
 
 yields a tuple of 2 arrays, `(wgt,dat)`, where `dat` gives the pixel values
 while `wgt` gives their respective weights.  Both are the result of the
 pre-processing of the image `raw` acquired by the detector whose pre-processing
 parameters are given by `prm` (an instance of
-[`ScientificDetectors.PreprocessingParameters`](@ref)).  The `noise` argument
-indicates the model assumed to compute the statistical weights:
+[`PreprocessingParameters`](@ref)).  The `noise` argument indicates the model
+assumed to compute the statistical weights:
 
 - `Val(:iid)` for i.i.d. (independent and identically distributed) noise;
 
@@ -271,14 +320,13 @@ factor.
 The operation can be applied in-place:
 
 ```julia
-ScientificDetectors.process!(wgt, dat, prm, raw,
-                             noise=Val(:realistic)) -> wgt, dat
+process!(wgt, dat, prm, raw, noise=Val(:realistic)) -> wgt, dat
 ```
 
 to overwrite the contents of `wgt` and `dat` by the result of the
 pre-processing.  This is useful to avoid re-allocating arrays.
 
-See also: [`ScientificDetectors.calibrate`](@ref).
+See also: [`calibrate`](@ref).
 
 """
 function process(prm::PreprocessingParameters{T,N},
