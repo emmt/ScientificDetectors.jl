@@ -6,3 +6,6 @@
   loops.
 - Check what is faster between computing `wgt` and `dat` separately or jointly.
 - Calibration procedures can be multi-threaded.
+- Replace `calibrate` method by a constructor of `ReducedCalibration`.
+- Add means to read/write preprocessing parameters from/to a FITS file.
+- Provide simple tools to defined bad pixels.
