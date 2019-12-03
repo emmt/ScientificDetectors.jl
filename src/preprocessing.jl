@@ -36,7 +36,7 @@ It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
 ```julia
-PreprocessingParameters([T,] cal::ReducedCalibration,
+PreprocessingParameters(cal::ReducedCalibration,
                         bad=zeros(Bool, size(cal));
                         flat=nothing, flatbg=nothing,
                         bg=nothing, Δt=0) -> obj
@@ -50,6 +50,12 @@ identifier of the background source and `Δt` the exposure time in seconds.
 Identifiers `flat`, `flatbg` and/or `bg` can be `nothing` if irrelevant or an
 integer or a string that corresponds to a specific current term in the reduced
 calibration data `cal`.
+
+The floating-point type of the result, say `T`, can be explicitly specified:
+
+```julia
+PreprocessingParameters{T}(cal, ...) -> obj
+```
 
 The pre-processing of pixel `raw[i]` of an image given by the detector leads to
 compute the calibrated pixel value `dat[i]` and its corresponding precision
@@ -169,15 +175,14 @@ end
 
 # This version converts reduced calibration parameters to preprocessing parameters.
 PreprocessingParameters(cal::ReducedCalibration{T}, args...; kwds...) where {T} =
-    PreprocessingParameters(T, cal, args...; kwds...)
+    PreprocessingParameters{T}(cal, args...; kwds...)
 
-function PreprocessingParameters(::Type{T},
-                                 cal::ReducedCalibration{R,N},
-                                 bad::AbstractArray{Bool,N} = zeros(Bool, size(cal));
-                                 flat::Union{Nothing,Integer,String} = nothing,
-                                 flatbg::Union{Nothing,Integer,String} = nothing,
-                                 bg::Union{Nothing,Integer,String} = nothing,
-                                 Δt::Real=0) where {T<:AbstractFloat,R,N}
+function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
+                                    bad::AbstractArray{Bool,N} = zeros(Bool, size(cal));
+                                    flat::Union{Nothing,Integer,String} = nothing,
+                                    flatbg::Union{Nothing,Integer,String} = nothing,
+                                    bg::Union{Nothing,Integer,String} = nothing,
+                                    Δt::Real=0) where {T<:AbstractFloat,R,N}
 
     # Get index of flat term and its background.
     jflat = find(cal, flat)
