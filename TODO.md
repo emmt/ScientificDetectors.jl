@@ -8,4 +8,9 @@
 - Calibration procedures can be multi-threaded.
 - Replace `calibrate` method by a constructor of `ReducedCalibration`.
 - Add means to read/write preprocessing parameters from/to a FITS file.
-- Provide simple tools to defined bad pixels.
+- Provide simple tools to define bad pixels.
+- ROI information in `ReducedCalibration` must be `N`-dimensional.
+- Perhaps provide additional information (ROI, exposure time, other detetctor
+  parameters, etc.) in the form of a hash-table (or equivalent) in
+  `ReducedCalibration` and `PreprocessingParameters` with means to
+  read/write/check these information from/to FITS header.

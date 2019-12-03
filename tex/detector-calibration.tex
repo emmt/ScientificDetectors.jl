@@ -1317,19 +1317,20 @@ Another possibility would be to use an Iterative Reweighted Least Squares
 
 \paragraph{Initial solution} Whatever the chosen non-linear optimization
 method, the problem being non-convex, providing a starting point not too far
-from the solution is an important point. We note that if the bias $z_j$ and
-$\tau_{j,\ell} = u/c_{j,\ell} > 0$ are assumed known, the \emph{current} terms
-$c_{j,\ell}$ are solutions of simple independent linear least squares problems:
+from the solution is of prime importance. We note that if the bias $z_j$ and
+the ratio $\tau_{j,\ell} = u_j/c_{j,\ell} > 0$ are assumed known, the
+\emph{current} terms $c_{j,\ell}$ are approximately solutions of simple
+independent linear least squares problems:
 \begin{align}
   c^+_{j,\ell}(z,\tau)
   &= \argmin_{{j,\ell}}\phi(\V\theta)
-  \quad\text{s.t.\ $u = \tau\,c_{j,\ell}$}\quad \notag\\
-  &= \argmin_{c}\sum_{k} \frac{
+  \quad\text{s.t.\ $u_j = \tau\,c_{j,\ell}$}\quad \notag\\
+  &\approx \argmin_{c}\sum_{k} \frac{
     \Paren*{d_{j,k,\ell} - c\,\Delta t_{k,\ell} -  z}^2
   }{
     \Delta t_{k,\ell} + \tau
   } \notag\\
-  &= \frac{
+  &\approx \frac{
     \sum_{k} \frac{
       \Paren*{d_{j,k,\ell} - z}\,\Delta t_{k,\ell}
     }{
@@ -1360,7 +1361,7 @@ non-zero exposure times:
 where  $\varepsilon_1 > 0$ is a small factor, and then choose the initial
 \emph{current} terms according to Eq.~\eqref{eq:simple-c}:
 \begin{equation}
-  c\Iter0_{j,\ell} = c^+_{j,\ell}\Paren[\big]{z\Iter0,\tau}
+  c\Iter0_{j,\ell} %= c^+_{j,\ell}\Paren[\big]{z\Iter0,\tau}
   = \frac{
     \sum_{k} \frac{
       \Paren*{d_{j,k,\ell} - z\Iter0}\,\Delta t_{k,\ell}
@@ -1558,16 +1559,18 @@ The sample mean and (unbiased and biased) sample variances in each series are
 given by (see Appendix~\ref{sec:sample-statistics}):
 \begin{align}
   m_{j,\ell}
-  &= \frac{1}{N_\ell} \sum_{k=1}^{N_\ell} d_{j,k,\ell} \notag\\
+  &\bydef \frac{1}{N_\ell} \sum_{k=1}^{N_\ell} d_{j,k,\ell} \notag\\
   &= c_{j,\ell}\,\Delta t_{\ell} + z_j
-     \pm \sqrt{\frac{c_{j,\ell}\,\Delta t_{\ell}/g_j + \sigma_j^2}{N_{\ell}}} \, , \\
+     \pm \sqrt{
+       \frac{c_{j,\ell}\,\Delta t_{\ell} + g_j\,\sigma_j^2}{g_j\,N_{\ell}}
+     } \, , \\
   v^\Tag{ub}_{j,\ell}
-  &= \frac{1}{N_\ell - 1} \sum_{k=1}^{N_{\ell}}
+  &\bydef \frac{1}{N_\ell - 1} \sum_{k=1}^{N_{\ell}}
     \Paren*{d_{j,k,\ell} - m_{j,\ell}}^2 \notag\\
   &=  \Paren*{\frac{c_{j,\ell}\,\Delta t_{\ell}}{g_j} + \sigma_j^2} \,
      \Paren*{1 \pm \sqrt{\frac{2}{N_{\ell} - 1}}} \, , \\
   v^\Tag{ml}_{j,\ell}
-  &= \frac{1}{N_\ell} \sum_{k=1}^{N_{\ell}}
+  &\bydef \frac{1}{N_\ell} \sum_{k=1}^{N_{\ell}}
     \Paren*{d_{j,k,\ell} - m_{j,\ell}}^2 \notag\\
   &= \frac{N_\ell - 1}{N_\ell} \,\Paren*{\frac{c_{j,\ell}\,\Delta t_{\ell}}{g_j} + \sigma_j^2} \,
      \Paren*{1 \pm \sqrt{\frac{2}{N_{\ell} - 1}}} \, ,
@@ -1598,16 +1601,17 @@ estimator $\estim{\V\theta}$ of parameters $\V\theta$ write:
 \end{align}
 where $\Theta$ is the set of acceptable parameters while
 $\mu_{j,\ell}(\V\theta) = \Expect*{d_{j,k,\ell}\Given\V\theta}$ and
-$\sigma_{j,\ell}^2(\V\theta) = \Var*{d_{j,k,\ell}\Given\V\theta}$ are is the
+$\sigma_{j,\ell}^2(\V\theta) = \Var*{d_{j,k,\ell}\Given\V\theta}$ are the
 expectation and variance of the data knowing the parameters which, according to
-the considered conditions, do not depend on $k$.  The numerator in the above
-right hand side expression can be expanded and simplified:
+the considered conditions, do not depend on $k$.  From the definitions of the
+empirical mean and variance, the numerator in the above right hand side
+expression can be expanded and simplified:
 \begin{align}
   \sum_{k=1}^{N_\ell} \Paren[\big]{d_{j,k,\ell} - \mu_{j,\ell}^2(\V\theta)}
   &= \sum_{k=1}^{N_\ell} d_{j,k,\ell}^2
    - 2\,\mu_{j,\ell}(\V\theta)\,\sum_{k=1}^{N_\ell} d_{j,k,\ell}
    + N_{\ell} \, \mu_{j,\ell}^2(\V\theta) \notag\\
-  &= \Paren*{N_\ell\,v_{j,\ell}^\Tag{ml} + N_\ell\,m_{j,\ell}^2}
+  &= N_\ell\,\Paren*{v_{j,\ell}^\Tag{ml} + m_{j,\ell}^2}
    - 2\,N_{\ell}\,\mu_{j,\ell}(\V\theta)\,m_{j,\ell}
    + N_{\ell} \, \mu_{j,\ell}^2(\V\theta) \notag\\
   &= N_\ell\,v_{j,\ell}^\Tag{ml} + N_\ell\,
@@ -1616,7 +1620,7 @@ right hand side expression can be expanded and simplified:
 to re-formulate the maximum likelihood estimator as:
 \begin{equation}
   \estim{\V\theta}
-  = \argmin_{\V\theta \in \Theta} \sum_{j,\ell}
+  = \argmin_{\V\theta \in \Theta} \sum_{j,\ell} N_\ell\,
   \Paren*{
     \frac{
       v_{j,\ell}^\Tag{ml}
@@ -1634,7 +1638,7 @@ $\sigma_{j,\ell}^2(\V\theta)$ of the conditional variance is known, it can be
 approximated by the sample variance to yield:
 \begin{equation}
   \estim{\V\theta}
-  \approx \argmin_{\V\theta \in \Theta} \sum_{j,\ell}
+  \approx \argmin_{\V\theta \in \Theta} \sum_{j,\ell} N_\ell\,
   \frac{
     \Paren[\big]{m_{j,\ell} - \mu_{j,\ell}(\V\theta)}^2
   }{
@@ -1654,15 +1658,16 @@ original data. In the context of maximum likelihood estimation with the
 approximate criterion in \eqref{eq:approx-max-likelihood}, using the ordinary
 (biased) sample variance $v_{j,\ell}^\Tag{ml}$ or the unbiased one
 $v_{j,\ell}^\Tag{ub}$ has no incidence as the two are proportional to each
-other.
+other.  \oops{(Only true if $N_\ell = N$, whatever $\ell$)}.
 
 
 \subsection{A simple example: the Themis wavefront sensor}
 
-In the case of Themis adaptive optics (AO), the wavefront sensor camera is operated at the same
-exposure time for all acquisitions: $\Delta t_{k,\ell} = \Delta t > 0$ and the
-contribution of background sources (dark current) is negligible. The 
-calibrated images are given by an affine correction of the raw images:
+In the case of Themis adaptive optics (AO), the wavefront sensor camera is
+operated at the same exposure time for all acquisitions: $\Delta t_{k,\ell} =
+\Delta t > 0$ and the contribution of background sources (dark current) is
+negligible for the considered exposure times (shorter than one millisecond).
+The calibrated images are given by an affine correction of the raw images:
 \begin{equation}
   \estim{s}_{j,\ell} = \Paren*{d_{j,\ell} - b_j}\,a_j
 \end{equation}
@@ -1737,7 +1742,7 @@ Sun brightness.
 
 \end{description}
 
-Combining all calibration data yields:
+Conventional calibration amounts to combining all calibration data to yield:
 \begin{align}
   \estim{b}_j &= m^\Tag{dark}_j \,, \\
   \estim{\sigma}^2_j &= v^\Tag{dark}_j \,, \\
@@ -1755,7 +1760,6 @@ gain results from Eq.~\eqref{eq:Themis-led-var-approx} using the estimators of
 the other parameters.  The estimator $\estim{a}_j$ of the intensity correction
 factor results from Eq.~\eqref{eq:Themis-sun-avg} using the estimators of the
 other parameters.
-
 
 
 \section{Extraction of calibration data}
