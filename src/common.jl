@@ -1,4 +1,5 @@
 """
+
 ```julia
 DetectorAxis(len; off=0, bin=1) -> obj
 ```
@@ -42,14 +43,18 @@ DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1) =
 offset(obj::DetectorAxis) = obj.off
 binning(obj::DetectorAxis) = obj.bin
 
+@doc @doc(DetectorAxis) offset
+@doc @doc(DetectorAxis) binning
+
 Base.length(obj::DetectorAxis) = obj.len
 Base.size(roi::NTuple{N,DetectorAxis}) where {N} = map(x -> length(x), roi)
 Base.size(roi::NTuple{N,DetectorAxis}, i::Integer) where {N} =
     (i < 1 ? error("out of range dimension index") :
      i ≤ N ? length(roi[i]) : 1)
 
-@doc @doc(DetectorAxis) offset
-@doc @doc(DetectorAxis) binning
+Base.show(io::IO, obj::DetectorAxis) =
+    print(io, "DetectorAxis(", length(obj), "; off=", offset(obj),
+          ", bin=", binning(obj), ")")
 
 function Base.merge!(dst::FitsHeader,
                      prm::Union{Tuple{Vararg{T}},AbstractVector{T}}
@@ -94,3 +99,16 @@ function Base.get(::Type{NTuple{N,DetectorAxis}},
                   src::Union{FitsHeader,FitsImage}) where {N}
     ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
+
+"""
+
+```julia
+regionofinterest(obj)
+```
+
+yields the region of interest (ROI) of object `obj`.
+
+See also [`DetectorAxis`](@ref).
+
+"""
+function regionofinterest end
