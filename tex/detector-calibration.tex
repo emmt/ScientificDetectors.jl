@@ -1665,8 +1665,7 @@ other.  \oops{(Only true if $N_\ell = N$, whatever $\ell$)}.
 
 In the case of Themis adaptive optics (AO), the wavefront sensor camera is
 operated at the same exposure time for all acquisitions: $\Delta t_{k,\ell} =
-\Delta t > 0$ and the contribution of background sources (dark current) is
-negligible for the considered exposure times (shorter than one millisecond).
+\Delta t > 0$ and the only background source is the dark current.
 The calibrated images are given by an affine correction of the raw images:
 \begin{equation}
   \estim{s}_{j,\ell} = \Paren*{d_{j,\ell} - b_j}\,a_j
@@ -1704,23 +1703,23 @@ contribution of background sources (dark current) is negligible, these images
 are similar to \emph{bias} images. their empirical means and unbiased variance
 are given by:
 \begin{align}
-  m^\Tag{dark}_j &= z_j \pm ... \,,
+  m^\Tag{dark}_j &= c^\Tag{dark}_j\,\Delta t + z_j \pm ... \,,
   \label{eq:Themis-dark-avg} \\
-  v^\Tag{dark}_j &= \sigma^2_j \pm ... \,.
+  v^\Tag{dark}_j &= c^\Tag{dark}_j\,\Delta t/g_j + \sigma^2_j \pm ... \,.
   \label{eq:Themis-dark-var}
 \end{align}
 
 \item[Stable images] are acquired with an illumination that is stable in time.
-In practice, this illumination is provided by a led. Their empirical means and
-variance are given by:
+In practice, this illumination is provided by a LED lamp. Their empirical means
+and variance are given by:
 \begin{align}
-  m^\Tag{led}_j
-  &= c^\Tag{led}_j\,\Delta t + z_j \pm ... \,,
+  m^\Tag{lamp}_j
+  &= c^\Tag{lamp}_j\,\Delta t + z_j \pm ... \,,
   \label{eq:Themis-led-avg} \\
-  v^\Tag{led}_j
-  &= c^\Tag{led}_j\,\Delta t/g_j + \sigma^2_j \pm ... \,.
+  v^\Tag{lamp}_j
+  &= c^\Tag{lamp}_j\,\Delta t/g_j + \sigma^2_j \pm ... \,.
   \label{eq:Themis-led-var} \\
-  &\approx \Paren[\big]{m^\Tag{led}_j - b_j}/g_j + \sigma^2_j
+  &\approx \Paren[\big]{m^\Tag{lamp}_j - b_j}/g_j + \sigma^2_j
   \label{eq:Themis-led-var-approx}
 \end{align}
 
@@ -1746,8 +1745,8 @@ Conventional calibration amounts to combining all calibration data to yield:
 \begin{align}
   \estim{b}_j &= m^\Tag{dark}_j \,, \\
   \estim{\sigma}^2_j &= v^\Tag{dark}_j \,, \\
-  \estim{g}_j &= \frac{m^\Tag{led}_j - m^\Tag{dark}_j}
-                      {v^\Tag{led}_j - v^\Tag{dark}_j} \,, \\
+  \estim{g}_j &= \frac{m^\Tag{lamp}_j - m^\Tag{dark}_j}
+                      {v^\Tag{lamp}_j - v^\Tag{dark}_j} \,, \\
   \estim{a}_j &= \frac{f^\Tag{flat}_j}
                       {m^\Tag{sun}_j - m^\Tag{dark}_j} \,, \\
   \estim{p}_j &= \frac{\estim{g}_j}{\estim{a}_j} \,,\\
@@ -1770,22 +1769,22 @@ $j$-th pixel in the dark and stable images\footnote{The flat images are only
     \frac{v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z_j}^2}{\sigma^2_j}
     + \log\sigma^2_j
   } \notag\\
-  &\quad+ N^\Tag{led}\,\Paren*{
-    \frac{v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z_j - x_j}^2}
+  &\quad+ N^\Tag{lamp}\,\Paren*{
+    \frac{v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z_j - x_j}^2}
          {x_j/g_j + \sigma^2_j}
     + \log\Paren*{x_j/g_j + \sigma^2_j}
   } \notag\\
   &= g_j\,\Paren*{
     N^\Tag{dark}\,\frac{v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z_j}^2}
                        {u_j} +
-    N^\Tag{led}\,\frac{v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z_j - x_j}^2}
+    N^\Tag{lamp}\,\frac{v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z_j - x_j}^2}
                       {u_j + x_j}
   } \notag\\
-  &\quad - \Paren*{N^\Tag{dark} + N^\Tag{led}}\log g_j
+  &\quad - \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\log g_j
     + N^\Tag{dark}\,\log u_j
-    + N^\Tag{led}\,\log\Paren*{u_j + x_j}
+    + N^\Tag{lamp}\,\log\Paren*{u_j + x_j}
 \end{align}
-with $x_j = c^\Tag{led}_j\,\Delta t$ and $u_j = g_j\,\sigma^2_j$ as before
+with $x_j = c^\Tag{lamp}_j\,\Delta t$ and $u_j = g_j\,\sigma^2_j$ as before
 but with $\V\theta = (z_j, g_j, u_j, x_j)$ this time.
 
 It appears that conventional calibration amounts to first maximize the
@@ -1799,25 +1798,25 @@ The best bias does not depend on the gain:
   &\bydef \argmin_{z} \varphi_j(z,g,u,x) \notag\\
   &= \frac{
     \frac{N^\Tag{dark}\,m^\Tag{dark}_j}{u} +
-    \frac{N^\Tag{led}\,\Paren*{m^\Tag{led}_j - xj}}{u + x}
+    \frac{N^\Tag{lamp}\,\Paren*{m^\Tag{lamp}_j - xj}}{u + x}
   }{
     \frac{N^\Tag{dark}}{u} +
-    \frac{N^\Tag{led}}{u + x}
+    \frac{N^\Tag{lamp}}{u + x}
   } \, .
 \end{align}
 The best gain is given by:
 \begin{align}
   g^+_j(u,x)
-  &\bydef \argmin_{g > 0} \Brace*{\min_{z} \varphi_j(z,g,u,x} \notag\\
+  &\bydef \argmin_{g > 0} \Brace*{\min_{z} \varphi_j(z,g,u,x)} \notag\\
   &= \frac{
-    N^\Tag{dark} + N^\Tag{led}
+    N^\Tag{dark} + N^\Tag{lamp}
   }{
     N^\Tag{dark}\,\frac{
       v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z^+_j(u,x)}^2
     }{
       u
-    } + N^\Tag{led}\,\frac{
-      v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z^+_j(u,x) - x}^2
+    } + N^\Tag{lamp}\,\frac{
+      v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z^+_j(u,x) - x}^2
     }{
       u + x
     }
@@ -1827,8 +1826,13 @@ The best gain is given by:
 We define:
 \begin{align}
   \varphi^+_j(u, x)
-  &\bydef \min_{z,g>0} \varphi_j(z,g,u,x) \notag\\
-  &= \varphi_j\Paren*{z^+_j(u,x),g^+_j(u,x),u,x} \,
+  &\bydef \min_{z,g>0} \varphi_j(z,g,u,x) \notag \\
+  &= \varphi_j\Paren*{z^+_j(u,x),g^+_j(u,x),u,x} \notag \\
+  &= \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\,\Paren*{1 - \log g_j^+(u,x)}
+  \notag \\
+  &\quad
+    + N^\Tag{dark}\,\log u
+    + N^\Tag{lamp}\,\log\Paren*{u + x} \, ,
 \end{align}
 and we minimize this function in $(u,x)$ under the constraints $u>0$ and $x≥0$.
 To apply VMLM-B, the following partial derivatives are needed:
@@ -1839,20 +1843,20 @@ To apply VMLM-B, the following partial derivatives are needed:
     }{
       u^2
     } \notag\\
-  &\quad + \frac{N^\Tag{led}}{u + x} - N^\Tag{led}\,g^+_j(u,x)\,\frac{
-      v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z^+_j(u,x) - x}^2
+  &\quad + \frac{N^\Tag{lamp}}{u + x} - N^\Tag{lamp}\,g^+_j(u,x)\,\frac{
+      v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z^+_j(u,x) - x}^2
     }{
       \Paren*{u + x}^2
     }
     \, , \\
   \PDer{\varphi^+_j(u, x)}{x}
-  &= 2\,N^\Tag{led}\,g^+_j(u,x)\,\frac{
-       z^+_j(u,x) + x - m^\Tag{led}_j
+  &= 2\,N^\Tag{lamp}\,g^+_j(u,x)\,\frac{
+       z^+_j(u,x) + x - m^\Tag{lamp}_j
     }{
       u + x
     } \notag\\
-  &\quad + \frac{N^\Tag{led}}{u + x} - N^\Tag{led}\,g^+_j(u,x)\,\frac{
-    v^\Tag{led}_j + \Paren*{m^\Tag{led}_j - z^+_j(u,x) - x}^2
+  &\quad + \frac{N^\Tag{lamp}}{u + x} - N^\Tag{lamp}\,g^+_j(u,x)\,\frac{
+    v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z^+_j(u,x) - x}^2
   }{
     \Paren*{u + x}^2
   }
