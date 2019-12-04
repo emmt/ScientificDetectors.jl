@@ -46,10 +46,12 @@ Constructor is called as:
 ReducedCalibration([roi,] f, z, g, σ, args...; kwds...) -> cal
 ```
 
-`f` is the co-log-likelihood, `z` is the *zero level* that is the constant bias
-set by the analog to digital converter (in ADU), `g` is the detector gain (in
-electrons per ADU) and `σ` is the standard deviation of the readout noise (in
-ADU/frame).  Arguments `f`, `z`, `g` and `σ` are pixelwise.
+where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
+(automatically guessed from argument `f` if not specified), `f` is the
+co-log-likelihood, `z` is the *zero level* that is the constant bias set by the
+analog to digital converter (in ADU), `g` is the detector gain (in electrons
+per ADU) and `σ` is the standard deviation of the readout noise (in ADU/frame).
+Arguments `f`, `z`, `g` and `σ` are pixelwise.
 
 Additional arguments `args...` can be:
 
