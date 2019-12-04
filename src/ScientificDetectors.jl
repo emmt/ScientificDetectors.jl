@@ -28,8 +28,14 @@ export
     process,
     write!
 
+import Base: read, write
+
+using Printf
+
+using ArrayTools
 using EasyFITS
-import EasyFITS: write!
+using EasyFITS: exists, throw_file_already_exists
+import EasyFITS: write!, hduname
 
 function calibrate end
 function process end
@@ -47,5 +53,7 @@ import .Preprocessing:
     PreprocessingParameters,
     RealisticNoise,
     StaticNoise
+
+include("io.jl")
 
 end # module
