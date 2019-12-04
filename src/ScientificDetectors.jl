@@ -22,8 +22,8 @@ export
     PreprocessingParameters,
     RealisticNoise,
     ReducedCalibration,
+    SimpleCalibration,
     StaticNoise,
-    calibrate,
     process!,
     process,
     write!
@@ -37,14 +37,13 @@ using EasyFITS
 using EasyFITS: exists, throw_file_already_exists
 import EasyFITS: write!, hduname
 
-function calibrate end
 function process end
 function process! end
 
 include("common.jl")
 
 include("calibration.jl")
-import .Calibration: ReducedCalibration, CalibrationData
+import .Calibration: ReducedCalibration, SimpleCalibration, CalibrationData
 
 include("preprocessing.jl")
 import .Preprocessing:

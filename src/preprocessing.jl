@@ -29,10 +29,10 @@ PreprocessingParameters([roi,] Δt, a, b, p, q)
 ```
 
 where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
-(automatically guessed from argument `a` if not specified), `a` is the
-amplitude correction factor (in flux units per ADU), `b` is the bias correction
-(in ADU), `p` and `q` are variance terms.  Arguments `a`, `b`, `p` and `q` are
-pixelwise.
+(automatically guessed from argument `a` if not specified), `Δt` is the
+exposure time (in seconds), `a` is the amplitude correction factor (in flux
+units per ADU), `b` is the bias correction (in ADU), `p` and `q` are variance
+terms.  Arguments `a`, `b`, `p` and `q` are pixelwise.
 
 It is also possible to convert reduced calibration data to preprocessing
 parameters:
@@ -134,20 +134,49 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
 end
 
 #
-# Outer constructors for PreprocessingParameters structure.
+# Simple outer constructors for conversion. (A constructor of an immutable
+# structure can return its argument.)
 #
-
-# A constructor of an immutable structure can return its argument.
 PreprocessingParameters(obj::PreprocessingParameters) = obj
 PreprocessingParameters{T}(obj::PreprocessingParameters{T}) where {T} = obj
 PreprocessingParameters{T,N}(obj::PreprocessingParameters{T,N}) where {T,N} = obj
 PreprocessingParameters{T,N}(obj::PreprocessingParameters{<:Any,N}) where {T,N} =
     PreprocessingParameters{T}(obj)
 PreprocessingParameters{T}(obj::PreprocessingParameters{<:Any,N}) where {T<:AbstractFloat,N} =
-    PreprocessingParameters(convert(Array{T,N}, obj.a),
+    PreprocessingParameters(obj.roi, obj.Δt,
+                            convert(Array{T,N}, obj.a),
                             convert(Array{T,N}, obj.b),
                             convert(Array{T,N}, obj.p),
                             convert(Array{T,N}, obj.q))
+
+#
+# Getters.
+#
+regionofinterest(obj::PreprocessingParameters) = obj.roi
+exposuretime(obj::PreprocessingParameters) = obj.Δt
+
+#
+# Basic operations on PreprocessingParameters structure.
+#
+Base.eltype(::PreprocessingParameters{T}) where {T} = T
+Base.size(obj::PreprocessingParameters) = size(regionofinterest(obj))
+Base.size(obj::PreprocessingParameters, i) = size(regionofinterest(obj), i)
+Base.length(obj::PreprocessingParameters) = prod(size(obj))
+Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
+    T(obj)
+
+Base.show(io::IO, obj::PreprocessingParameters{T,N}) where {T,N} =
+    print(io, "PreprocessingParameters{$T,$N}: ", join(size(obj),"×"),
+          ", Δt = ", exposuretime(obj), " s")
+
+# Allow for `T.(obj)` to work with `T` a floating-point type.
+Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =
+    PreprocessingParameters{T}(obj)
+
+
+#
+# More complex outer constructors for PreprocessingParameters structure.
+#
 
 # Provide a ROI if not specified.
 function PreprocessingParameters(Δt::Real,
@@ -339,29 +368,44 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
     return PreprocessingParameters(regionofinterest(cal), Δt, a, b, p, q)
 end
 
-#
-# Getters.
-#
-regionofinterest(obj::PreprocessingParameters) = obj.roi
-exposuretime(obj::PreprocessingParameters) = obj.Δt
+function PreprocessingParameters{T}(cal::SimpleCalibration{R,N},
+                                    bad::AbstractArray{Bool,N} = zeros(Bool, size(cal))
+                                    ) where {T<:AbstractFloat,R,N}
 
-#
-# Basic operations on PreprocessingParameters structure.
-#
-Base.eltype(::PreprocessingParameters{T}) where {T} = T
-Base.size(obj::PreprocessingParameters) = size(regionofinterest(obj))
-Base.size(obj::PreprocessingParameters, i) = size(regionofinterest(obj), i)
-Base.length(obj::PreprocessingParameters) = prod(size(obj))
-Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
-    T(obj)
+    # Get exposure time.
+    Δt = exposuretime(cal)
+    (isfinite(Δt) && Δt ≥ 0) || error("exposure time must be nonnegative")
 
-Base.show(io::IO, obj::PreprocessingParameters{T,N}) where {T,N} =
-    print(io, "PreprocessingParameters{$T,$N}: ", join(size(obj),"×"),
-          ", Δt = ", exposuretime(obj))
+    # Check arguments.
+    dims = size(cal)
+    a = copy(cal.a)
+    b = copy(cal.b)
+    g = cal.g
+    σ = cal.σ
+    @assert size(bad) == dims
+    @assert size(a) == dims
+    @assert size(b) == dims
+    @assert size(g) == dims
+    @assert size(σ) == dims
 
-# Allow for `T.(obj)` to work with `T` a floating-point type.
-Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =
-    PreprocessingParameters{T}(obj)
+    # Compute the variance terms.  Bad pixels have a[i] = 0, b[i] = 0, p[i] = 0
+    # and q[i] = 1, to have zero precision and avoid division by zero.
+    p = Array{T}(undef, dims)
+    q = Array{T}(undef, dims)
+    @inbounds for j in eachindex(bad, a, b, g, σ, p, q)
+        if (bad[j] || !isfinite(a[j]) || a[j] ≤ 0 || !isfinite(b[j]) ||
+            !isfinite(g[j]) || g[j] ≤ 0 || !isfinite(σ[j]) || σ[j] ≤ 0)
+            a[j] = zero(T)
+            b[j] = zero(T)
+            p[j] = zero(T)
+            q[j] = one(T)
+        else
+            p[j] = g[j]/a[j]
+            q[j] = a[j]*g[j]*σ[j]^2
+        end
+    end
+    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, p, q)
+end
 
 """
 
