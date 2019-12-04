@@ -1,6 +1,9 @@
 module Preprocessing
 
-import ..ScientificDetectors: ReducedCalibration, process, process!
+using ..ScientificDetectors
+using ..ScientificDetectors: offset, binning
+import ..ScientificDetectors: ReducedCalibration, process, process!,
+    regionofinterest, exposuretime
 
 using ..Calibration: detectorbias, detectorgain, detectornoise,
     categories, exposuretimes, currents, find
@@ -22,15 +25,14 @@ parameters with `T` the floating-point type for the computations.
 Constructor is called as:
 
 ```julia
-PreprocessingParameters([T,] a, b, p, q) -> obj
+PreprocessingParameters([roi,] Δt, a, b, p, q)
 ```
 
-where `T` is the floating-point type for the computations (optional, if
-unspecified, it is deduced from the element type of the other arguments), `a`
-is the amplitude correction factor (in flux units per ADU), `b` is the bias
-correction (in ADU), `p` and `q` are variance terms.  Arguments `a`, `b`, `p`
-and `q` are pixelwise, they are broadcast to common dimensions (which should be
-that of the detector) and their elements converted to the same type `T`.
+where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
+(automatically guessed from argument `a` if not specified), `a` is the
+amplitude correction factor (in flux units per ADU), `b` is the bias correction
+(in ADU), `p` and `q` are variance terms.  Arguments `a`, `b`, `p` and `q` are
+pixelwise.
 
 It is also possible to convert reduced calibration data to preprocessing
 parameters:
@@ -42,8 +44,7 @@ PreprocessingParameters(cal::ReducedCalibration,
                         bg=nothing, Δt=0) -> obj
 ```
 
-with `T` the floating point type of the result, `cal` an instance of
-[`ReducedCalibration`](@ref), `bad` a boolean mask
+with `cal` an instance of [`ReducedCalibration`](@ref), `bad` a boolean mask
 indicating the bad pixels, `flat` the identifier of the flat calibration
 source, `flatbg` the identifier of the background source for the flat, `bg` the
 identifier of the background source and `Δt` the exposure time in seconds.
@@ -51,10 +52,11 @@ Identifiers `flat`, `flatbg` and/or `bg` can be `nothing` if irrelevant or an
 integer or a string that corresponds to a specific current term in the reduced
 calibration data `cal`.
 
-The floating-point type of the result, say `T`, can be explicitly specified:
+Floating-point type, say `T`, and dimensionality, say `N`, may be specified:
 
 ```julia
-PreprocessingParameters{T}(cal, ...) -> obj
+PreprocessingParameters{T}(args...; kwds...)
+PreprocessingParameters{T,N}(args...; kwds...)
 ```
 
 The pre-processing of pixel `raw[i]` of an image given by the detector leads to
@@ -84,8 +86,11 @@ Also see [`process`](@ref).
 """
 struct PreprocessingParameters{T<:AbstractFloat,N,
                                A<:DenseArray{T,N}}
-    # Dimensions:
-    dims::NTuple{N,Int}
+    # Dimensions, offsets and binning factors of the "Region Of Interest".
+    roi::NTuple{N,DetectorAxis}
+
+    # Exposure time (in seconds).
+    Δt::T
 
     # Amplitude correction factor (in flux units per ADU):
     a::A
@@ -98,12 +103,20 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
     q::A
 
     # Inner constructor provided to force using outer constructors.
-    function PreprocessingParameters{T,N,A}(dims::NTuple{N,Int},
+    function PreprocessingParameters{T,N,A}(roi::NTuple{N,DetectorAxis},
+                                            Δt::Real,
                                             a::A,
                                             b::A,
                                             p::A,
                                             q::A) where {T<:AbstractFloat,N,
                                                          A<:DenseArray{T,N}}
+        @assert isfinite(Δt) && Δt ≥ 0
+        for i in 1:N
+            @assert length(roi[i]) ≥ 1
+            @assert offset(roi[i]) ≥ 0
+            @assert binning(roi[i]) ≥ 1
+        end
+        dims = size(roi)
         @assert size(a) == dims
         @assert size(b) == dims
         @assert size(p) == dims
@@ -116,7 +129,7 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
             error("some invalid values in variance term U")
         all(x -> isfinite(x) && x > 0, q) ||
             error("some invalid values in variance term V")
-        return new{T,N,A}(dims, a, b, p, q)
+        return new{T,N,A}(roi, Δt, a, b, p, q)
     end
 end
 
@@ -136,45 +149,86 @@ PreprocessingParameters{T}(obj::PreprocessingParameters{<:Any,N}) where {T<:Abst
                             convert(Array{T,N}, obj.p),
                             convert(Array{T,N}, obj.q))
 
-function PreprocessingParameters(args::AbstractArray{<:Real,N}...) where {N}
-    # Stage 0: Check arguments.
-    length(args) == 4 ||
-        error("bad number of preprocessing parameters")
-    has_standard_indexing(args...) ||
-        error("all arguments must have standard indexing")
-
-    # Stage 1: Determine the element type from that of the arguments and
-    #          broadcast dimensions.
-    T = float(promote_type(map(eltype, args)...))
-    dims = bcastdims(map(size, args)...)
-    return _stage2(PreprocessingParameters{T,N}, dims, args)
+# Provide a ROI if not specified.
+function PreprocessingParameters(Δt::Real,
+                                 a::AbstractArray, b::AbstractArray,
+                                 p::AbstractArray, q::AbstractArray)
+    PreprocessingParameters(map(DetectorAxis, size(f)), Δt, a, b, p, q)
 end
 
-# Stage 2: Broadcast arguments to the same dimensions and to fast arrays with
-#          the given element type.
-function _stage2(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
-                 args::NTuple{4,AbstractArray{<:Real,N}}) where {T<:AbstractFloat,N}
-    return _stage3(PreprocessingParameters{T,N}, dims,
-                   map(x -> fastarray(bcastlazy(T, x, dims)), args)...)
+function PreprocessingParameters{T}(Δt::Real,
+                                    a::AbstractArray, b::AbstractArray,
+                                    p::AbstractArray, q::AbstractArray) where {T}
+    PreprocessingParameters{T}(map(DetectorAxis, size(a)), Δt, a, b, p, q)
 end
 
-# Stage 3: Arguments have all same size and element type, instanciate
-#          structure.  If Stage 2 failed to produce arrays of same type,
-#          convert them to regular Array's.
-function _stage3(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
-                 a::A, b::A, p::A, q::A) where {T<:AbstractFloat,N,
-                                                A<:DenseArray{T,N}}
-    return PreprocessingParameters{T,N,A}(dims, a, b, p, q)
+function PreprocessingParameters{T,N}(Δt::Real,
+                                      a::AbstractArray, b::AbstractArray,
+                                      p::AbstractArray, q::AbstractArray) where {T,N}
+    PreprocessingParameters{T,N}(map(DetectorAxis, size(a)), Δt, a, b, p, q)
 end
-function _stage3(::Type{<:PreprocessingParameters{T,N}}, dims::NTuple{N,Int},
-                 a::AbstractArray{T,N}, b::AbstractArray{T,N}, p::AbstractArray{T,N},
-                 q::AbstractArray{T,N})  where {T<:AbstractFloat,N}
-    A = Array{T,N}
-    return PreprocessingParameters{T,N,A}(dims, map(x -> convert(A, x), (a, b, p, q))...)
+
+# Provide parameters T and N.
+function PreprocessingParameters(roi::NTuple{N,DetectorAxis}, Δt::Real,
+                                 a::AbstractArray, b::AbstractArray,
+                                 p::AbstractArray, q::AbstractArray) where {N}
+    T = float(promote_eltype(a, b, p, q))
+    PreprocessingParameters{T,N}(roi, Δt, a, b, p, q)
+end
+
+# Provide parameter N.
+function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis}, Δt::Real,
+                                    a::AbstractArray, b::AbstractArray,
+                                    p::AbstractArray, q::AbstractArray) where {T,N}
+    PreprocessingParameters{T,N}(roi, Δt, a, b, p, q)
+end
+
+function PreprocessingParameters{T,N}(roi::Tuple{Vararg{DetectorAxis}},
+                                      a::AbstractArray, b::AbstractArray,
+                                      p::AbstractArray, q::AbstractArray) where {T,N}
+    T <: AbstractFloat || error("parameter `T` must be a floating-point type")
+    length(roi) == N || error("ROI has incompatible number of dimensions")
+    dims = size(roi)
+    function fixarray(A::AbstractArray)
+        Base.has_offset_axes(A) && error("array has non-standard indexing")
+        eltype(A) <: Real || error("array has incompatible element type")
+        ndims(A) == N || error("array has incompatible number of dimensions")
+        size(A) == dims ||
+            throw(DimensionMismatch("array has incompatible dimensions"))
+        return convert(Array{T,N}, A)
+    end
+    PreprocessingParameters{T,N}(roi, Δt,
+                                 fixarray(a), fixarray(b),
+                                 fixarray(p), fixarray(q))
+end
+
+# These versions manage to directly call the inner constructor.
+function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
+                                 Δt::Real, a::A, b::A, p::A,
+                                 q::A) where {T<:AbstractFloat,N,
+                                              A<:DenseArray{T,N}}
+    PreprocessingParameters{T,N,A}(roi, Δt, a, b, p, q)
+end
+
+function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
+                                    Δt::Real, a::A, b::A, p::A,
+                                    q::A) where {T<:AbstractFloat,N,
+                                                 A<:DenseArray{T,N}}
+    PreprocessingParameters{T,N,A}(roi, Δt, a, b, p, q)
+end
+
+function PreprocessingParameters{T,N}(roi::NTuple{N,DetectorAxis},
+                                      Δt::Real, a::A, b::A, p::A,
+                                      q::A) where {T<:AbstractFloat,N,
+                                                   A<:DenseArray{T,N}}
+    PreprocessingParameters{T,N,A}(roi, Δt, a, b, p, q)
 end
 
 # This version converts reduced calibration parameters to preprocessing parameters.
 PreprocessingParameters(cal::ReducedCalibration{T}, args...; kwds...) where {T} =
+    PreprocessingParameters{T}(cal, args...; kwds...)
+
+PreprocessingParameters{T,N}(cal::ReducedCalibration{R,N}, args...; kwds...) where {T,R,N} =
     PreprocessingParameters{T}(cal, args...; kwds...)
 
 function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
@@ -282,21 +336,26 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
             end
         end
     end
-    return PreprocessingParameters(a, b, p, q)
+    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, p, q)
 end
+
+#
+# Getters.
+#
+regionofinterest(obj::PreprocessingParameters) = obj.roi
+exposuretime(obj::PreprocessingParameters) = obj.Δt
 
 #
 # Basic operations on PreprocessingParameters structure.
 #
 Base.eltype(::PreprocessingParameters{T}) where {T} = T
-Base.size(obj::PreprocessingParameters) = obj.dims
-Base.size(obj::PreprocessingParameters, k) = obj.dims[k]
+Base.size(obj::PreprocessingParameters) = size(regionofinterest(obj))
+Base.size(obj::PreprocessingParameters, i) = size(regionofinterest(obj), i)
 Base.length(obj::PreprocessingParameters) = prod(size(obj))
-Base.convert(::Type{PreprocessingParameters}, obj::PreprocessingParameters) = obj
-Base.convert(::Type{PreprocessingParameters{T}}, obj::PreprocessingParameters) where {T<:AbstractFloat} = T.(obj)
+Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
+    T(obj)
 
 # Allow for `T.(obj)` to work with `T` a floating-point type.
-Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters{T}) where {T} = obj
 Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =
     PreprocessingParameters{T}(obj)
 
