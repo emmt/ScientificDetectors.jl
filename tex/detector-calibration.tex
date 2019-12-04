@@ -1664,71 +1664,82 @@ other.  \oops{(Only true if $N_\ell = N$, whatever $\ell$)}.
 \subsection{A simple example: the Themis wavefront sensor}
 
 In the case of Themis adaptive optics (AO), the wavefront sensor camera is
-operated at the same exposure time for all acquisitions: $\Delta t_{k,\ell} =
-\Delta t > 0$ and the only background source is the dark current.
-The calibrated images are given by an affine correction of the raw images:
-\begin{equation}
-  \estim{s}_{j,\ell} = \Paren*{d_{j,\ell} - b_j}\,a_j
-\end{equation}
-with $a_j$ a correction factor (accounting for the nonuniform throughput and
-quantum efficiency) and $z_j$ a bias correction.  The expectation and variance
-of the calibrated images are given by:
-\begin{align}
-  \Expect{\estim{s}_{j,\ell}} &= r_{j,\ell}\,\Delta t \,,\\
-  \Var{\estim{s}_{j,\ell}}
-  &= a_j^2\,\Var{\estim{s}_{j,\ell}} \notag\\
-  &= \frac{a_j}{g_j}\,\Paren*{r_{j,\ell}\,\Delta t + a_j\,g_j\,\sigma^2_j}
-  \notag\\
-  &\approx \frac{\max\Paren*{\estim{s}_{j,\ell},0} + q_j}{p_j} \,,
-\end{align}
-where $r_{j,\ell}\,\Delta t \approx \max\Paren*{\estim{s}_{j,\ell},0}$ has been used
-and with:
-\begin{align}
-  p_j &= g_j/a_j \,,\\
-  q_j &= a_j\,g_j\,\sigma^2_j \,.
-\end{align}
-
-To calibrate the detector and the throughput, series of images under the same
-conditions (denoted by the index $\ell$) are acquired and their empirical mean
-and variance are computed:
-\begin{align}
-  m_{j,\ell} &= c_{j,\ell} \, \Delta t + b_j \pm ... \,,\\
-  q_{j,\ell} &= c_{j,\ell} \, \Delta t/g_j + \sigma^2_j \pm ... \,.
-\end{align}
-
-Three types of calibration data are available:
+operated at the same exposure time for all acquisitions, $\Delta t_{k,\ell} =
+\Delta t > 0$, and the only background source is the dark current.  Using the
+results of Section~\ref{sec:using-sample-means-and-variances}, the calibration
+procedure just requires the empirical mean and variance of three kinds of
+images:
 \begin{description}
-\item[Dark images] are acquired with no illumination on the camera. Since the
+\item[Dark images] are acquired with no illumination on the camera. These
+images thus depend on the bais and on the dark current
 contribution of background sources (dark current) is negligible, these images
 are similar to \emph{bias} images. their empirical means and unbiased variance
 are given by:
 \begin{align}
-  m^\Tag{dark}_j &= c^\Tag{dark}_j\,\Delta t + z_j \pm ... \,,
+  m^\Tag{dark}_j
+  &\bydef \frac{1}{N^\Tag{dark}} \,
+    \sum_{k=1}^{N^\Tag{dark}} d_{j,k}^\Tag{dark}
+    \notag\\
+  &= c^\Tag{dark}_j\,\Delta t + z_j
+    \pm \sqrt{
+      \frac{
+        c^\Tag{dark}_j\,\Delta t + g_j\,\sigma_j^2
+      }{
+        N^\Tag{dark}\,g_j
+      }
+    } \,,
   \label{eq:Themis-dark-avg} \\
-  v^\Tag{dark}_j &= c^\Tag{dark}_j\,\Delta t/g_j + \sigma^2_j \pm ... \,.
-  \label{eq:Themis-dark-var}
+  v^\Tag{dark}_j
+  &\bydef \frac{1}{N^\Tag{dark} - 1} \,
+    \sum_{k=1}^{N^\Tag{dark}} \Paren*{d_{j,k}^\Tag{dark} - m^\Tag{dark}_j}^2
+    \notag\\
+  &= %\frac{N^\Tag{dark}}{N^\Tag{dark} - 1}\,
+    \frac{c^\Tag{dark}_j\,\Delta t + g_j\,\sigma_j^2}{g_j}\,
+    \Paren*{1 \pm \sqrt{\frac{2}{N^\Tag{dark} - 1}}} \,,
+    \label{eq:Themis-dark-var}
 \end{align}
+with $\V d^\Tag{dark}_k$ the $k$-th dark image, $N^\Tag{dark}$ the number of 
+such images and $\V c^\Tag{dark}$ the contribution of the dark current.
 
 \item[Stable images] are acquired with an illumination that is stable in time.
 In practice, this illumination is provided by a LED lamp. Their empirical means
 and variance are given by:
 \begin{align}
   m^\Tag{lamp}_j
-  &= c^\Tag{lamp}_j\,\Delta t + z_j \pm ... \,,
-  \label{eq:Themis-led-avg} \\
-  v^\Tag{lamp}_j
-  &= c^\Tag{lamp}_j\,\Delta t/g_j + \sigma^2_j \pm ... \,.
-  \label{eq:Themis-led-var} \\
-  &\approx \Paren[\big]{m^\Tag{lamp}_j - b_j}/g_j + \sigma^2_j
-  \label{eq:Themis-led-var-approx}
+  &\bydef \frac{1}{N^\Tag{lamp}} \,
+    \sum_{k=1}^{N^\Tag{lamp}} d_{j,k}^\Tag{lamp}
+    \notag\\
+  &= \Paren*{c^\Tag{lamp}_j + c^\Tag{dark}_j}\,\Delta t + z_j
+    \pm \sqrt{
+      \frac{
+        \Paren*{c^\Tag{lamp}_j + c^\Tag{dark}_j}\,\Delta t + g_j\,\sigma_j^2
+      }{
+        N^\Tag{lamp}\,g_j
+      }
+    } \,,
+    \label{eq:Themis-lamp-avg} \\
+  v^\Tag{dark}_j
+  &\bydef \frac{1}{N^\Tag{lamp} - 1} \,
+    \sum_{k=1}^{N^\Tag{lamp}} \Paren*{d_{j,k}^\Tag{lamp} - m^\Tag{lamp}_j}^2
+    \notag\\
+  &= %\frac{N^\Tag{lamp}}{N^\Tag{lamp} - 1}\,
+    \frac{
+      \Paren*{c^\Tag{lamp}_j + c^\Tag{dark}_j}\,\Delta t + g_j\,\sigma_j^2
+    }{
+      g_j
+    }\,
+    \Paren*{1 \pm \sqrt{\frac{2}{N^\Tag{lamp} - 1}}} \,,
+    \label{eq:Themis-lamp-var-approx}
 \end{align}
+with $\V d^\Tag{lamp}_k$ the $k$-th dark image, $N^\Tag{lamp}$ the number of 
+such images and $\V c^\Tag{lamp}$ the contribution of the lamp only.
 
 \item[Flat images] are acquired with an illumination whose time average is
 flat.  In practice, these images are acquired by imaging random parts of the
 Sun surface.  Since their illumination is not stable in time, only the
 empirical means of such images is computed:
 \begin{equation}
-  m^\Tag{sun}_j \approx f^\Tag{flat}_j/a_j + z_j \,,
+  m^\Tag{sun}_j \approx f^\Tag{flat}_j/a_j + c^\Tag{dark}_j\,\Delta t + z_j \,,
   \label{eq:Themis-sun-avg}
 \end{equation}
 where $f^\Tag{flat}_j = r^\Tag{flat}_j\,\Delta t$ is a smooth (\eg
@@ -1744,19 +1755,17 @@ Sun brightness.
 Conventional calibration amounts to combining all calibration data to yield:
 \begin{align}
   \estim{b}_j &= m^\Tag{dark}_j \,, \\
-  \estim{\sigma}^2_j &= v^\Tag{dark}_j \,, \\
   \estim{g}_j &= \frac{m^\Tag{lamp}_j - m^\Tag{dark}_j}
                       {v^\Tag{lamp}_j - v^\Tag{dark}_j} \,, \\
   \estim{a}_j &= \frac{f^\Tag{flat}_j}
                       {m^\Tag{sun}_j - m^\Tag{dark}_j} \,, \\
   \estim{p}_j &= \frac{\estim{g}_j}{\estim{a}_j} \,,\\
-  \estim{q}_j &= \estim{a}_j\,\estim{g}_j\,\estim{\sigma}^2_j \,.
+  \estim{q}_j &= \estim{a}_j\,\estim{g}_j\,v^\Tag{dark}_j \,.
 \end{align}
-The estimators $\estim{b}_j$ and $\estim{\sigma}^2_j$ of the bias and readout
-noise variance directly come from Eqs.~\eqref{eq:Themis-dark-avg} and
-\eqref{eq:Themis-dark-var} respectively. The estimator $\estim{g}_j$ of the
-gain results from Eq.~\eqref{eq:Themis-led-var-approx} using the estimators of
-the other parameters.  The estimator $\estim{a}_j$ of the intensity correction
+The estimator $\estim{b}_j$ of the bias directly comes from
+Eqs.~\eqref{eq:Themis-dark-avg}. The estimator $\estim{g}_j$ of the gain
+results from Eq.~\eqref{eq:Themis-lamp-var-approx} using the estimators of the
+other parameters.  The estimator $\estim{a}_j$ of the intensity correction
 factor results from Eq.~\eqref{eq:Themis-sun-avg} using the estimators of the
 other parameters.
 
@@ -1766,99 +1775,127 @@ $j$-th pixel in the dark and stable images\footnote{The flat images are only
 \begin{align}
   \varphi_j(\V\theta_j)
   &= N^\Tag{dark}\,\Paren*{
-    \frac{v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z_j}^2}{\sigma^2_j}
-    + \log\sigma^2_j
+    \frac{
+      v^\Tag{dark'}_j +
+      \Paren*{m^\Tag{dark}_j - c^\Tag{dark}_j\,\Delta t - z_j}^2
+    }{
+      c^\Tag{dark}_j\,\Delta t/g_j + \sigma^2_j
+    }
+    + \log\Paren*{c^\Tag{dark}_j\,\Delta t/g_j + \sigma^2_j}
   } \notag\\
   &\quad+ N^\Tag{lamp}\,\Paren*{
-    \frac{v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z_j - x_j}^2}
-         {x_j/g_j + \sigma^2_j}
-    + \log\Paren*{x_j/g_j + \sigma^2_j}
-  } \notag\\
+    \frac{
+      v^\Tag{lamp'}_j + \Paren*{
+        m^\Tag{lamp}_j - \Paren*{c^\Tag{dark}_j + c^\Tag{lamp}_j}\,\Delta t
+        - z_j
+      }^2
+    }{
+      \Paren*{c^\Tag{dark}_j + c^\Tag{lamp}_j}\,\Delta t/g_j + \sigma^2_j
+    } + \log\Paren*{
+      \Paren*{c^\Tag{dark}_j + c^\Tag{lamp}_j}\,\Delta t/g_j + \sigma^2_j}
+    } \notag\\
   &= g_j\,\Paren*{
-    N^\Tag{dark}\,\frac{v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z_j}^2}
-                       {u_j} +
-    N^\Tag{lamp}\,\frac{v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z_j - x_j}^2}
-                      {u_j + x_j}
+    N^\Tag{dark}\,
+    \frac{v^\Tag{dark'}_j + \Paren*{m^\Tag{dark}_j - b_j}^2}{x_j} +
+    N^\Tag{lamp}\,
+    \frac{v^\Tag{lamp'}_j + \Paren*{m^\Tag{lamp}_j - b_j - y_j}^2}{x_j + y_j}
   } \notag\\
   &\quad - \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\log g_j
     + N^\Tag{dark}\,\log u_j
-    + N^\Tag{lamp}\,\log\Paren*{u_j + x_j}
+    + N^\Tag{lamp}\,\log\Paren*{x_j + y_j}
 \end{align}
-with $x_j = c^\Tag{lamp}_j\,\Delta t$ and $u_j = g_j\,\sigma^2_j$ as before
-but with $\V\theta = (z_j, g_j, u_j, x_j)$ this time.
+which depend on 4 unknown parameter $\V\theta_j =  (b_j, g_j, x_j, y_j)$ with:
+\begin{align}
+   b_j &= c^\Tag{dark}_j\,\Delta t + z_j \,,\\
+   x_j &= c^\Tag{dark}_j\,\Delta t + g_j\,\sigma^2_j \,,\\
+   y_j &= c^\Tag{lamp}_j\,\Delta t \,,
+\end{align}
+and where:
+\begin{align}
+  v^\Tag{dark'}_j
+  &= \frac{N^\Tag{dark}}{N^\Tag{dark} - 1}\,v^\Tag{dark}_j\,,\\
+  v^\Tag{lamp'}_j
+  &= \frac{N^\Tag{lamp}}{N^\Tag{lamp} - 1}\,v^\Tag{lamp}_j\,,
+\end{align}
+denote the maximum likelihood (biased) variances.  Note that we do not attempt
+to estimate the dark current $\V c^\Tag{dark}$ and the detector bias $\V z$,
+only the bias $\V b = \V z + \V c^\Tag{dark}\,\Delta t$ is needed. Similarly,
+we do not attempt to estimate the readout noise $\V \sigma$ separately, only
+the pixelwise variance in the dark images $c^\Tag{dark}_j\,\Delta t/g_j +
+\sigma^2_j$ is needed.
 
 It appears that conventional calibration amounts to first maximize the
-likelihood of the dark images in the bias $z_j$ and the readout noise
-$\sigma_j$ and then maximize the likelihood of the led images in the remaining
+likelihood of the dark images in the bias $b_j$ and the noise in the dark
+images and then maximize the likelihood of the LED images in the remaining
 detector parameters.
 
 The best bias does not depend on the gain:
 \begin{align}
-  z^+_j(u,x)
-  &\bydef \argmin_{z} \varphi_j(z,g,u,x) \notag\\
+  b^+_j(x,y)
+  &\bydef \argmin_{b} \varphi_j(b,g,x,y) \notag\\
   &= \frac{
-    \frac{N^\Tag{dark}\,m^\Tag{dark}_j}{u} +
-    \frac{N^\Tag{lamp}\,\Paren*{m^\Tag{lamp}_j - xj}}{u + x}
+    \frac{N^\Tag{dark}\,m^\Tag{dark}_j}{x} +
+    \frac{N^\Tag{lamp}\,\Paren*{m^\Tag{lamp}_j - x}}{x + y}
   }{
-    \frac{N^\Tag{dark}}{u} +
-    \frac{N^\Tag{lamp}}{u + x}
+    \frac{N^\Tag{dark}}{x} +
+    \frac{N^\Tag{lamp}}{x + y}
   } \, .
 \end{align}
 The best gain is given by:
 \begin{align}
-  g^+_j(u,x)
-  &\bydef \argmin_{g > 0} \Brace*{\min_{z} \varphi_j(z,g,u,x)} \notag\\
+  g^+_j(x,y)
+  &\bydef \argmin_{g > 0} \Brace*{\min_{b} \varphi_j(b,g,x,y)} \notag\\
   &= \frac{
     N^\Tag{dark} + N^\Tag{lamp}
   }{
     N^\Tag{dark}\,\frac{
-      v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z^+_j(u,x)}^2
+      v^\Tag{dark'}_j + \Paren*{m^\Tag{dark}_j - b^+_j(x,y)}^2
     }{
-      u
+      x
     } + N^\Tag{lamp}\,\frac{
-      v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z^+_j(u,x) - x}^2
+      v^\Tag{lamp'}_j + \Paren*{m^\Tag{lamp}_j - b^+_j(x,y) - y}^2
     }{
-      u + x
+      x + y
     }
   } \, .
 \end{align}
 
 We define:
 \begin{align}
-  \varphi^+_j(u, x)
-  &\bydef \min_{z,g>0} \varphi_j(z,g,u,x) \notag \\
-  &= \varphi_j\Paren*{z^+_j(u,x),g^+_j(u,x),u,x} \notag \\
-  &= \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\,\Paren*{1 - \log g_j^+(u,x)}
+  \varphi^+_j(x, y)
+  &\bydef \min_{b,g>0} \varphi_j(b,g,x,y) \notag \\
+  &= \varphi_j\Paren*{b^+_j(x,y),g^+_j(x,y),x,y} \notag \\
+  &= \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\,\Paren*{1 - \log g_j^+(x,y)}
   \notag \\
   &\quad
-    + N^\Tag{dark}\,\log u
-    + N^\Tag{lamp}\,\log\Paren*{u + x} \, ,
+    + N^\Tag{dark}\,\log x
+    + N^\Tag{lamp}\,\log\Paren*{x + y} \, ,
 \end{align}
-and we minimize this function in $(u,x)$ under the constraints $u>0$ and $x≥0$.
+and we minimize this function in $(x,y)$ under the constraints $x>0$ and $y≥0$.
 To apply VMLM-B, the following partial derivatives are needed:
 \begin{align}
-  \PDer{\varphi^+_j(u, x)}{u}
-  &= \frac{N^\Tag{dark}}{u} - N^\Tag{dark}\,g^ +_j(u,x)\,\frac{
-      v^\Tag{dark}_j + \Paren*{m^\Tag{dark}_j - z^+_j(u,x)}^2
+  \PDer{\varphi^+_j(x, y)}{x}
+  &= \frac{N^\Tag{dark}}{x} - N^\Tag{dark}\,g^ +_j(x,y)\,\frac{
+      v^\Tag{dark'}_j + \Paren*{m^\Tag{dark}_j - b^+_j(x,y)}^2
     }{
-      u^2
+      x^2
     } \notag\\
-  &\quad + \frac{N^\Tag{lamp}}{u + x} - N^\Tag{lamp}\,g^+_j(u,x)\,\frac{
-      v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z^+_j(u,x) - x}^2
+  &\quad + \frac{N^\Tag{lamp}}{x + y} - N^\Tag{lamp}\,g^+_j(x,y)\,\frac{
+      v^\Tag{lamp'}_j + \Paren*{m^\Tag{lamp}_j - b^+_j(x,y) - y}^2
     }{
-      \Paren*{u + x}^2
+      \Paren*{x + y}^2
     }
     \, , \\
-  \PDer{\varphi^+_j(u, x)}{x}
-  &= 2\,N^\Tag{lamp}\,g^+_j(u,x)\,\frac{
-       z^+_j(u,x) + x - m^\Tag{lamp}_j
+  \PDer{\varphi^+_j(x, y)}{y}
+  &= 2\,N^\Tag{lamp}\,g^+_j(x,y)\,\frac{
+       b^+_j(x,y) + y - m^\Tag{lamp}_j
     }{
-      u + x
+      x + y
     } \notag\\
-  &\quad + \frac{N^\Tag{lamp}}{u + x} - N^\Tag{lamp}\,g^+_j(u,x)\,\frac{
-    v^\Tag{lamp}_j + \Paren*{m^\Tag{lamp}_j - z^+_j(u,x) - x}^2
+  &\quad + \frac{N^\Tag{lamp}}{x + y} - N^\Tag{lamp}\,g^+_j(x,y)\,\frac{
+    v^\Tag{lamp'}_j + \Paren*{m^\Tag{lamp}_j - b^+_j(x,y) - y}^2
   }{
-    \Paren*{u + x}^2
+    \Paren*{x + y}^2
   }
   \, .
 \end{align}
