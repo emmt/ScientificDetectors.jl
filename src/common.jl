@@ -103,7 +103,7 @@ end
 """
 
 ```julia
-regionofinterest(obj)
+regionofinterest(obj) -> roi
 ```
 
 yields the region of interest (ROI) of object `obj`.
@@ -112,3 +112,16 @@ See also [`DetectorAxis`](@ref).
 
 """
 function regionofinterest end
+
+"""
+
+```julia
+exposuretime(obj) -> Δt
+```
+
+yields the exposure time of object `obj`.
+
+See also [`PreprocessingParameters`](@ref).
+
+"""
+function exposuretime end
