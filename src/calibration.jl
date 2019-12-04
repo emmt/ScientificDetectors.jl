@@ -2,6 +2,7 @@ module Calibration
 
 using ..ScientificDetectors
 using ..ScientificDetectors: offset, binning
+import ..ScientificDetectors: regionofinterest
 
 import Base: read, write
 
@@ -257,7 +258,7 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
     length(cat) == length(c) || error("incompatible number of categories")
     dims = size(roi)
 
-    function getcalibrationterm(A::AbstractArray)
+    function fixarray(A::AbstractArray)
         Base.has_offset_axes(A) && error("array has non-standard indexing")
         eltype(A) <: Real || error("array has incompatible element type")
         ndims(A) == N || error("array has incompatible number of dimensions")
@@ -266,11 +267,11 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
         return convert(Array{T,N}, A)
     end
     ReducedCalibration{T,N}(roi,
-                            getcalibrationterm(f),
-                            getcalibrationterm(z),
-                            getcalibrationterm(g),
-                            getcalibrationterm(σ),
-                            map(getcalibrationterm, c),
+                            fixarray(f),
+                            fixarray(z),
+                            fixarray(g),
+                            fixarray(σ),
+                            map(fixarray, c),
                             map(identifier, cat); kwds...)
 end
 
@@ -362,17 +363,15 @@ Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
     T(obj)
 
 Base.show(io::IO, obj::ReducedCalibration{T,N}) where {T,N} = begin
-    println(io, "ReducedCalibration{$T,$N}: ", join(size(obj),"×"))
+    print(io, "ReducedCalibration{$T,$N}: ", join(size(obj),"×"))
     for i in 1:length(categories(obj))
-        println(io, " - cat", i, ": \"", identifier(category(obj,i)), "\"")
+        print(io, "\n - cat", i, ": \"", identifier(category(obj,i)), "\"")
     end
 end
 
 # Allow for `T.(obj)` to work with `T` a floating-point type.
-function Broadcast.broadcasted(::Type{T},
-                               obj::ReducedCalibration) where {T<:AbstractFloat}
+Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration) where {T<:AbstractFloat} =
     ReducedCalibration{T}(obj)
-end
 
 #------------------------------------------------------------------------------
 
