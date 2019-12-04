@@ -16,6 +16,7 @@ module ScientificDetectors
 
 export
     CalibrationData,
+    DetectorAxis,
     IndependentIdenticallyDistributedNoise,
     NoiseModel,
     PreprocessingParameters,
@@ -27,11 +28,14 @@ export
     process,
     write!
 
+using EasyFITS
 import EasyFITS: write!
 
 function calibrate end
 function process end
 function process! end
+
+include("common.jl")
 
 include("calibration.jl")
 import .Calibration: ReducedCalibration, CalibrationData
