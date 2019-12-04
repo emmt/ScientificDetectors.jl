@@ -1802,7 +1802,7 @@ $j$-th pixel in the dark and stable images\footnote{The flat images are only
   } \notag\\
   &\quad - \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\log g_j
     + N^\Tag{dark}\,\log u_j
-    + N^\Tag{lamp}\,\log\Paren*{x_j + y_j}
+    + N^\Tag{lamp}\,\log\Paren*{x_j + y_j} \, ,
 \end{align}
 which depend on 4 unknown parameter $\V\theta_j =  (b_j, g_j, x_j, y_j)$ with:
 \begin{align}
@@ -1827,7 +1827,13 @@ the pixelwise variance in the dark images $c^\Tag{dark}_j\,\Delta t/g_j +
 It appears that conventional calibration amounts to first maximize the
 likelihood of the dark images in the bias $b_j$ and the noise in the dark
 images and then maximize the likelihood of the LED images in the remaining
-detector parameters.
+detector parameters.  The co-log-likelihood of calibration data with 
+conventional calibration is:
+\begin{align}
+  \varphi^\Tag{conv}_j =
+  N^\Tag{dark}\,\Paren*{1 + \log v^\Tag{dark}_j} +
+  N^\Tag{lamp}\,\Paren*{1 + \log v^\Tag{lamp}_j} - 2 \, .
+\end{align}
 
 The best bias does not depend on the gain:
 \begin{align}
@@ -1835,7 +1841,7 @@ The best bias does not depend on the gain:
   &\bydef \argmin_{b} \varphi_j(b,g,x,y) \notag\\
   &= \frac{
     \frac{N^\Tag{dark}\,m^\Tag{dark}_j}{x} +
-    \frac{N^\Tag{lamp}\,\Paren*{m^\Tag{lamp}_j - x}}{x + y}
+    \frac{N^\Tag{lamp}\,\Paren*{m^\Tag{lamp}_j - y}}{x + y}
   }{
     \frac{N^\Tag{dark}}{x} +
     \frac{N^\Tag{lamp}}{x + y}
@@ -1865,11 +1871,8 @@ We define:
   \varphi^+_j(x, y)
   &\bydef \min_{b,g>0} \varphi_j(b,g,x,y) \notag \\
   &= \varphi_j\Paren*{b^+_j(x,y),g^+_j(x,y),x,y} \notag \\
-  &= \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\,\Paren*{1 - \log g_j^+(x,y)}
-  \notag \\
-  &\quad
-    + N^\Tag{dark}\,\log x
-    + N^\Tag{lamp}\,\log\Paren*{x + y} \, ,
+  &= N^\Tag{dark}\,\Paren*{1 + \log\Paren*{\frac{x}{g_j^+(x,y)}}}
+   + N^\Tag{lamp}\,\Paren*{1 + \log\Paren*{\frac{x + y}{g_j^+(x,y)}}} \, ,
 \end{align}
 and we minimize this function in $(x,y)$ under the constraints $x>0$ and $y≥0$.
 To apply VMLM-B, the following partial derivatives are needed:
