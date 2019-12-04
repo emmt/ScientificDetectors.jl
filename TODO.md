@@ -14,3 +14,4 @@
   parameters, etc.) in the form of a hash-table (or equivalent) in
   `ReducedCalibration` and `PreprocessingParameters` with means to
   read/write/check these information from/to FITS header.
+- Add fitting of a smooth model for the flat.

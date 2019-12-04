@@ -58,7 +58,7 @@ prm = PreprocessingParameters{Float32}(cal; flat="FLAT_FIELD_RAW_2",
 
 Note that a second argument (after `cal`) may be specified to indicate the
 location of defective pixels.  This optional argument is an array of booleans
-of same size the data frames and with true values where pixels should be
+of same size as the data frames and with true values where pixels should be
 considered as defective.  In addition to this bad pixel map, pixels for which
 the calibration parameters yield invalid pre-processing parameters are also
 considered as defective.
