@@ -230,7 +230,7 @@ function write(io::FitsIO, obj::SimpleCalibration{T,N},
 
     # Create FITS header.
     name, vers = hduname(obj)
-    hdr.HDUNAME  = (name, "pre-processing parameters")
+    hdr.HDUNAME  = (name, "simple detector calibration")
     hdr.HDUVERS  = (vers, "version of this format")
     hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
     merge!(hdr, regionofinterest(obj))
