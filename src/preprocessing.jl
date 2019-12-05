@@ -90,7 +90,7 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
     roi::NTuple{N,DetectorAxis}
 
     # Exposure time (in seconds).
-    Δt::T
+    Δt::Float64
 
     # Amplitude correction factor (in flux units per ADU):
     a::A

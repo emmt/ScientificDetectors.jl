@@ -889,7 +889,7 @@ struct SimpleCalibration{T<:AbstractFloat,N}
     roi::NTuple{N,DetectorAxis}
 
     # Exposure time (in seconds).
-    Δt::T
+    Δt::Float64
 
     # Co-log-likelihood.
     f::Array{T,N}
