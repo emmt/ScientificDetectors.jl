@@ -100,6 +100,42 @@ function Base.get(::Type{NTuple{N,DetectorAxis}},
     ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
 
+#
+# Sampler to provide samples given an array.
+#
+struct Sampler{T,N,Np1,A<:AbstractArray{T,Np1}}
+    data::A
+    inds::NTuple{N,Colon}
+    function Sampler{T,N,Np1,A}(data::A) where {T,N,Np1,A<:AbstractArray{T,Np1}}
+        @assert Np1 == N + 1
+        Np1 ≥ 2 || error("insufficient number of dimensions")
+        Base.has_offset_axes(data) && error("data array has non-standard indexing")
+        samples = size(data, Np1)
+        samples ≥ 2 || error("insufficient number of samples")
+        new{T,N,Np1,A}(data, rubberindex(N))
+    end
+end
+
+Sampler(data::A) where {T,N,A<:AbstractArray{T,N}} = Sampler{T,N-1,N,A}(data)
+
+numberofsamples(A::Sampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
+
+Base.eltype(A::Sampler{T,N}) where {T,N} = T
+Base.ndims(A::Sampler{T,N}) where {T,N} = N
+Base.length(A::Sampler) = numberofsamples(A)
+Base.size(A::Sampler) = size(A.data)[1:end-1]
+Base.size(A::Sampler{T,N}, i::Integer) where {T,N} =
+    (i < 1 ? error("out of range dimension index") :
+     i ≤ N ? size(A.data, i) : 1)
+
+Base.show(io::IO, obj::Sampler{T,N}) where {T,N} = begin
+    join(io, size(obj),"×")
+    print(io, " Sampler{$T,$N}: samples = ", numberofsamples(obj))
+end
+
+Base.iterate(A::Sampler, i = 1) =
+    (1 ≤ i ≤ numberofsamples(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
+
 """
 
 ```julia

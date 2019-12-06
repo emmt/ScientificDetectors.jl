@@ -1,7 +1,7 @@
 module DetectorStatistics
 
 using ..ScientificDetectors
-using ..ScientificDetectors: offset, binning
+using ..ScientificDetectors: Sampler, offset, binning
 import ..ScientificDetectors: regionofinterest, exposuretime, numberofsamples
 
 using EasyFITS
@@ -124,14 +124,22 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:Real,N},
                           convert(Array{T,N}, std), samples, Δt, roi)
 end
 
+SampleStatistics(dat::AbstractArray, Δt::Real, args...; kwds...) =
+    SampleStatistics(Sampler(dat), Δt, args...; kwds...)
+
+SampleStatistics{T}(dat::AbstractArray, Δt::Real, args...; kwds...) where {T<:AbstractFloat} =
+    SampleStatistics{T}(Sampler(dat), Δt, args...; kwds...)
+
 function SampleStatistics(dat::Union{AbstractVector{<:AbstractArray{T,N}},
-                                     Tuple{Vararg{AbstractArray{T,N}}}},
+                                     Tuple{Vararg{AbstractArray{T,N}}},
+                                     Sampler{T,N}},
                           args...; kdws...) where {T<:Real,N}
     SampleStatistics{float(T)}(dat, args...; kdws...)
 end
 
 function SampleStatistics{T}(dat::Union{AbstractVector{<:AbstractArray{<:Real,N}},
-                                        Tuple{Vararg{AbstractArray{<:Real,N}}}},
+                                        Tuple{Vararg{AbstractArray{<:Real,N}}},
+                                        Sampler{T,N}},
                              Δt::Real,
                              roi::NTuple{N,DetectorAxis} = regionofinterest(first(dat));
                              quick::Bool = false) where {T<:AbstractFloat,N}
@@ -168,60 +176,6 @@ function SampleStatistics{T}(dat::Union{AbstractVector{<:AbstractArray{<:Real,N}
             S1[i] *= q
         end
         for A in dat
-            _secondpass!(S2, A, S1)
-        end
-        @inbounds @simd for i in eachindex(S2)
-            S2[i] = sqrt(r*S2[i])
-        end
-    end
-    SampleStatistics(S1, S2, samples, Δt, roi)
-end
-
-function SampleStatistics(dat::AbstractArray{T},
-                          Δt::Real, args...; kwds...) where {T<:Real}
-    SampleStatistics{float(T)}(dat, Δt, args...; kwds...)
-end
-
-function SampleStatistics{T}(dat::AbstractArray{<:Real,N},
-                             Δt::Real,
-                             roi::NTuple{N,DetectorAxis} = map(DetectorAxis, size(dat)[1:end-1]);
-                             quick::Bool = false) where {T<:AbstractFloat,N}
-    N ≥ 2 || error("insufficient number of dimensions")
-    Base.has_offset_axes(dat) && error("data array has non-standard indexing")
-    alldims = size(dat)
-    samples = alldims[N]
-    samples ≥ 2 || error("insufficient number of samples")
-    dims = alldims[1:N-1]
-    size(roi) == dims ||
-        throw(DimensionMismatch("leading dimensions of data array mismatch size of ROI"))
-    S1 = zeros(T, dims)
-    S2 = zeros(T, dims)
-    q = T(1/samples)
-    r = T(1/(samples - 1))
-    colons = rubberindex(N - 1)
-    if quick
-        # Integerate statistics in a single pass.
-        for k in 1:samples
-            A = view(dat, colons..., k)
-            _singlepass!(S1, S2, A)
-        end
-        @inbounds @simd for i in eachindex(S1, S2)
-            s = S1[i]
-            a = q*s
-            S1[i] = a
-            S2[i] = sqrt(max(S2[i] - a*s, zero(T))*r)
-        end
-    else
-        # Integerate statistics in two passes.
-        for k in 1:samples
-            A = view(dat, colons..., k)
-            _firstpass!(S1, A)
-        end
-        @inbounds @simd for i in eachindex(S1)
-            S1[i] *= q
-        end
-        for k in 1:samples
-            A = view(dat, colons..., k)
             _secondpass!(S2, A, S1)
         end
         @inbounds @simd for i in eachindex(S2)
