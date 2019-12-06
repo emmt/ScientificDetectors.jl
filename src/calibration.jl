@@ -185,7 +185,8 @@ Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
     T(obj)
 
 Base.show(io::IO, obj::ReducedCalibration{T,N}) where {T,N} = begin
-    print(io, "ReducedCalibration{$T,$N}: ", join(size(obj),"×"))
+    join(io, size(obj),"×")
+    print(io, " ReducedCalibration{$T,$N}:")
     for i in 1:length(categories(obj))
         print(io, "\n - cat", i, ": \"", identifier(category(obj,i)), "\"")
     end
