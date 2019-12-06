@@ -126,6 +126,19 @@ See also [`PreprocessingParameters`](@ref).
 """
 function exposuretime end
 
+"""
+
+```julia
+numberofsamples(obj)
+```
+
+yields the number of samples used for statistics stored in object `obj`.
+
+See also [`exposuretime`](@ref), [`SampleStatistics`](@ref).
+
+"""
+function numberofsamples end
+
 @noinline dimension_mismatch() =
     dimension_mismatch("arguments have incompatible dimensions")
 
