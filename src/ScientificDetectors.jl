@@ -22,6 +22,7 @@ export
     PreprocessingParameters,
     RealisticNoise,
     ReducedCalibration,
+    SampleStatistics,
     SimpleCalibration,
     StaticNoise,
     process!,
@@ -34,13 +35,16 @@ using Printf
 
 using ArrayTools
 using EasyFITS
-using EasyFITS: exists, throw_file_already_exists
+using EasyFITS: exists, isprimary, throw_file_already_exists
 import EasyFITS: write!, hduname
 
 function process end
 function process! end
 
 include("common.jl")
+
+include("statistics.jl")
+import .DetectorStatistics: SampleStatistics
 
 include("calibration.jl")
 import .Calibration: ReducedCalibration, SimpleCalibration, CalibrationData
