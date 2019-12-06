@@ -165,13 +165,14 @@ Base.length(obj::PreprocessingParameters) = prod(size(obj))
 Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
     T(obj)
 
-Base.show(io::IO, obj::PreprocessingParameters{T,N}) where {T,N} =
-    print(io, "PreprocessingParameters{$T,$N}: ", join(size(obj),"×"),
-          ", Δt = ", exposuretime(obj), " s")
-
 # Allow for `T.(obj)` to work with `T` a floating-point type.
 Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =
     PreprocessingParameters{T}(obj)
+
+Base.show(io::IO, obj::PreprocessingParameters{T,N}) where {T,N} = begin
+    join(io, size(obj), "×")
+    print(io, "PreprocessingParameters{$T,$N}: Δt = ", exposuretime(obj), " s")
+end
 
 
 #
