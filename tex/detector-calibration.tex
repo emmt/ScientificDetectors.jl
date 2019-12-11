@@ -368,7 +368,7 @@ be represented for a digitized value, this is not the same thing as the
 saturation phenomenon which is due to the finite capacity of the pixel wells.
 The $\approx$ sign in Eq.~\eqref{eq:conversion} is to account for other random
 perturbations than rounding errors and shot noise ($n$ is a random variable
-with Poissonian distribution).  Other possible of errors or noise are: the
+with Poissonian distribution).  Other possible errors or noise are: the
 cross-talk between close pixels, electrons loss/gain during the charge transfer
 (for charge coupled devices, CCD, or EMCCD).
 
@@ -405,7 +405,7 @@ $d$ (for given gain $g$ and offset $z$) given by:
 \end{align}
 with $\Ceil{\ldots}$ the ceil function (see
 Appendix~\ref{sec:floor-ceil-functions}). The probability of getting a value
-$g$ knowing the mean number of electrons is:
+$d$ knowing the mean number of electrons is:
 \begin{align}
   \Pr\Paren*{d \Given \mu} = \mathe^{-\mu} \,\sum_{n = n_\Tag{inf}(d)}^{n_\Tag{sup}(d)}
   \frac{\mu^n}{n!}
@@ -477,7 +477,7 @@ again except for the unit gain case.
 
 \caption{Difference between the mean of the detector signal and $\mu/g$ for
 various fluxes $\mu$ and gains $g$.  The curves have been averaged with respect
-to the offset $z $. \label{fig:means}}
+to the offset $z $. \oops{where is the curve for gain = 1.0? [MT]}\label{fig:means}}
 \end{figure}
 
 \begin{figure}
@@ -698,7 +698,7 @@ that the simple affine model applies and with:
 Our claim that $\estim{s}_j$ and $w_j$ summarize all available information is
 supported by the fact that these quantities are sufficient to express the
 likelihood of the data as we will now show.  In our simple model, non-defective
-an unsaturated pixels have a linear behavior with respect to the incident flux
+unsaturated pixels have a linear behavior with respect to the incident flux
 and are mutually independent, besides the noise is assumed centered but is a
 mixture of contributions (shot noise, readout noise, rounding errors, etc.)
 with different statistics.  This justifies to assume that the noise has
@@ -711,7 +711,7 @@ data then writes:
   \label{eq:co-log-likelihood-of-estimator}
 \end{equation}
 where $\mathcal{P}$ is the set of valid pixels and $\proxy{s}_j(\V\theta)$ is a
-model of $s_j$ depending on parameters $\V\theta$.  here we use the notation
+model of $s_j$ depending on parameters $\V\theta$.  Here we use the notation
 $\estim{\V s}$ to denote the collection of values $\estim{s}_j$ for all pixels
 $j$.  Since $w_j = 0$ for all $j \not\in \mathcal{P}$, the first sum in the
 right hand side of Eq.~\eqref{eq:co-log-likelihood-of-estimator} can be
@@ -907,7 +907,7 @@ The model of the dark images is thus given by:
   \label{eq:dark-model}
 \end{equation}
 with $c^\Tag{dark}_j$ the dark current of the pixel $j$.  The expectation and
-variance of the dar images are given by:
+variance of the dark images are given by:
 \begin{align}
   \Expect*{d_{j,k}^\Tag{dark}}
   &= c_{j,\ell}^\Tag{dark}\,\Delta t_k^\Tag{dark} + z_j \, ,\\
@@ -945,6 +945,10 @@ variance of the dar images are given by:
 The main purpose of the background images is to estimate the background current
  $\V c^\Tag{bg}$, \eg by fitting an affine temporal law to $d_{j,k}^\Tag{dark}$
 for each pixel $j$.  \oops{This is very similar to the dark images.}
+
+\oops{As designed, $c^\Tag{bg}_j$ also contains $c^\Tag{dark}_j$ since 
+background images cannot be obtained without any contribution of the dark 
+current [MT].}
 
 
 \subsubsection{Flat images}
@@ -1347,7 +1351,7 @@ to be the least pixel value for all frames:
   z\Iter0_j = \min_{k,\ell} d_{j,k,\ell} \,.
   \label{eq:initial-bias}
 \end{equation}
-We further impose impose that $\tau_{j,\ell} = \tau$ be the same for all kinds
+We further impose that $\tau_{j,\ell} = \tau$ be the same for all kinds
 of illuminations $\ell$ and for all pixels $j$ and negligible compared to all
 non-zero exposure times:
 \begin{equation}
@@ -1607,7 +1611,7 @@ the considered conditions, do not depend on $k$.  From the definitions of the
 empirical mean and variance, the numerator in the above right hand side
 expression can be expanded and simplified:
 \begin{align}
-  \sum_{k=1}^{N_\ell} \Paren[\big]{d_{j,k,\ell} - \mu_{j,\ell}^2(\V\theta)}
+  \sum_{k=1}^{N_\ell} \Paren[\big]{d_{j,k,\ell} - \mu_{j,\ell}(\V\theta)}^2
   &= \sum_{k=1}^{N_\ell} d_{j,k,\ell}^2
    - 2\,\mu_{j,\ell}(\V\theta)\,\sum_{k=1}^{N_\ell} d_{j,k,\ell}
    + N_{\ell} \, \mu_{j,\ell}^2(\V\theta) \notag\\
@@ -1671,7 +1675,7 @@ procedure just requires the empirical mean and variance of three kinds of
 images:
 \begin{description}
 \item[Dark images] are acquired with no illumination on the camera. These
-images thus depend on the bais and on the dark current
+images thus depend on the bias and on the dark current
 contribution of background sources (dark current) is negligible, these images
 are similar to \emph{bias} images. their empirical means and unbiased variance
 are given by:
@@ -1743,7 +1747,7 @@ empirical means of such images is computed:
   \label{eq:Themis-sun-avg}
 \end{equation}
 where $f^\Tag{flat}_j = r^\Tag{flat}_j\,\Delta t$ is a smooth (\eg
-constant) distribution and $a_j$ is the pixelwise correction factor. In
+constant) distribution and $a_j$ is the pixelwise conversion factor. In
 practice, $f^\Tag{flat}_j$ is given by the mean pixel values in $\V
 m^\Tag{sun}$ or by a low order bi-dimensional polynomial fit of $\V
 m^\Tag{sun}$.  Another possibility is to take $f^\Tag{flat}_j = 1$ whatever
@@ -2212,7 +2216,7 @@ The signal to noise ratio of the sample variance estimators are:
 
 
 \bibliographystyle{plainnat}
-\bibliography{detetctor-calibration}
+\bibliography{detector-calibration}
 
 
 \end{document}
