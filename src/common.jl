@@ -112,7 +112,7 @@ struct Sampler{T,N,Np1,A<:AbstractArray{T,Np1}}
         Base.has_offset_axes(data) && error("data array has non-standard indexing")
         samples = size(data, Np1)
         samples ≥ 2 || error("insufficient number of samples")
-        new{T,N,Np1,A}(data, rubberindex(N))
+        new{T,N,Np1,A}(data, colons(N))
     end
 end
 

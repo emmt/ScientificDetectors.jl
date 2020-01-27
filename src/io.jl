@@ -117,14 +117,14 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     end
 
     # Read data and build instance.
-    colons = rubberindex(N)
-    f = read(hdu, colons..., 1)
-    z = read(hdu, colons..., 2)
-    g = read(hdu, colons..., 3)
-    σ = read(hdu, colons..., 4)
+    inds = colons(N)
+    f = read(hdu, inds..., 1)
+    z = read(hdu, inds..., 2)
+    g = read(hdu, inds..., 3)
+    σ = read(hdu, inds..., 4)
     c = Vector{typeof(f)}(undef, nc)
     for k in 1:nc
-        c[k] = read(hdu, colons..., 4 + k)
+        c[k] = read(hdu, inds..., 4 + k)
     end
     return T(roi, f, z, g, σ, c, cat)
 end
@@ -210,12 +210,12 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:SimpleCalibration}
     Δt = hdr["EXPTIME"]
 
     # Read data and build instance.
-    colons = rubberindex(N)
-    f = read(hdu, colons..., 1)
-    a = read(hdu, colons..., 2)
-    b = read(hdu, colons..., 3)
-    g = read(hdu, colons..., 4)
-    σ = read(hdu, colons..., 5)
+    inds = colons(N)
+    f = read(hdu, inds..., 1)
+    a = read(hdu, inds..., 2)
+    b = read(hdu, inds..., 3)
+    g = read(hdu, inds..., 4)
+    σ = read(hdu, inds..., 5)
     return T(roi, Δt, f, a, b, g, σ)
 end
 
@@ -296,11 +296,11 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:PreprocessingParameters}
     Δt = hdr["EXPTIME"]
 
     # Read data and build instance.
-    colons = rubberindex(N)
-    a = read(hdu, colons..., 1)
-    b = read(hdu, colons..., 2)
-    p = read(hdu, colons..., 3)
-    q = read(hdu, colons..., 4)
+    inds = colons(N)
+    a = read(hdu, inds..., 1)
+    b = read(hdu, inds..., 2)
+    p = read(hdu, inds..., 3)
+    q = read(hdu, inds..., 4)
     return T(roi, Δt, a, b, p, q)
 end
 
@@ -496,9 +496,9 @@ function _read2(::Type{T}, obj::FitsImageHDU,
                 samples::Integer, Δt::Float64,
                 roi::NTuple{N,DetectorAxis}) where {T<:SampleStatistics,N}
     # Read data and build instance.
-    colons = rubberindex(N)
-    avg = read(obj, colons..., 1)
-    std = read(obj, colons..., 2)
+    inds = colons(N)
+    avg = read(obj, inds..., 1)
+    std = read(obj, inds..., 2)
     return T(avg, std, samples, Δt, roi)
 end
 
