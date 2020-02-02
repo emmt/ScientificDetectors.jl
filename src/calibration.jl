@@ -148,18 +148,54 @@ end
 # of an immutable structure can safely return its argument.
 #
 ReducedCalibration(obj::ReducedCalibration) = obj
+function ReducedCalibration(roi::NTuple{N,DetectorAxis},
+                            f::AbstractArray{<:Real,N},
+                            z::AbstractArray{<:Real,N},
+                            g::AbstractArray{<:Real,N},
+                            σ::AbstractArray{<:Real,N},
+                            c::AbstractVector{Array{<:Real,N}},
+                            cat::AbstractVector{String};
+                            kwds...) where {N}
+    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
+                           map(eltype, c)...))
+    ReducedCalibration{T}(roi, f, z, g, σ, c, cat; kwds...)
+end
+
 ReducedCalibration{T}(obj::ReducedCalibration{T}) where {T} = obj
+ReducedCalibration{T}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
+    ReducedCalibration{T}(obj.roi, obj.f, obj.z, obj.g, obj.σ, obj.c, obj.cat)
+function ReducedCalibration{T}(roi::NTuple{N,DetectorAxis},
+                               f::AbstractArray{<:Real,N},
+                               z::AbstractArray{<:Real,N},
+                               g::AbstractArray{<:Real,N},
+                               σ::AbstractArray{<:Real,N},
+                               c::AbstractVector{Array{<:Real,N}},
+                               cat::AbstractVector{String};
+                               kwds...) where {T<:AbstractFloat,N}
+    # Call the inner constructor with all arguments of correct type.
+    ReducedCalibration{T,N}(roi,
+                            convert(Array{T,N}, f),
+                            convert(Array{T,N}, z),
+                            convert(Array{T,N}, g),
+                            convert(Array{T,N}, σ),
+                            map(x -> convert(Array{T,N}, x), c),
+                            convert(Array{String}, cat);
+                            kwds...)
+end
+
 ReducedCalibration{T,N}(obj::ReducedCalibration{T,N}) where {T,N} = obj
 ReducedCalibration{T,N}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
     ReducedCalibration{T}(obj)
-ReducedCalibration{T}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
-    ReducedCalibration{T,N}(obj.roi,
-                            convert(Array{T,N}, obj.f),
-                            convert(Array{T,N}, obj.z),
-                            convert(Array{T,N}, obj.g),
-                            convert(Array{T,N}, obj.σ),
-                            map(x -> convert(Array{T,N}, x), obj.c),
-                            obj.cat)
+function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
+                                 f::AbstractArray{<:Real,N},
+                                 z::AbstractArray{<:Real,N},
+                                 g::AbstractArray{<:Real,N},
+                                 σ::AbstractArray{<:Real,N},
+                                 c::AbstractVector{Array{<:Real,N}},
+                                 cat::AbstractVector{String};
+                                 kwds...) where {T<:AbstractFloat,N}
+    ReducedCalibration{T}(roi, f, z, g, σ, c, cat; kwds...)
+end
 
 #
 # Getters.
@@ -935,17 +971,48 @@ end
 # Simple outer constructors for conversion.
 #
 SimpleCalibration(obj::SimpleCalibration) = obj
+function SimpleCalibration(roi::NTuple{N,DetectorAxis},
+                           Δt::Real,
+                           f::AbstractArray{<:Real,N},
+                           a::AbstractArray{<:Real,N},
+                           b::AbstractArray{<:Real,N},
+                           g::AbstractArray{<:Real,N},
+                           σ::AbstractArray{<:Real,N}) where {N}
+    T = float(promote_type(eltype(f), eltype(a), eltype(b), eltype(g), eltype(σ)))
+    SimpleCalibration{T}(roi, Δt, f, a, b, g, σ)
+end
+
 SimpleCalibration{T}(obj::SimpleCalibration{T}) where {T} = obj
+SimpleCalibration{T}(obj::SimpleCalibration{<:Any,N}) where {T<:AbstractFloat,N} =
+    SimpleCalibration{T}(obj.roi, obj.Δt, obj.f, obj.a, obj.b, obj.g, obj.σ)
+function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis},
+                              Δt::Real,
+                              f::AbstractArray{<:Real,N},
+                              a::AbstractArray{<:Real,N},
+                              b::AbstractArray{<:Real,N},
+                              g::AbstractArray{<:Real,N},
+                              σ::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    # Call the inner constructor with all arguments of correct type.
+    SimpleCalibration{T,N}(roi, Δt,
+                           convert(Array{T,N}, f),
+                           convert(Array{T,N}, a),
+                           convert(Array{T,N}, b),
+                           convert(Array{T,N}, g),
+                           convert(Array{T,N}, σ))
+end
+
 SimpleCalibration{T,N}(obj::SimpleCalibration{T,N}) where {T,N} = obj
 SimpleCalibration{T,N}(obj::SimpleCalibration{<:Any,N}) where {T,N} =
     SimpleCalibration{T}(obj)
-SimpleCalibration{T}(obj::SimpleCalibration{<:Any,N}) where {T<:AbstractFloat,N} =
-    SimpleCalibration(obj.roi, obj.Δt,
-                      convert(Array{T,N}, obj.f),
-                      convert(Array{T,N}, obj.a),
-                      convert(Array{T,N}, obj.b),
-                      convert(Array{T,N}, obj.g),
-                      convert(Array{T,N}, obj.σ))
+function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis},
+                                Δt::Real,
+                                f::AbstractArray{<:Real,N},
+                                a::AbstractArray{<:Real,N},
+                                b::AbstractArray{<:Real,N},
+                                g::AbstractArray{<:Real,N},
+                                σ::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    SimpleCalibration{T}(roi, Δt, f, a, b, g, σ)
+end
 
 #
 # Getters.
