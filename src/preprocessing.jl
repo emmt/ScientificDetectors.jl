@@ -134,20 +134,50 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
 end
 
 #
-# Simple outer constructors for conversion. (A constructor of an immutable
-# structure can return its argument.)
+# Outer constructors for construction given all fields.
+#
+function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
+                                 Δt::Real,
+                                 a::AbstractArray{<:Real,N},
+                                 b::AbstractArray{<:Real,N},
+                                 p::AbstractArray{<:Real,N},
+                                 q::AbstractArray{<:Real,N}) where {N}
+    T = float(promote_type(eltype(a), eltype(b), eltype(p), eltype(q)))
+    PreprocessingParameters(roi, Δt, a, b, p, q)
+end
+
+function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
+                                    Δt::Real,
+                                    a::AbstractArray{<:Real,N},
+                                    b::AbstractArray{<:Real,N},
+                                    p::AbstractArray{<:Real,N},
+                                    q::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    PreprocessingParameters{T,N}(roi, Δt,
+                                 convert(Array{T,N}, a),
+                                 convert(Array{T,N}, b),
+                                 convert(Array{T,N}, p),
+                                 convert(Array{T,N}, q))
+end
+
+function PreprocessingParameters{T,N}(roi::NTuple{N,DetectorAxis},
+                                      Δt::Real,
+                                      a::AbstractArray{<:Real,N},
+                                      b::AbstractArray{<:Real,N},
+                                      p::AbstractArray{<:Real,N},
+                                      q::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    PreprocessingParameters{T}(roi, Δt, a, b, p, q)
+end
+
+#
+# Simple outer constructors for conversion.
 #
 PreprocessingParameters(obj::PreprocessingParameters) = obj
 PreprocessingParameters{T}(obj::PreprocessingParameters{T}) where {T} = obj
+PreprocessingParameters{T}(obj::PreprocessingParameters{<:Any,N}) where {T<:AbstractFloat,N} =
+    PreprocessingParameters(obj.roi, obj.Δt, obj.a, obj.b, obj.p, obj.q)
 PreprocessingParameters{T,N}(obj::PreprocessingParameters{T,N}) where {T,N} = obj
 PreprocessingParameters{T,N}(obj::PreprocessingParameters{<:Any,N}) where {T,N} =
     PreprocessingParameters{T}(obj)
-PreprocessingParameters{T}(obj::PreprocessingParameters{<:Any,N}) where {T<:AbstractFloat,N} =
-    PreprocessingParameters(obj.roi, obj.Δt,
-                            convert(Array{T,N}, obj.a),
-                            convert(Array{T,N}, obj.b),
-                            convert(Array{T,N}, obj.p),
-                            convert(Array{T,N}, obj.q))
 
 #
 # Getters.
@@ -368,6 +398,9 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
     end
     return PreprocessingParameters(regionofinterest(cal), Δt, a, b, p, q)
 end
+
+PreprocessingParameters(cal::SimpleCalibration{T}, args...; kwds...) where {T} =
+    PreprocessingParameters{T}(cal, args...; kwds...)
 
 function PreprocessingParameters{T}(cal::SimpleCalibration{R,N},
                                     bad::AbstractArray{Bool,N} = zeros(Bool, size(cal))
