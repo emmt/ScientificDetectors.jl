@@ -134,14 +134,14 @@ function write(io::FitsIO, obj::ReducedCalibration{T,N},
     # Create data array.
     dims = size(obj)
     dat = Array{T,N+1}(undef, dims..., 4 + length(obj.c))
-    dat[…,1] .= obj.f
-    dat[…,2] .= obj.z
-    dat[…,3] .= obj.g
-    dat[…,4] .= obj.σ
+    dat[..,1] .= obj.f
+    dat[..,2] .= obj.z
+    dat[..,3] .= obj.g
+    dat[..,4] .= obj.σ
     k = 4
     for c in obj.c
         k += 1
-        dat[…,k] .= c
+        dat[..,k] .= c
     end
 
     # Create FITS header.
@@ -224,11 +224,11 @@ function write(io::FitsIO, obj::SimpleCalibration{T,N},
     # Create data array.
     dims = size(obj)
     dat = Array{T,N+1}(undef, dims..., 5)
-    dat[…,1] .= obj.f
-    dat[…,2] .= obj.a
-    dat[…,3] .= obj.b
-    dat[…,4] .= obj.g
-    dat[…,5] .= obj.σ
+    dat[..,1] .= obj.f
+    dat[..,2] .= obj.a
+    dat[..,3] .= obj.b
+    dat[..,4] .= obj.g
+    dat[..,5] .= obj.σ
 
     # Create FITS header.
     name, vers = hduname(obj)
@@ -309,10 +309,10 @@ function write(io::FitsIO, obj::PreprocessingParameters{T,N},
     # Create data array.
     dims = size(obj)
     dat = Array{T,N+1}(undef, dims..., 4)
-    dat[…,1] .= obj.a
-    dat[…,2] .= obj.b
-    dat[…,3] .= obj.p
-    dat[…,4] .= obj.q
+    dat[..,1] .= obj.a
+    dat[..,2] .= obj.b
+    dat[..,3] .= obj.p
+    dat[..,4] .= obj.q
 
     # Create FITS header.
     name, vers = hduname(obj)
@@ -378,8 +378,8 @@ See https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html for a list of
 commonly used FITS keywords.
 
 The array data, say `arr`, stored in the FITS HDU (header data unit) has
-last dimension equal to 2 and consists in 2 packed arrays `arr[…,1]` and
-`arr[…,2]` which are respectively the mean and standard deviation of the
+last dimension equal to 2 and consists in 2 packed arrays `arr[..,1]` and
+`arr[..,2]` which are respectively the mean and standard deviation of the
 sample.   These quantities are computed as follows:
 
 ```julia
@@ -507,8 +507,8 @@ function write(io::FitsIO, obj::SampleStatistics{T,N},
     # Create data array.
     dims = size(obj)
     dat = Array{T,N+1}(undef, dims..., 2)
-    dat[…,1] .= obj.avg
-    dat[…,2] .= obj.std
+    dat[..,1] .= obj.avg
+    dat[..,2] .= obj.std
 
     # Create FITS header.
     name, vers = hduname(obj)
