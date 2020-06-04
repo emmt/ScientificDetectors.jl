@@ -479,7 +479,7 @@ function process(prm::PreprocessingParameters{T,N},
                  raw::AbstractArray{<:Real,N},
                  noisemodel::NoiseModel =
                  DEFAULT_NOISE_MODEL) where {T<:AbstractFloat,N}
-    dims = dimensions(raw)
+    dims = standard_size(raw)
     return process!(Array{T,N}(undef, dims), Array{T,N}(undef, dims),
                     prm, raw, noisemodel)
 end
