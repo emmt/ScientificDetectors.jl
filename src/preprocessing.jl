@@ -494,7 +494,8 @@ function process!(wgt::AbstractArray{T,N},
                   dat::AbstractArray{T,N},
                   prm::PreprocessingParameters{T,N},
                   raw::AbstractArray{<:Real,N},
-                  ::IndependentIdenticallyDistributedNoise) where {T<:AbstractFloat,N}
+                  ::IndependentIdenticallyDistributedNoise
+                  ) where {T<:AbstractFloat,N}
     # FIXME: _checkshape(....)
     affinecorrection!(dat, prm.a, prm.b, raw)
     iidweights!(wgt, dat, prm)
@@ -549,19 +550,34 @@ does the same but the affine correction being specified by `a` and `b`.
 """
 function affinecorrection!(dat::AbstractArray{T,N},
                            prm::PreprocessingParameters{T,N},
-                           raw::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+                           raw::AbstractArray{<:Real,N}
+                           ) where {T<:AbstractFloat,N}
     affinecorrection!(dat, prm.a, prm.b, raw)
 end
 
 function affinecorrection!(dat::AbstractArray{T,N},
                            a::AbstractArray{T,N},
                            b::AbstractArray{T,N},
-                           raw::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+                           raw::AbstractArray{<:Real,N}
+                           ) where {T<:AbstractFloat,N}
     @inbounds @simd for i in all_indices(dat, raw, a, b)
         dat[i] = (T(raw[i]) - b[i])*a[i]
     end
     return dat
 end
+
+"""
+    fastmax(a, b)
+
+yields the maximum of `a` and `b`.  Compared to `max`, not-a-number (NaN)
+values are not treated specifically.  This method is therefore faster than
+`max` for floating-point values but does not propagate NaN correctly.  However,
+if `b` is never a NaN (e.g., `fastmax(a,0)`), then NaN is consistently returned
+if `a` is a NaN.
+
+"""
+@inline fastmax(a::T, b::T) where {T<:AbstractFloat} =
+    (b > a ? b : a)
 
 """
 
@@ -581,7 +597,8 @@ does the same with the preprocessing parameters specified by `q` and `r`.
 """
 function realisticweights!(wgt::AbstractArray{T,N},
                            dat::AbstractArray{T,N},
-                           prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
+                           prm::PreprocessingParameters{T,N}
+                           ) where {T<:AbstractFloat,N}
     realisticweights!(wgt, dat, prm.q, prm.r)
 end
 
@@ -590,7 +607,8 @@ function realisticweights!(wgt::AbstractArray{T,N},
                            q::AbstractArray{T,N},
                            r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     @inbounds @simd for i in all_indices(wgt, dat, q, r)
-        wgt[i] = q[i]/(r[i] + max(dat[i], zero(T)))
+        # max(a,b) is slower because it checks for NaN
+        wgt[i] = q[i]/(r[i] + fastmax(dat[i], zero(T)))
     end
     return wgt, dat
 end
@@ -607,7 +625,8 @@ enticallydistributed (i.i.d.) noise, that is fill `wgt` with ones.
 """
 function iidweights!(wgt::AbstractArray{T,N},
                      dat::AbstractArray{T,N},
-                     prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
+                     prm::PreprocessingParameters{T,N}
+                     ) where {T<:AbstractFloat,N}
     iidweights!(wgt, dat, prm.q, prm.r)
 end
 
@@ -638,7 +657,8 @@ does the same with the preprocessing parameters specified by `q` and `r`.
 """
 function staticweights!(wgt::AbstractArray{T,N},
                         dat::AbstractArray{T,N},
-                        prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
+                        prm::PreprocessingParameters{T,N}
+                        ) where {T<:AbstractFloat,N}
     staticweights!(wgt, dat, prm.q, prm.r)
 end
 

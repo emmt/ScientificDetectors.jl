@@ -1,3 +1,8 @@
+# List of wishes
+
+- The affine correction performed in the preprocessing writes
+  `(raw[i] - b[i])*a[i]` which does not exploit fused-multiply-add (FMA)
+  instructions; rewrite it as `raw[i]*a[i] - ab[i]` where `ab[i] = a[i]*b[i]`.
 - `T.(obj)` with `T` any floating-point type works as expected but `@btime`
   reveals that it takes some time and that it allocates some bytes (for a
   400×388 detetctor: 570.816 μs, 2 allocations: 112 bytes).
