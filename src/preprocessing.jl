@@ -200,8 +200,9 @@ Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:Abstrac
     PreprocessingParameters{T}(obj)
 
 Base.show(io::IO, obj::PreprocessingParameters{T,N}) where {T,N} = begin
+    print(io, "PreprocessingParameters{$T,$N}: size = ")
     join(io, size(obj), "×")
-    print(io, "PreprocessingParameters{$T,$N}: Δt = ", exposuretime(obj), " s")
+    print(io, ", Δt = ", exposuretime(obj), " s")
 end
 
 

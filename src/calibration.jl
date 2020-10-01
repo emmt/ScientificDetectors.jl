@@ -1031,9 +1031,11 @@ Base.length(obj::SimpleCalibration) = prod(size(obj))
 Base.convert(::Type{T}, obj::SimpleCalibration) where {T<:SimpleCalibration} =
     T(obj)
 
-Base.show(io::IO, obj::SimpleCalibration{T,N}) where {T,N} =
-    print(io, "SimpleCalibration{$T,$N}: ", join(size(obj),"×"),
-          ", Δt = ", exposuretime(obj), " s")
+function Base.show(io::IO, obj::SimpleCalibration{T,N}) where {T,N}
+    print(io, "SimpleCalibration{$T,$N}: size = ")
+    join(io, size(obj),"×")
+    print(io, ", Δt = ", exposuretime(obj), " s")
+end
 
 # Allow for `T.(obj)` to work with `T` a floating-point type.
 Broadcast.broadcasted(::Type{T}, obj::SimpleCalibration) where {T<:AbstractFloat} =
