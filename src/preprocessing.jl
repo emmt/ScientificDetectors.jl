@@ -557,8 +557,7 @@ function affinecorrection!(dat::AbstractArray{T,N},
                            a::AbstractArray{T,N},
                            b::AbstractArray{T,N},
                            raw::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
-    axes(dat) == axes(a) == axes(b) == axes(raw) || incompatible_indices()
-    @inbounds @simd for i in eachindex(dat, raw, a, b)
+    @inbounds @simd for i in all_indices(dat, raw, a, b)
         dat[i] = (T(raw[i]) - b[i])*a[i]
     end
     return dat
@@ -590,8 +589,7 @@ function realisticweights!(wgt::AbstractArray{T,N},
                            dat::AbstractArray{T,N},
                            q::AbstractArray{T,N},
                            r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    axes(wgt) == axes(dat) == axes(q) == axes(r) || incompatible_indices()
-    @inbounds @simd for i in eachindex(wgt, dat, q, r)
+    @inbounds @simd for i in all_indices(wgt, dat, q, r)
         wgt[i] = q[i]/(r[i] + max(dat[i], zero(T)))
     end
     return wgt, dat
