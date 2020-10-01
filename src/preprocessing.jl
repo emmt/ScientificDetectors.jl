@@ -616,13 +616,7 @@ function iidweights!(wgt::AbstractArray{T,N},
                      q::AbstractArray{T,N},
                      r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     axes(wgt) == axes(dat) == axes(q) == axes(r) || incompatible_indices()
-    if false
-        @inbounds @simd for i in eachindex(wgt)
-            wgt[i] = one(T)
-        end
-    else
-        fill!(wgt, one(T))
-    end
+    fill!(wgt, one(T))
     return wgt, dat
 end
 
@@ -653,13 +647,7 @@ function staticweights!(wgt::AbstractArray{T,N},
                         q::AbstractArray{T,N},
                         r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
     axes(wgt) == axes(dat) == axes(q) == axes(r) || incompatible_indices()
-    if false
-        @inbounds @simd for i in eachindex(wgt, q)
-            wgt[i] = q[i]
-        end
-    else
-        copyto!(wgt, q)
-    end
+    copyto!(wgt, q)
     return wgt, dat
 end
 
