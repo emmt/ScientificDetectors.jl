@@ -1,6 +1,9 @@
-
-#------------------------------------------------------------------------------
-# INPUT/OUTPUT
+#
+# io.jl -
+#
+# Input/output methods for loading/saving calibration and preprocessing
+# parameters from/to files.
+#
 
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 ReducedCalibration{T,N},
@@ -60,7 +63,6 @@ function read(::Type{T}, path::AbstractString) where {T<:WritableData}
         return read(T, io)
     end
 end
-
 
 #------------------------------------------------------------------------------
 #
@@ -299,9 +301,9 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:PreprocessingParameters}
     inds = colons(N)
     a = read(hdu, inds..., 1)
     b = read(hdu, inds..., 2)
-    p = read(hdu, inds..., 3)
-    q = read(hdu, inds..., 4)
-    return T(roi, Δt, a, b, p, q)
+    q = read(hdu, inds..., 3)
+    r = read(hdu, inds..., 4)
+    return T(roi, Δt, a, b, q, r)
 end
 
 function write(io::FitsIO, obj::PreprocessingParameters{T,N},
@@ -311,8 +313,8 @@ function write(io::FitsIO, obj::PreprocessingParameters{T,N},
     dat = Array{T,N+1}(undef, dims..., 4)
     dat[..,1] .= obj.a
     dat[..,2] .= obj.b
-    dat[..,3] .= obj.p
-    dat[..,4] .= obj.q
+    dat[..,3] .= obj.q
+    dat[..,4] .= obj.r
 
     # Create FITS header.
     name, vers = hduname(obj)
