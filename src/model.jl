@@ -117,16 +117,18 @@ yields the probability of measuring the ADU's in vector `d` for a mean number
 of electrons `µ` with a detector gain `γ` and bias `β`.
 
 """
-function pdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
+function pdf(D::AbstractVector{<:Integer}, µ::Real, γ::Real, β::Real)
     T = Float64
     mu = T(µ)
+    gamma = T(γ)
+    beta = T(β)
     logmu = log(mu)
     h = Array{Float64}(undef, length(D))
     i = 0
     for d in D
         i += 1
-        ninf = max(0, ceil(Int, (d - z - 0.5)*g))
-        nsup = max(0, ceil(Int, (d - z + 0.5)*g) - 1)
+        ninf = max(0, ceil(Int, (d - beta - 0.5)*gamma))
+        nsup = max(0, ceil(Int, (d - beta + 0.5)*gamma) - 1)
         if nsup ≥ ninf
             r = one(T)
             for n in nsup:-1:ninf+1
@@ -140,18 +142,21 @@ function pdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
     return h
 end
 
-# This version uses large number arithmetic and is typically 40 times slower than the
-# fast version.
-function slowpdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
+# This version uses large number arithmetic and is typically 40 times slower
+# than the fast version.
+function slowpdf(D::AbstractVector{<:Integer}, µ::Real, γ::Real, β::Real)
+    mu = BigFloat(µ)
+    gamma = BigFloat(γ)
+    beta = BigFloat(β)
+    half = 1/BigFloat(2)
+    q = exp(-mu)
     h = Array{Float64}(undef, length(D))
     i = 0
-    mu = BigFloat(µ)
-    q = exp(-mu)
     for d in D
         i += 1
-        ninf = max(0, ceil(Int, (d - z - 0.5)*g))
-        #nsup = max(0, ceil(Int, (d - z + 0.5)*g) - 1)
-        lim = (d - z + 0.5)*g # strict upper bound
+        ninf = max(0, ceil(Int, (d - beta - half)*gamma))
+        #nsup = max(0, ceil(Int, (d - beta + half)*gamma) - 1)
+        lim = (d - beta + half)*gamma # strict upper bound
         r = q*mu^ninf/fact(BigFloat, ninf)
         s = zero(BigFloat)
         n = ninf
@@ -166,7 +171,6 @@ function slowpdf(D::AbstractVector{<:Integer}, µ::Real, g::Real, z::Real)
     end
     return h
 end
-
 
 function plot_histograms(; savefigs::Bool=false)
     mu = 200;
