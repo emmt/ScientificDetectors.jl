@@ -19,20 +19,20 @@ const DEFAULT_NOISE_MODEL = RealisticNoise()
 
 """
 
-`PreprocessingParameters{T}` stores the pre-processing
-parameters with `T` the floating-point type for the computations.
+`PreprocessingParameters{T}` stores the pre-processing parameters with `T` the
+floating-point type for the computations.
 
 Constructor is called as:
 
 ```julia
-PreprocessingParameters([roi,] Δt, a, b, p, q)
+PreprocessingParameters([roi,] Δt, a, b, q, r)
 ```
 
 where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
 (automatically guessed from argument `a` if not specified), `Δt` is the
 exposure time (in seconds), `a` is the amplitude correction factor (in flux
-units per ADU), `b` is the bias correction (in ADU), `p` and `q` are variance
-terms.  Arguments `a`, `b`, `p` and `q` are pixelwise.
+units per ADU), `b` is the bias correction (in ADU), `q` and `r` are variance
+terms.  Arguments `a`, `b`, `q` and `r` are pixelwise.
 
 It is also possible to convert reduced calibration data to preprocessing
 parameters:
@@ -65,7 +65,7 @@ compute the calibrated pixel value `dat[i]` and its corresponding precision
 
 ```julia
 dat[i] = (T(raw[i]) - b[i])*a[i]
-wgt[i] = p[i]/(max(zero(T), dat[i]) + q[i])
+wgt[i] = q[i]/(max(zero(T), dat[i]) + r[i])
 ```
 
 where the *realistic* noise model has been assumed.  These operations are
@@ -99,16 +99,16 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
     b::A
 
     # Variance/precision parameters:
-    p::A
     q::A
+    r::A
 
     # Inner constructor provided to force using outer constructors.
     function PreprocessingParameters{T,N,A}(roi::NTuple{N,DetectorAxis},
                                             Δt::Real,
                                             a::A,
                                             b::A,
-                                            p::A,
-                                            q::A) where {T<:AbstractFloat,N,
+                                            q::A,
+                                            r::A) where {T<:AbstractFloat,N,
                                                          A<:DenseArray{T,N}}
         @assert isfinite(Δt) && Δt ≥ 0
         for i in 1:N
@@ -119,17 +119,17 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
         dims = size(roi)
         @assert size(a) == dims
         @assert size(b) == dims
-        @assert size(p) == dims
         @assert size(q) == dims
+        @assert size(r) == dims
         all(x -> isfinite(x) && x ≥ 0, a) ||
             error("some invalid values in amplitude correction")
         all(x -> isfinite(x), b) ||
             error("some invalid values in bias correction")
-        all(x -> isfinite(x) && x ≥ 0, p) ||
+        all(x -> isfinite(x) && x ≥ 0, q) ||
             error("some invalid values in variance term U")
-        all(x -> isfinite(x) && x > 0, q) ||
+        all(x -> isfinite(x) && x > 0, r) ||
             error("some invalid values in variance term V")
-        return new{T,N,A}(roi, Δt, a, b, p, q)
+        return new{T,N,A}(roi, Δt, a, b, q, r)
     end
 end
 
@@ -140,32 +140,32 @@ function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
                                  Δt::Real,
                                  a::AbstractArray{<:Real,N},
                                  b::AbstractArray{<:Real,N},
-                                 p::AbstractArray{<:Real,N},
-                                 q::AbstractArray{<:Real,N}) where {N}
-    T = float(promote_type(eltype(a), eltype(b), eltype(p), eltype(q)))
-    PreprocessingParameters(roi, Δt, a, b, p, q)
+                                 q::AbstractArray{<:Real,N},
+                                 r::AbstractArray{<:Real,N}) where {N}
+    T = float(promote_type(eltype(a), eltype(b), eltype(q), eltype(r)))
+    PreprocessingParameters(roi, Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
                                     Δt::Real,
                                     a::AbstractArray{<:Real,N},
                                     b::AbstractArray{<:Real,N},
-                                    p::AbstractArray{<:Real,N},
-                                    q::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+                                    q::AbstractArray{<:Real,N},
+                                    r::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
     PreprocessingParameters{T,N}(roi, Δt,
                                  convert(Array{T,N}, a),
                                  convert(Array{T,N}, b),
-                                 convert(Array{T,N}, p),
-                                 convert(Array{T,N}, q))
+                                 convert(Array{T,N}, q),
+                                 convert(Array{T,N}, r))
 end
 
 function PreprocessingParameters{T,N}(roi::NTuple{N,DetectorAxis},
                                       Δt::Real,
                                       a::AbstractArray{<:Real,N},
                                       b::AbstractArray{<:Real,N},
-                                      p::AbstractArray{<:Real,N},
-                                      q::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
-    PreprocessingParameters{T}(roi, Δt, a, b, p, q)
+                                      q::AbstractArray{<:Real,N},
+                                      r::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
+    PreprocessingParameters{T}(roi, Δt, a, b, q, r)
 end
 
 #
@@ -174,7 +174,7 @@ end
 PreprocessingParameters(obj::PreprocessingParameters) = obj
 PreprocessingParameters{T}(obj::PreprocessingParameters{T}) where {T} = obj
 PreprocessingParameters{T}(obj::PreprocessingParameters{<:Any,N}) where {T<:AbstractFloat,N} =
-    PreprocessingParameters(obj.roi, obj.Δt, obj.a, obj.b, obj.p, obj.q)
+    PreprocessingParameters(obj.roi, obj.Δt, obj.a, obj.b, obj.q, obj.r)
 PreprocessingParameters{T,N}(obj::PreprocessingParameters{T,N}) where {T,N} = obj
 PreprocessingParameters{T,N}(obj::PreprocessingParameters{<:Any,N}) where {T,N} =
     PreprocessingParameters{T}(obj)
@@ -212,40 +212,40 @@ end
 # Provide a ROI if not specified.
 function PreprocessingParameters(Δt::Real,
                                  a::AbstractArray, b::AbstractArray,
-                                 p::AbstractArray, q::AbstractArray)
-    PreprocessingParameters(map(DetectorAxis, size(f)), Δt, a, b, p, q)
+                                 q::AbstractArray, r::AbstractArray)
+    PreprocessingParameters(map(DetectorAxis, size(f)), Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T}(Δt::Real,
                                     a::AbstractArray, b::AbstractArray,
-                                    p::AbstractArray, q::AbstractArray) where {T}
-    PreprocessingParameters{T}(map(DetectorAxis, size(a)), Δt, a, b, p, q)
+                                    q::AbstractArray, r::AbstractArray) where {T}
+    PreprocessingParameters{T}(map(DetectorAxis, size(a)), Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T,N}(Δt::Real,
                                       a::AbstractArray, b::AbstractArray,
-                                      p::AbstractArray, q::AbstractArray) where {T,N}
-    PreprocessingParameters{T,N}(map(DetectorAxis, size(a)), Δt, a, b, p, q)
+                                      q::AbstractArray, r::AbstractArray) where {T,N}
+    PreprocessingParameters{T,N}(map(DetectorAxis, size(a)), Δt, a, b, q, r)
 end
 
 # Provide parameters T and N.
 function PreprocessingParameters(roi::NTuple{N,DetectorAxis}, Δt::Real,
                                  a::AbstractArray, b::AbstractArray,
-                                 p::AbstractArray, q::AbstractArray) where {N}
-    T = float(promote_eltype(a, b, p, q))
-    PreprocessingParameters{T,N}(roi, Δt, a, b, p, q)
+                                 q::AbstractArray, r::AbstractArray) where {N}
+    T = float(promote_eltype(a, b, q, r))
+    PreprocessingParameters{T,N}(roi, Δt, a, b, q, r)
 end
 
 # Provide parameter N.
 function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis}, Δt::Real,
                                     a::AbstractArray, b::AbstractArray,
-                                    p::AbstractArray, q::AbstractArray) where {T,N}
-    PreprocessingParameters{T,N}(roi, Δt, a, b, p, q)
+                                    q::AbstractArray, r::AbstractArray) where {T,N}
+    PreprocessingParameters{T,N}(roi, Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                                       a::AbstractArray, b::AbstractArray,
-                                      p::AbstractArray, q::AbstractArray) where {T,N}
+                                      q::AbstractArray, r::AbstractArray) where {T,N}
     T <: AbstractFloat || error("parameter `T` must be a floating-point type")
     length(roi) == N || error("ROI has incompatible number of dimensions")
     dims = size(roi)
@@ -259,29 +259,29 @@ function PreprocessingParameters{T,N}(roi::Tuple{Vararg{DetectorAxis}},
     end
     PreprocessingParameters{T,N}(roi, Δt,
                                  fixarray(a), fixarray(b),
-                                 fixarray(p), fixarray(q))
+                                 fixarray(q), fixarray(r))
 end
 
 # These versions manage to directly call the inner constructor.
 function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
-                                 Δt::Real, a::A, b::A, p::A,
-                                 q::A) where {T<:AbstractFloat,N,
+                                 Δt::Real, a::A, b::A, q::A,
+                                 r::A) where {T<:AbstractFloat,N,
                                               A<:DenseArray{T,N}}
-    PreprocessingParameters{T,N,A}(roi, Δt, a, b, p, q)
+    PreprocessingParameters{T,N,A}(roi, Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
-                                    Δt::Real, a::A, b::A, p::A,
-                                    q::A) where {T<:AbstractFloat,N,
+                                    Δt::Real, a::A, b::A, q::A,
+                                    r::A) where {T<:AbstractFloat,N,
                                                  A<:DenseArray{T,N}}
-    PreprocessingParameters{T,N,A}(roi, Δt, a, b, p, q)
+    PreprocessingParameters{T,N,A}(roi, Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T,N}(roi::NTuple{N,DetectorAxis},
-                                      Δt::Real, a::A, b::A, p::A,
-                                      q::A) where {T<:AbstractFloat,N,
+                                      Δt::Real, a::A, b::A, q::A,
+                                      r::A) where {T<:AbstractFloat,N,
                                                    A<:DenseArray{T,N}}
-    PreprocessingParameters{T,N,A}(roi, Δt, a, b, p, q)
+    PreprocessingParameters{T,N,A}(roi, Δt, a, b, q, r)
 end
 
 # This version converts reduced calibration parameters to preprocessing parameters.
@@ -353,50 +353,50 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
     end
 
     # Compute the bias correction and the variance terms.  Bad pixels have
-    # a[i] = 0, b[i] = 0, p[i] = 0 and q[i] = 1, to have zero precision and
+    # a[i] = 0, b[i] = 0, q[i] = 0 and r[i] = 1, to have zero precision and
     # avoid division by zero.
     b = Array{T}(undef, dims)
-    p = Array{T}(undef, dims)
     q = Array{T}(undef, dims)
+    r = Array{T}(undef, dims)
     if jbg != 0
         cbg = c[jbg]
         dt = T(Δt)
-        @inbounds for i in eachindex(bad, a, b, g, p, q, σ, cbg)
+        @inbounds for i in eachindex(bad, a, b, g, q, r, σ, cbg)
             cdt = cbg[i]*dt
             b_i = z[i] + cdt
-            p_i = g[i]/a[i]
-            q_i = a[i]*(g[i]*σ[i]^2 + cdt)
-            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(p_i) & (p_i ≥ 0)) |
-                !(isfinite(q_i) & (q_i > 0)))
+            q_i = g[i]/a[i]
+            r_i = a[i]*(g[i]*σ[i]^2 + cdt)
+            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(q_i) & (q_i ≥ 0)) |
+                !(isfinite(r_i) & (r_i > 0)))
                 a[i] = zero(T)
                 b[i] = zero(T)
-                p[i] = zero(T)
-                q[i] = one(T)
+                q[i] = zero(T)
+                r[i] = one(T)
             else
                 b[i] = b_i
-                p[i] = p_i
                 q[i] = q_i
+                r[i] = r_i
             end
         end
     else
-        @inbounds for i in eachindex(bad, a, b, g, p, q, σ)
+        @inbounds for i in eachindex(bad, a, b, g, q, r, σ)
             b_i = z[i]
-            p_i = g[i]/a[i]
-            q_i = a[i]*g[i]*σ[i]^2
-            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(p_i) & (p_i ≥ 0)) |
-                !(isfinite(q_i) & (q_i > 0)))
+            q_i = g[i]/a[i]
+            r_i = a[i]*g[i]*σ[i]^2
+            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(q_i) & (q_i ≥ 0)) |
+                !(isfinite(r_i) & (r_i > 0)))
                 a[i] = zero(T)
                 b[i] = zero(T)
-                p[i] = zero(T)
-                q[i] = one(T)
+                q[i] = zero(T)
+                r[i] = one(T)
             else
                 b[i] = b_i
-                p[i] = p_i
                 q[i] = q_i
+                r[i] = r_i
             end
         end
     end
-    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, p, q)
+    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, q, r)
 end
 
 PreprocessingParameters(cal::SimpleCalibration{T}, args...; kwds...) where {T} =
@@ -422,23 +422,23 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N},
     @assert size(g) == dims
     @assert size(σ) == dims
 
-    # Compute the variance terms.  Bad pixels have a[i] = 0, b[i] = 0, p[i] = 0
-    # and q[i] = 1, to have zero precision and avoid division by zero.
-    p = Array{T}(undef, dims)
+    # Compute the variance terms.  Bad pixels have a[i] = 0, b[i] = 0, q[i] = 0
+    # and r[i] = 1, to have zero precision and avoid division by zero.
     q = Array{T}(undef, dims)
-    @inbounds for j in eachindex(bad, a, b, g, σ, p, q)
+    r = Array{T}(undef, dims)
+    @inbounds for j in eachindex(bad, a, b, g, σ, q, r)
         if (bad[j] || !isfinite(a[j]) || a[j] ≤ 0 || !isfinite(b[j]) ||
             !isfinite(g[j]) || g[j] ≤ 0 || !isfinite(σ[j]) || σ[j] ≤ 0)
             a[j] = zero(T)
             b[j] = zero(T)
-            p[j] = zero(T)
-            q[j] = one(T)
+            q[j] = zero(T)
+            r[j] = one(T)
         else
-            p[j] = g[j]/a[j]
-            q[j] = a[j]*g[j]*σ[j]^2
+            q[j] = g[j]/a[j]
+            r[j] = a[j]*g[j]*σ[j]^2
         end
     end
-    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, p, q)
+    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, q, r)
 end
 
 """
@@ -527,7 +527,7 @@ end
 # Using Julia `@.` macro  yields a much slower code:
 #
 #     @. dat = (T(raw) - prm.b)*prm.a
-#     @. wgt = prm.p/(prm.q + max(dat, zero(T)))
+#     @. wgt = prm.q/(prm.r + max(dat, zero(T)))
 #
 
 """
@@ -573,25 +573,25 @@ overwrites `wgt` with realistic weights computed from the pre-processed data
 `dat` and using the preprocessing parameters `prm`.
 
 ```julia
-realisticweights!(wgt, dat, p, q) -> wgt, dat
+realisticweights!(wgt, dat, q, r) -> wgt, dat
 ```
 
-does the same with the preprocessing parameters specified by `p` and `q`.
+does the same with the preprocessing parameters specified by `q` and `r`.
 
 """
 function realisticweights!(wgt::AbstractArray{T,N},
                            dat::AbstractArray{T,N},
                            prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
-    realisticweights!(wgt, dat, prm.p, prm.q)
+    realisticweights!(wgt, dat, prm.q, prm.r)
 end
 
 function realisticweights!(wgt::AbstractArray{T,N},
                            dat::AbstractArray{T,N},
-                           p::AbstractArray{T,N},
-                           q::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    axes(wgt) == axes(dat) == axes(p) == axes(q) || incompatible_indices()
-    @inbounds @simd for i in eachindex(wgt, dat, p, q)
-        wgt[i] = p[i]/(q[i] + max(dat[i], zero(T)))
+                           q::AbstractArray{T,N},
+                           r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
+    axes(wgt) == axes(dat) == axes(q) == axes(r) || incompatible_indices()
+    @inbounds @simd for i in eachindex(wgt, dat, q, r)
+        wgt[i] = q[i]/(r[i] + max(dat[i], zero(T)))
     end
     return wgt, dat
 end
@@ -609,14 +609,14 @@ enticallydistributed (i.i.d.) noise, that is fill `wgt` with ones.
 function iidweights!(wgt::AbstractArray{T,N},
                      dat::AbstractArray{T,N},
                      prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
-    iidweights!(wgt, dat, prm.p, prm.q)
+    iidweights!(wgt, dat, prm.q, prm.r)
 end
 
 function iidweights!(wgt::AbstractArray{T,N},
                      dat::AbstractArray{T,N},
-                     p::AbstractArray{T,N},
-                     q::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    axes(wgt) == axes(dat) == axes(p) == axes(q) || incompatible_indices()
+                     q::AbstractArray{T,N},
+                     r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
+    axes(wgt) == axes(dat) == axes(q) == axes(r) || incompatible_indices()
     if false
         @inbounds @simd for i in eachindex(wgt)
             wgt[i] = one(T)
@@ -637,29 +637,29 @@ overwrites `wgt` with static weights that only depend on the preprocessing
 parameters `prm` and do not depend on the pre-processed data `dat`.
 
 ```julia
-staticweights!(wgt, dat, p, q) -> wgt, dat
+staticweights!(wgt, dat, q, r) -> wgt, dat
 ```
 
-does the same with the preprocessing parameters specified by `p` and `q`.
+does the same with the preprocessing parameters specified by `q` and `r`.
 
 """
 function staticweights!(wgt::AbstractArray{T,N},
                         dat::AbstractArray{T,N},
                         prm::PreprocessingParameters{T,N}) where {T<:AbstractFloat,N}
-    staticweights!(wgt, dat, prm.p, prm.q)
+    staticweights!(wgt, dat, prm.q, prm.r)
 end
 
 function staticweights!(wgt::AbstractArray{T,N},
                         dat::AbstractArray{T,N},
-                        p::AbstractArray{T,N},
-                        q::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    axes(wgt) == axes(dat) == axes(p) == axes(q) || incompatible_indices()
+                        q::AbstractArray{T,N},
+                        r::AbstractArray{T,N}) where {T<:AbstractFloat,N}
+    axes(wgt) == axes(dat) == axes(q) == axes(r) || incompatible_indices()
     if false
-        @inbounds @simd for i in eachindex(wgt, p)
-            wgt[i] = p[i]
+        @inbounds @simd for i in eachindex(wgt, q)
+            wgt[i] = q[i]
         end
     else
-        copyto!(wgt, p)
+        copyto!(wgt, q)
     end
     return wgt, dat
 end
