@@ -59,14 +59,22 @@ Base.length(obj::SampleStatistics) = length(regionofinterest(obj))
 Base.size(obj::SampleStatistics) = size(regionofinterest(obj))
 Base.size(obj::SampleStatistics, i) = size(regionofinterest(obj), i)
 
+SampleStatistics(obj::SampleStatistics) = obj
 SampleStatistics{T}(obj::SampleStatistics{T}) where {T} = obj
 SampleStatistics{T,N}(obj::SampleStatistics{T,N}) where {T,N} = obj
 SampleStatistics{T}(obj::SampleStatistics{<:Any,N}) where {T,N} =
     SampleStatistics{T,N}(obj.roi, obj.Δt, obj.samples,
-                            convert(Array{T,N}, obj.avg),
-                            convert(Array{T,N}, obj.std))
+                          convert(Array{T,N}, obj.avg),
+                          convert(Array{T,N}, obj.std))
 SampleStatistics{T,N}(obj::SampleStatistics{<:Any,N}) where {T,N} =
     SampleStatistics{T}(obj)
+
+# FIXME: Add keyword `ext=...` to select the FITS extension.
+SampleStatistics(path::AbstractString) = read(SampleStatistics, path)
+SampleStatistics{T}(path::AbstractString) where {T} =
+    read(SampleStatistics{T}, path)
+SampleStatistics{T,N}(path::AbstractString) where {T,N} =
+    read(SampleStatistics{T,N}, path)
 
 Base.convert(::Type{T}, obj::SampleStatistics) where {T<:SampleStatistics} = T(obj)
 
