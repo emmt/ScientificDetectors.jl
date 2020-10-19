@@ -1,5 +1,11 @@
 module DetectorStatistics
 
+export
+    SampleStatistics,
+    exposuretime,
+    numberofsamples,
+    regionofinterest
+
 using ..ScientificDetectors
 using ..ScientificDetectors: Sampler, offset, binning
 import ..ScientificDetectors: regionofinterest, exposuretime, numberofsamples
