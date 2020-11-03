@@ -121,8 +121,8 @@ pkg> add https://github.com/emmt/OptimPackNextGen.jl
 [license-url]: ./LICENSE.md
 [license-img]: http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat
 
-[travis-img]: https://travis-ci.org/emmt/ScientificDetectors.jl.svg?branch=master
-[travis-url]: https://travis-ci.org/emmt/ScientificDetectors.jl
+[travis-img]: https://travis-ci.com/emmt/ScientificDetectors.jl.svg?branch=master
+[travis-url]: https://travis-ci.com/emmt/ScientificDetectors.jl
 
 [appveyor-img]: https://ci.appveyor.com/api/projects/status/github/emmt/ScientificDetectors.jl?branch=master
 [appveyor-url]: https://ci.appveyor.com/project/emmt/ScientificDetectors-jl/branch/master
