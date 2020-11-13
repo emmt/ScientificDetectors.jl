@@ -13,22 +13,19 @@ struct CalibrationInformation
 end
 
 """
-```julia
-readcalibrations(T, lst, xrng = :, yrng = :)
-```
+    readcalibrations(T, lst, xrng = :, yrng = :)
 
 reads calibration data described in list `lst`.  Argument `T` is the
 floating point type to use for computations.  Arguments 'xrng' and 'yrng'
 are to select a sub-region in the calibration frames.
 
 Typical usage (`dir` is the directory where are located calibration data):
-```julia
-using ScientificDetectors, SphereData
-lst = SphereData.listcalibrations(dir)
-dat = SphereData.readcalibrations(Float32, lst, 401:600, 401:600)
-cal = ScientificDetectors.ReducedCalibration(dat)
-write("calib.fits", cal)
-```
+
+    using ScientificDetectors, SphereData
+    lst = SphereData.listcalibrations(dir)
+    dat = SphereData.readcalibrations(Float32, lst, 401:600, 401:600)
+    cal = ScientificDetectors.ReducedCalibration(dat)
+    write("calib.fits", cal)
 
 """
 function readcalibrations(::Type{T},
@@ -77,49 +74,58 @@ function readcalibrations(::Type{T},
 end
 
 """
-```julia
-listfitsfiles(dir = pwd()) -> lst
-```
+    listfitsfiles(dir = pwd(), sfx=(".fits", ".fits.gz")) -> lst
 
-yields the list of FITS files in directory `dir`.
+yields the list of FITS files in directory `dir`, that is all files whose name
+ends with one of the sufixes in `sfx`.
 
 """
-function listfitsfiles(dir::AbstractString = pwd())
+function listfitsfiles(dir::AbstractString = pwd(),
+                       suffixes=(".fits", ".fits.gz"))
     list = String[]
     for name in readdir(dir)
         path = joinpath(dir, name)
-        if isfile(path) && (endswith(name, ".fits") ||
-                            endswith(name, ".fits.gz"))
-            push!(list, path)
+        isfile(path) || continue
+        for sfx in suffixes
+            if endswith(name, sfx)
+                push!(list, path)
+                break
+            end
         end
     end
     return list
 end
 
 """
-```julia
-listcalibrations(dir = pwd()) -> cal
-```
+    listcalibrations(dir = pwd()) -> cal
 
 or
 
-```julia
-listcalibrations(lst) -> cal
-```
+    listcalibrations(lst) -> cal
 
 yields a vector of information about calibration data found in FITS files
 in directory `dir` or in list of files `lst`.
 
-"""
-listcalibrations(dir::AbstractString = pwd()) =
-    listcalibrations(listfitsfiles(dir))
+Keyword `exptime` can be set with the name of the FITS card which stores the
+exposure time (in seconds).  By default `exptime="ESO DET SEQ1 REALDIT"`.
 
-function listcalibrations(list::AbstractVector{<:AbstractString},
-                          identify::Function=identify_v2)
+Keyword `identify` can be set with a function that yields the category of a
+given data file or `nothing` if it does not belong to a given category.  This
+function is called as `identify(path,hdr)` with the name and header of the FITS
+file.  By default `identify` uses the FITS card `"ESO DPR TYPE"` to identify
+the category ignoring files for which this category is `"OBJECT"`.
+
+"""
+listcalibrations(dir::AbstractString = pwd(); kwds...) =
+    listcalibrations(listfitsfiles(dir); kwds...)
+
+function listcalibrations(list::AbstractVector{<:AbstractString};
+                          identify::Function = identify_v1,
+                          exptime::AbstractString = "ESO DET SEQ1 REALDIT")
     # We assume that there are only one exposure time (DIT)
     # and one cat of calibration per file.
     # FIXME: Reduce cubes!
-    calib = Array{CalibrationInformation}(undef, 0)
+    calib = CalibrationInformation[]
     width, height = -1, -1
     first = true
     for path in list
@@ -128,7 +134,7 @@ function listcalibrations(list::AbstractVector{<:AbstractString},
         if cat === nothing
             continue
         end
-        Δt = hdr["ESO DET SEQ1 DIT"]
+        Δt = hdr[exptime]
         naxis = hdr["NAXIS"]
         if !(2 ≤ naxis ≤ 3)
             error("other dimensions than 2D and 3D not implemented")
@@ -140,8 +146,7 @@ function listcalibrations(list::AbstractVector{<:AbstractString},
             height = thisheight
             first = false
         elseif width != thiswidth || height != thisheight
-            error(string("file '", path,
-                         "' has incompatible dimensions"))
+            error("file ", repr(path), " has incompatible dimensions")
         end
         nframes = (naxis == 2 ? 1 : hdr["NAXIS3"])
         push!(calib, CalibrationInformation(path, nframes, Δt, cat))
