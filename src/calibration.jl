@@ -67,25 +67,24 @@ ReducedCalibration{T,N}([roi,] f, z, g, σ, args...; kwds...) -> cal
 Basic operations on `ReducedCalibration` instance `obj`:
 
 ```julia
-size(obj)       # yields the dimensions of the detector
-size(obj,k)     # yields the `k`-th dimension of the detector
-length(obj)     # yields the number of elements of the detector
-eltype(obj)     # yields the floating-point type of the calibration data
+size(obj)       # yields dimensions of detector
+size(obj,k)     # yields `k`-th dimension of detector
+length(obj)     # yields number of elements of detector
+eltype(obj)     # yields floating-point type of calibration data
 T.(obj)         # convert contents of `obj` to floating-point type `T`
 ```
 
-Other implemented methods (must be imported or prefixed by
-`Calibration`):
+Other implemented methods (must be imported or prefixed by `Calibration.`):
 
 ```julia
-cologlikelihood(obj) # yields th co-log-likelihood map
-detectorbias(obj)    # yields the constant detector bias (in ADU)
-detectorgain(obj)    # yields the detector gain (in e-/ADU)
-detectornoise(obj)   # yields the standard deviation of the detector noise (in ADU)
-currents(obj)        # yields all the current terms
-current(obj, k)      # yields the k-th current term (in ADU/s)
-categories(obj)      # yields all the names of the current terms
-category(obj, k)     # yields the name of the k-th current term
+cologlikelihood(obj) # yields co-log-likelihood map
+detectorbias(obj)    # yields constant detector bias (in ADU)
+detectorgain(obj)    # yields detector gain (in e-/ADU)
+detectornoise(obj)   # yields standard deviation of detector noise (in ADU)
+currents(obj)        # yields all current terms
+current(obj, k)      # yields k-th current term (in ADU/s)
+categories(obj)      # yields names of current terms
+category(obj, k)     # yields name of k-th current term
 ```
 
 """
