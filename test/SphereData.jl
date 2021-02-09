@@ -74,14 +74,14 @@ function readcalibrations(::Type{T},
 end
 
 """
-    listfitsfiles(dir = pwd(), sfx=(".fits", ".fits.gz")) -> lst
+    listfitsfiles(dir = pwd(), suffixes=(".fits", ".fits.gz",".fits.Z")) -> lst
 
 yields the list of FITS files in directory `dir`, that is all files whose name
-ends with one of the sufixes in `sfx`.
+ends with one of the sufixes in `suffixes`.
 
 """
 function listfitsfiles(dir::AbstractString = pwd(),
-                       suffixes=(".fits", ".fits.gz"))
+                       suffixes=(".fits", ".fits.gz",".fits.Z"))
     list = String[]
     for name in readdir(dir)
         path = joinpath(dir, name)
