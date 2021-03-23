@@ -1,6 +1,5 @@
 module DetectorModel
 
-using Printf
 using SpecialFunctions
 
 const PLOTTING = true
@@ -18,9 +17,7 @@ const FACT_INT = Array{BigInt}(undef, 0)
 const FACT_FLT = Array{BigFloat}(undef, 0)
 
 """
-```julia
-fact(T, n) -> n!
-```
+    fact(T, n) -> n!
 
 yields the value of `n!` for integer `n ≥ 0`.  Argument `T` (`BigFloat` or
 `BigInt`) is the type of the result.  Using a type able to represent large
@@ -72,9 +69,7 @@ end
 @doc @doc(fact) grow_factorial_tables
 
 """
-```julia
-stat(x, y) -> µ, σ²
-```
+    stat(x, y) -> µ, σ²
 
 yields the mean and the variance of the sampled distribution `y = pdf(x)`
 where `pdf` denotes the Probability Density Function.
@@ -109,9 +104,7 @@ function stat(x::AbstractVector{<:Integer}, y::AbstractVector{<:Real})
 end
 
 """
-```julia
-pdf(d, µ, γ, β) -> p
-```
+    pdf(d, µ, γ, β) -> p
 
 yields the probability of measuring the ADU's in vector `d` for a mean number
 of electrons `µ` with a detector gain `γ` and bias `β`.
