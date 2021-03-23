@@ -31,8 +31,6 @@ export
 
 import Base: read, write
 
-using Printf
-
 using ArrayTools
 using EasyFITS
 using EasyFITS: exists, isprimary, throw_file_already_exists
