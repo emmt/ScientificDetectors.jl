@@ -13,9 +13,7 @@ const Colons{N} = NTuple{N,Colon}
 const Identifiers = Union{AbstractString,Symbol,Integer}
 
 """
-```julia
-identifier(key) -> str
-```
+    identifier(key) -> str
 
 converts `key` into a string identifier.  Argument `key` can be of any type part
 of the union `Identifiers` (a string, a symbol or an integer).
@@ -34,24 +32,21 @@ identifier(key::Symbol) = String(key)
 floating-point type for the computations.
 
 Constructor is called as:
-
-```julia
-ReducedCalibration([roi,] f, z, g, σ, args...; kwds...) -> cal
-```
+    ReducedCalibration([roi,] f, z, g, σ, args...; kwds...) -> cal
 
 where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
 (automatically guessed from argument `f` if not specified), `f` is the
 co-log-likelihood, `z` is the *zero level* that is the constant bias set by the
-analog to digital converter (in ADU), `g` is the detector gain (in electrons
-per ADU) and `σ` is the standard deviation of the readout noise (in ADU/frame).
+analog to digital converter (in ADU), `g` is the detector gain (in electrons per
+ADU) and `σ` is the standard deviation of the readout noise (in ADU/frame).
 Arguments `f`, `z`, `g` and `σ` are pixelwise.
 
 Additional arguments `args...` can be:
 
 - Key-value pairs like `"cat1" => c1`, `:cat2 => c2`, ... of category
-  identifiers and arrays corresponding to current terms like the dark current
-  or any background flux (in ADU/second).  Arguments `c1`, `c2`, ... are
-  assumed to be pixelwise.
+  identifiers and arrays corresponding to current terms like the dark current or
+  any background flux (in ADU/second).  Arguments `c1`, `c2`, ... are assumed to
+  be pixelwise.
 
 - Two arguments: `c = [c1, c2, ...]` and `cat = ["cat1", "cat2", ...]`
   respectively a vector of current terms and of corresponding category
@@ -59,33 +54,27 @@ Additional arguments `args...` can be:
 
 Floating-point type, say `T`, and dimensionality, say `N`, may be specified:
 
-```julia
-ReducedCalibration{T}([roi,] f, z, g, σ, args...; kwds...) -> cal
-ReducedCalibration{T,N}([roi,] f, z, g, σ, args...; kwds...) -> cal
-```
+    ReducedCalibration{T}([roi,] f, z, g, σ, args...; kwds...) -> cal
+    ReducedCalibration{T,N}([roi,] f, z, g, σ, args...; kwds...) -> cal
 
 Basic operations on `ReducedCalibration` instance `obj`:
 
-```julia
-size(obj)       # yields dimensions of detector
-size(obj,k)     # yields `k`-th dimension of detector
-length(obj)     # yields number of elements of detector
-eltype(obj)     # yields floating-point type of calibration data
-T.(obj)         # convert contents of `obj` to floating-point type `T`
-```
+    size(obj)       # yields dimensions of detector
+    size(obj,k)     # yields `k`-th dimension of detector
+    length(obj)     # yields number of elements of detector
+    eltype(obj)     # yields floating-point type of calibration data
+    T.(obj)         # convert contents of `obj` to floating-point type `T`
 
 Other implemented methods (must be imported or prefixed by `Calibration.`):
 
-```julia
-cologlikelihood(obj) # yields co-log-likelihood map
-detectorbias(obj)    # yields constant detector bias (in ADU)
-detectorgain(obj)    # yields detector gain (in e-/ADU)
-detectornoise(obj)   # yields standard deviation of detector noise (in ADU)
-currents(obj)        # yields all current terms
-current(obj, k)      # yields k-th current term (in ADU/s)
-categories(obj)      # yields names of current terms
-category(obj, k)     # yields name of k-th current term
-```
+    cologlikelihood(obj) # yields co-log-likelihood map
+    detectorbias(obj)    # yields constant detector bias (in ADU)
+    detectorgain(obj)    # yields detector gain (in e-/ADU)
+    detectornoise(obj)   # yields standard deviation of detector noise (in ADU)
+    currents(obj)        # yields all current terms
+    current(obj, k)      # yields k-th current term (in ADU/s)
+    categories(obj)      # yields names of current terms
+    category(obj, k)     # yields name of k-th current term
 
 """
 struct ReducedCalibration{T<:AbstractFloat,N}
@@ -343,9 +332,7 @@ _getcurrents(c::AbstractVector{<:AbstractArray}, cat::AbstractVector) =
     (c, cat)
 
 """
-```julia
-find(obj, key) -> j
-```
+    find(obj, key) -> j
 
 yields the index `j` of the current term in reduced calibration data which match `key`
 or `0` if not found.
@@ -371,9 +358,7 @@ find(obj::ReducedCalibration, j::Integer) =
     (1 ≤ j ≤ length(categories(obj)) ? Int(j) : 0)
 
 """
-```julia
-checkvalues(obj)
-```
+    checkvalues(obj)
 
 throws an error if some values in the reduced calibration object `obj` are
 invalid.
@@ -413,9 +398,7 @@ _promote_eltype(T::Type, x::AbstractVector{<:AbstractArray}, n::Int) =
 #------------------------------------------------------------------------------
 
 """
-```julia
-uniquecategories(A) -> cat, uid
-```
+    uniquecategories(A) -> cat, uid
 
 given a vector `A` of identifiers or keys, yields the corresponding category
 indices `cat` and unique identifers `uid` such that `uid[cat[i]]` is the unique
@@ -460,10 +443,7 @@ end
 
 # Structure used to store all calibration data.
 """
-
-```julia
-CalibrationData(D, keys, Δt) -> obj
-```
+    CalibrationData(D, keys, Δt) -> obj
 
 yields an object which stores detector calibration data.  Argument `D` is a
 vector of detector data frames, `keys` and `Δt` respectively specify the
@@ -471,22 +451,20 @@ identifier and exposure time of the corresponding data frame.  The keys can be
 integers, symbols or strings.  A given key uniquely identify the category of
 the corresponding data frame. Exposure times are in seconds.
 
-```julia
-numberofdataframes(obj)  # yields the number of data frames
-numberofcategories(obj)  # yields the number of different categories
-dataframes(obj)          # yields the vector of data frames
-dataframe(obj, i)        # yields the i-th data frame
-categories(obj)          # yields the category indices of the data frames
-category(obj, i)         # yields the category index of the i-th data frame
-exposuretimes(obj)       # yields the exposure times of the data frames
-exposuretime(obj, i)     # yields the exposure time of the i-th data frame
-uniqueidentifiers(obj)   # yields the list of unique identifiers of categories
-uniqueidentifier(obj, l) # yields the l-th unique identifier of categories
-```
+    numberofdataframes(obj)  # yields the number of data frames
+    numberofcategories(obj)  # yields the number of different categories
+    dataframes(obj)          # yields the vector of data frames
+    dataframe(obj, i)        # yields the i-th data frame
+    categories(obj)          # yields the category indices of the data frames
+    category(obj, i)         # yields the category index of the i-th data frame
+    exposuretimes(obj)       # yields the exposure times of the data frames
+    exposuretime(obj, i)     # yields the exposure time of the i-th data frame
+    uniqueidentifiers(obj)   # yields the list of unique identifiers of categories
+    uniqueidentifier(obj, l) # yields the l-th unique identifier of categories
 
 """
 struct CalibrationData{P<:Real,N,T<:AbstractFloat}
-    dims::NTuple{N,Int}      # dimensions of frames
+    dims::Dims{N}            # dimensions of frames
     data::Vector{Array{P,N}} # data[i][j] is j-th pixel of i-th frame
     Δt::Vector{T}            # Δt[i] yields the exposure time of i-th frame
     cat::Vector{Int}         # cat[i] yields the category index of i-th frame
@@ -535,9 +513,7 @@ uniqueidentifier(obj::CalibrationData, l::Integer) =
     getindex(uniqueidentifiers(obj), l)
 
 """
-```julia
-ReducedCalibration(cal) -> redcal
-```
+    ReducedCalibration(cal) -> redcal
 
 fit the detector parameters in calibration data `cal`.
 
@@ -722,10 +698,7 @@ function fit!(res::FitResult{T}, d::Vector{T},
 end
 
 """
-
-```julia
-checkindices(I, len)
-```
+    checkindices(I, len)
 
 checks that all indices in `I` are in the range `1:len`.  An error is thrown
 if `len ≤ 0` of if any values in `I` is outside the range `1:len`.
@@ -758,10 +731,7 @@ function checkindices(I::AbstractArray{S}, len::Integer) where {S<:Signed}
 end
 
 """
-
-```julia
-update_w!(w, cΔt, u) -> w
-```
+    update_w!(w, cΔt, u) -> w
 
 overwrites `w` with `1/(c⋅Δt + u)`, that is do `∀i: w[i] = 1/(cΔt[i] + u)`, and
 returns `w`.
@@ -778,10 +748,7 @@ function update_w!(w::Vector{T}, cΔt::Vector{T}, u::T) where {T<:AbstractFloat}
 end
 
 """
-
-```julia
-update_cΔt!(cΔt, c, Δt, cat, nochecks=false) -> cΔt
-```
+    update_cΔt!(cΔt, c, Δt, cat, nochecks=false) -> cΔt
 
 overwrites `cΔt` with `c⋅Δt`, that is do `∀i: cΔt[i] = c[cat[i]]*Δt[i]`, and
 returns `cΔt`.  Set optional argument `nochecks` to `true` to skip testing
@@ -805,18 +772,13 @@ end
 
 
 """
-
-```julia
-update_r!(r, d, cΔt, z) -> r
-```
+    update_r!(r, d, cΔt, z) -> r
 
 overwrites array `r` with the residuals given the data `d`, the contribution
 `cΔt` of the different sources and the bias `z`. The destination `r` is
 returned.  The residuals are computed as:
 
-```julia
-∀i: r[i] = d[i] - cΔt[i] - z
-```
+    ∀i: r[i] = d[i] - cΔt[i] - z
 
 See also [`update_cΔt!`](@ref), [`best_bias`](@ref).
 
@@ -833,10 +795,7 @@ function update_r!(r::AbstractVector{T},
 end
 
 """
-
-```julia
-best_bias(w, d, cΔt) -> z
-```
+    best_bias(w, d, cΔt) -> z
 
 yields the best bias given the weights `w`, the data `d` and the contribution
 `cΔt` of the different sources.
@@ -856,10 +815,7 @@ function best_bias(w::AbstractVector{T},
 end
 
 """
-
-```julia
-best_gain(w, d, cΔt, z) -> g
-```
+    best_gain(w, d, cΔt, z) -> g
 
 yields the best gain given the weights `w`, the data `d`, the contribution `cΔt`
 of the different sources and the bias `z`.
@@ -867,9 +823,7 @@ of the different sources and the bias `z`.
 Alternatively, if the residuals `r = d - cΔt - z` have been computed, just
 call:
 
-```julia
-best_gain(w, r) -> g
-```
+    best_gain(w, r) -> g
 
 See also [`update_w!`](@ref), [`update_cΔt!`](@ref), [`update_r!`](@ref),
 [`best_bias`](@ref).
@@ -897,10 +851,7 @@ function best_gain(w::AbstractVector{T},
 end
 
 """
-
-```julia
-leastpositive(A)
-```
+    leastpositive(A)
 
 yields the least strictly positive value of array `A` or zero if all values of
 `A` are nonpositive.
@@ -1041,12 +992,10 @@ Broadcast.broadcasted(::Type{T}, obj::SimpleCalibration) where {T<:AbstractFloat
     SimpleCalibration{T}(obj)
 
 """
-```julia
-SimpleCalibration{T}(ROI, Δt,
-                     NumDark, AvgDark, VarDark,
-                     NumLamp, AvgLamp, VarLamp,
-                     AvgFlat)
-```
+    SimpleCalibration{T}(ROI, Δt,
+                         NumDark, AvgDark, VarDark,
+                         NumLamp, AvgLamp, VarLamp,
+                         AvgFlat)
 
 yields reduced calibration data given sample means and variances of 3 kinds of
 images: "dark" (or "bias") images, "lamp" images with a stable illumination
@@ -1066,17 +1015,13 @@ illumination.  Arguments are as follows:
 The sample variances are the maximum likelihood (i.e. biased) estimator of the
 variances.  The sample mean and variance are computed as follows:
 
-```
-avg = (1/N)*(x1 + x2 + ... + xN)
-var = (1/N)*((x1 - avg)^2 + (x2 - avg)^2 + ... + (xN - avg)^2)
-```
+    avg = (1/N)*(x1 + x2 + ... + xN)
+    var = (1/N)*((x1 - avg)^2 + (x2 - avg)^2 + ... + (xN - avg)^2)
 
 Set keyword `unbiased` to `true` if the unbiased variances are provided, that
 is computed as:
 
-```
-var = (1/(N - 1))*((x1 - avg)^2 + (x2 - avg)^2 + ... + (xN - avg)^2)
-```
+    var = (1/(N - 1))*((x1 - avg)^2 + (x2 - avg)^2 + ... + (xN - avg)^2)
 
 See also [`ReducedCalibration`](@ref).
 

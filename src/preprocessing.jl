@@ -24,9 +24,7 @@ floating-point type for the computations.
 
 Constructor is called as:
 
-```julia
-PreprocessingParameters([roi,] Δt, a, b, q, r)
-```
+    PreprocessingParameters([roi,] Δt, a, b, q, r)
 
 where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
 (automatically guessed from argument `a` if not specified), `Δt` is the
@@ -37,12 +35,10 @@ terms.  Arguments `a`, `b`, `q` and `r` are pixelwise.
 It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
-```julia
-PreprocessingParameters(cal::ReducedCalibration,
-                        bad=zeros(Bool, size(cal));
-                        flat=nothing, flatbg=nothing,
-                        bg=nothing, Δt=0) -> obj
-```
+    PreprocessingParameters(cal::ReducedCalibration,
+                            bad=zeros(Bool, size(cal));
+                            flat=nothing, flatbg=nothing,
+                            bg=nothing, Δt=0) -> obj
 
 with `cal` an instance of [`ReducedCalibration`](@ref), `bad` a boolean mask
 indicating the bad pixels, `flat` the identifier of the flat calibration
@@ -54,32 +50,26 @@ calibration data `cal`.
 
 Floating-point type, say `T`, and dimensionality, say `N`, may be specified:
 
-```julia
-PreprocessingParameters{T}(args...; kwds...)
-PreprocessingParameters{T,N}(args...; kwds...)
-```
+    PreprocessingParameters{T}(args...; kwds...)
+    PreprocessingParameters{T,N}(args...; kwds...)
 
 The pre-processing of pixel `raw[i]` of an image given by the detector leads to
 compute the calibrated pixel value `dat[i]` and its corresponding precision
 `wgt[i]` as follows:
 
-```julia
-dat[i] = (T(raw[i]) - b[i])*a[i]
-wgt[i] = q[i]/(max(zero(T), dat[i]) + r[i])
-```
+    dat[i] = (T(raw[i]) - b[i])*a[i]
+    wgt[i] = q[i]/(max(zero(T), dat[i]) + r[i])
 
 where the *realistic* noise model has been assumed.  These operations are
 efficiently done by the [`process`](@ref) method.
 
 Basic operations on `PreprocessingParameters` instance `obj`:
 
-```julia
-size(obj)   # yields the dimensions of the detector
-size(obj,k) # yields the `k`-th dimension of the detector
-length(obj) # yields the number of elements of the detector
-eltype(obj) # yields the floating-point type of the preprocessing data
-T.(obj)     # convert contents of `obj` to floating-point type `T`
-```
+    size(obj)   # yields the dimensions of the detector
+    size(obj,k) # yields the `k`-th dimension of the detector
+    length(obj) # yields the number of elements of the detector
+    eltype(obj) # yields the floating-point type of the preprocessing data
+    T.(obj)     # convert contents of `obj` to floating-point type `T`
 
 Also see [`process`](@ref).
 
@@ -443,10 +433,7 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N},
 end
 
 """
-
-```julia
-process(prm, raw, noise=RealisticNoise()) -> wgt, dat
-```
+    process(prm, raw, noise=RealisticNoise()) -> wgt, dat
 
 yields a tuple of 2 arrays, `(wgt,dat)`, where `dat` gives the pixel values
 while `wgt` gives their respective weights.  Both are the result of the
@@ -466,9 +453,7 @@ factor.
 
 The operation can be applied in-place:
 
-```julia
-process!(wgt, dat, prm, raw, noise=Val(:realistic)) -> wgt, dat
-```
+    process!(wgt, dat, prm, raw, noise=Val(:realistic)) -> wgt, dat
 
 to overwrite the contents of `wgt` and `dat` by the result of the
 pre-processing.  This is useful to avoid re-allocating arrays.
@@ -533,17 +518,12 @@ end
 #
 
 """
-
-```julia
-affinecorrection!(dat, prm, raw) -> dat
-```
+    affinecorrection!(dat, prm, raw) -> dat
 
 overwrites `dat` with the affine correction specified by the preprocessing
 parameters `prm` and applied to the detector data `raw`.
 
-```julia
-affinecorrection!(dat, a, b, raw) -> dat
-```
+    affinecorrection!(dat, a, b, raw) -> dat
 
 does the same but the affine correction being specified by `a` and `b`.
 
@@ -580,17 +560,12 @@ if `a` is a NaN.
     (b > a ? b : a)
 
 """
-
-```julia
-realisticweights!(wgt, dat, prm) -> wgt, dat
-```
+    realisticweights!(wgt, dat, prm) -> wgt, dat
 
 overwrites `wgt` with realistic weights computed from the pre-processed data
 `dat` and using the preprocessing parameters `prm`.
 
-```julia
-realisticweights!(wgt, dat, q, r) -> wgt, dat
-```
+    realisticweights!(wgt, dat, q, r) -> wgt, dat
 
 does the same with the preprocessing parameters specified by `q` and `r`.
 
@@ -614,10 +589,7 @@ function realisticweights!(wgt::AbstractArray{T,N},
 end
 
 """
-
-```julia
-iidweights!(wgt, dat, args...) -> wgt, dat
-```
+    iidweights!(wgt, dat, args...) -> wgt, dat
 
 overwrites `wgt` with weights corresponding to independentid
 enticallydistributed (i.i.d.) noise, that is fill `wgt` with ones.
@@ -640,17 +612,12 @@ function iidweights!(wgt::AbstractArray{T,N},
 end
 
 """
-
-```julia
-staticweights!(wgt, dat, prm) -> wgt, dat
-```
+    staticweights!(wgt, dat, prm) -> wgt, dat
 
 overwrites `wgt` with static weights that only depend on the preprocessing
 parameters `prm` and do not depend on the pre-processed data `dat`.
 
-```julia
-staticweights!(wgt, dat, q, r) -> wgt, dat
-```
+    staticweights!(wgt, dat, q, r) -> wgt, dat
 
 does the same with the preprocessing parameters specified by `q` and `r`.
 
