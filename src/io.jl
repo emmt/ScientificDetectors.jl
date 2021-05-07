@@ -501,8 +501,8 @@ function write(io::FitsIO, obj::SampleStatistics{T,N},
     # Create data array.
     dims = size(obj)
     dat = Array{T,N+1}(undef, dims..., 2)
-    dat[..,1] .= obj.avg
-    dat[..,2] .= obj.std
+    dat[..,1] .= mean(obj)
+    dat[..,2] .= std(obj)
 
     # Create FITS header.
     name, vers = hduname(obj)
