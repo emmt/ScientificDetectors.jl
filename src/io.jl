@@ -11,10 +11,7 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 SimpleCalibration{T,N}}
 
 """
-
-```julia
-write!(path, obj)
-```
+    write!(path, obj)
 
 writes reduced detector calibration or preprocessing parameters `obj` in FITS
 file `path`.
@@ -26,16 +23,12 @@ detector calibration parameters.
 
 Call:
 
-```julia
-read(ReducedCalibration, src)
-```
+    read(ReducedCalibration, src)
 
-to read detector calibration parameters from source `src` (a file name or a
-FITS handle).  Similarly, call:
+to read detector calibration parameters from source `src` (a file name or a FITS
+handle).  Similarly, call:
 
-```julia
-read(PreprocessingParameters, src)
-```
+    read(PreprocessingParameters, src)
 
 to read detector preprocessing parameters from source `src` (a file name or a
 FITS handle).
@@ -384,10 +377,9 @@ last dimension equal to 2 and consists in 2 packed arrays `arr[..,1]` and
 `arr[..,2]` which are respectively the mean and standard deviation of the
 sample.   These quantities are computed as follows:
 
-```julia
-arr[i,1] = (dat1[i] + dat2[i] + ... + datn[i])/n
-arr[i,2] = sqrt(((dat1[i] - arr[i,1])^2 + ... + (datn[i] - arr[i,1])^2)/(n - 1))
-```
+    arr[i,1] = (dat1[i] + dat2[i] + ... + datn[i])/n
+    arr[i,2] = sqrt(((dat1[i] - arr[i,1])^2 + ... +
+                    (datn[i] - arr[i,1])^2)/(n - 1))
 
 with `i` the multi-dimensional index, `n` the number of data samples,
 `dat1` the first data sample, ..., and `datn` the last data sample.  Note

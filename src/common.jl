@@ -1,32 +1,25 @@
 """
-
-```julia
-DetectorAxis(len; off=0, bin=1) -> obj
-```
+    DetectorAxis(len; off=0, bin=1) -> obj
 
 yields an instance of `DetectorAxis` describing a detector axis with `len`
 samples starting at offset `off` with respect to the corresponding sensor egde
 and with a binning factor `bin`.  The offset `off` and the binning factor `bin`
-are in units sensor samples (e.g. *pixels*), the length `len` is in units of
-macro-samples (i.e. `bin` sensor samples each).
+are in units sensor samples (e.g., *pixels*), the length `len` is in units of
+macro-samples (i.e., `bin` sensor samples each).
 
 Basic methods:
 
-```julia
-length(obj)    # yields the length `len`
-offset(obj)    # yields the offset `off`
-binning(obj)   # yields the binning factor `bin`
-size(roi)      # yields the size of roi, a N-tuple of DetectorAxis
-size(roi, i)   # yields the length of the i-th dimension of roi
-```
+    length(obj)    # yields the length `len`
+    offset(obj)    # yields the offset `off`
+    binning(obj)   # yields the binning factor `bin`
+    size(roi)      # yields the size of roi, a N-tuple of DetectorAxis
+    size(roi, i)   # yields the length of the i-th dimension of roi
 
 Other methods:
 
-```julia
-get(DetectorAxis, i, src)      # yields the i-th detector axis of `src`
-get(Vector{DetectorAxis}, src) # yields a vector of detector axes of source `src`
-merge!(dst, obj)               # set detector axes of`dst`
-```
+    get(DetectorAxis, i, src)      # yields i-th detector axis of `src`
+    get(Vector{DetectorAxis}, src) # yields all detector axes of `src`
+    merge!(dst, obj)               # set detector axes of `dst`
 
 here the source `src` and the destination `dst` can be instances of
 `FitsHeader` or `FitsImage`, `obj` is a vector or a tuple of `DetectorAxis`.
@@ -137,10 +130,7 @@ Base.iterate(A::Sampler, i = 1) =
     (1 ≤ i ≤ numberofsamples(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
 
 """
-
-```julia
-regionofinterest(obj) -> roi
-```
+    regionofinterest(obj) -> roi
 
 yields the region of interest (ROI) of object `obj`.
 
@@ -150,10 +140,7 @@ See also [`DetectorAxis`](@ref).
 function regionofinterest end
 
 """
-
-```julia
-exposuretime(obj) -> Δt
-```
+    exposuretime(obj) -> Δt
 
 yields the exposure time of object `obj`.
 
@@ -163,10 +150,7 @@ See also [`PreprocessingParameters`](@ref).
 function exposuretime end
 
 """
-
-```julia
-numberofsamples(obj)
-```
+    numberofsamples(obj)
 
 yields the number of samples used for statistics stored in object `obj`.
 

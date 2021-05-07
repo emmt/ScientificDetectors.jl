@@ -411,9 +411,9 @@ $d$ knowing the mean number of electrons is:
   \frac{\mu^n}{n!}
   \label{eq:pdf-ADU-exact}
 \end{align}
-where the sum is equal to zero if $n_\Tag{sup}(d) < n_\Tag{inf}(d)$. 
+where the sum is equal to zero if $n_\Tag{sup}(d) < n_\Tag{inf}(d)$.
 Figure~\ref{fig:histograms} shows this probability as a function of $d$ for
-$\mu = 200$, $g = 3.2$ and $z = 0$.  
+$\mu = 200$, $g = 3.2$ and $z = 0$.
 
 The mean number of levels that yield a given sensor value $d$ is equal to the
 gain $g$ but the exact number of levels which (neglecting saturation) is given
@@ -469,7 +469,7 @@ assumption, the variance due to rounding errors is:
 \end{equation}
 which is a good approximation of the variance bias in Fig.~\ref{fig:variances},
 again except for the unit gain case.
- 
+
 
 \begin{figure}
 \centering
@@ -564,7 +564,7 @@ the shot noise whose variance is equal to its expectation:
 \begin{displaymath}
   \Var{n_j/g_j} = \Var{n_j}/g_j^2
   = \underbrace{\Expect{n_j}}_{\mathclap{
-      \hspace*{5em}\text{$g_j\,c_j\,\Delta t$, from 
+      \hspace*{5em}\text{$g_j\,c_j\,\Delta t$, from
       Eq.~\eqref{eq:mean-unbiased-adu}
     }}}/g_j^2
   = c_j\,\Delta t/g_j \, .
@@ -587,7 +587,7 @@ the shot noise whose variance is equal to its expectation:
 
 In practice, the electron rate $c_j$ is due to different kind of sources.  Typically:
 \begin{equation}
-  c_j = c^\Tag{fg}_j + c^\Tag{bg}_j \,, 
+  c_j = c^\Tag{fg}_j + c^\Tag{bg}_j \,,
   \label{eq:adu-rate}
 \end{equation}
 where the \emph{foreground} term $c^\Tag{fg}_j$ denotes the contribution of the
@@ -657,7 +657,7 @@ approximation $s_j \approx \max\Paren*{\estim{s}_j, 0}$ in the above expression:
 \begin{equation}
   \Var{\estim{s}_j}
   \approx \frac{a_j}{g_j}\,\Paren*{
-    \max\Paren*{\estim{s}_j, 0} + a_j\,c^\Tag{bg}_j\,\Delta t + 
+    \max\Paren*{\estim{s}_j, 0} + a_j\,c^\Tag{bg}_j\,\Delta t +
     a_j\,g_j\,\sigma_j^2
   } \, .
   \label{eq:approx-var-estimator}
@@ -759,12 +759,12 @@ identify the kind of illumination seen by the sensor.
     & $r_{j,\ell}$ & Illumination by the source(s) of interest
     ($\propto\:$photons/second/pixel) \\
     & $s_j$ & Signal of interest ($\propto\:$photons) \\
-    & $\estim{s}_j$ & Estimator of the signal of interest 
+    & $\estim{s}_j$ & Estimator of the signal of interest
     ($\propto\:$photons) \\
     & $p_j$ & Numerator of the precision of $s_j$ \\
     & $q_j$ & Denominator bias of the precision of $s_j$ \\
     & $w_j$ & Precision of $s_j$ \\
-    ($^\ast$) & $z_j$ & Zero-level, constant bias of the analog to digital 
+    ($^\ast$) & $z_j$ & Zero-level, constant bias of the analog to digital
     converter (ADU) \\
     ($^\ast$) & $\sigma_j$
     & Standard deviation of the readout noise (ADU/pixel/frame) \\
@@ -832,7 +832,7 @@ times do not have such a restriction, it is possible to have $\Delta t_{k',\ell}
 
 \oops{The above may be further simplified as many things are directly related
 to results from the previous section.}
- 
+
 
 \subsection{Traditional approach}
 
@@ -922,8 +922,8 @@ for each pixel $j$.
 
 \subsubsection{Background images}
 
-\emph{Background images} $\V d_{k}^\Tag{bg}$ are obtained for a given 
-\emph{background} source characterized by its \emph{current} $\V c$ different 
+\emph{Background images} $\V d_{k}^\Tag{bg}$ are obtained for a given
+\emph{background} source characterized by its \emph{current} $\V c$ different
 exposure
 times, $\Delta t_k^\Tag{bg}$, and no incident flux, $r_{j,k}^\Tag{bg} = 0$.
 The model of the bg images is thus given by:
@@ -946,8 +946,8 @@ The main purpose of the background images is to estimate the background current
  $\V c^\Tag{bg}$, \eg by fitting an affine temporal law to $d_{j,k}^\Tag{dark}$
 for each pixel $j$.  \oops{This is very similar to the dark images.}
 
-\oops{As designed, $c^\Tag{bg}_j$ also contains $c^\Tag{dark}_j$ since 
-background images cannot be obtained without any contribution of the dark 
+\oops{As designed, $c^\Tag{bg}_j$ also contains $c^\Tag{dark}_j$ since
+background images cannot be obtained without any contribution of the dark
 current [MT].}
 
 
@@ -956,8 +956,8 @@ current [MT].}
 So-called \emph{flat images} $\V d_{k}^\Tag{flat}$ are obtained with
 different exposure times, $\Delta t_k^\Tag{flat}$, and an incident flux,
 $r_j^\Tag{flat} > 0$, as uniform as possible\footnote{we however assume that
-  the incident flux may vary with the pixel index $j$ but does not depend on 
-  the frame index $k$ and $\ell$}.  The model of the flat images is thus given 
+  the incident flux may vary with the pixel index $j$ but does not depend on
+  the frame index $k$ and $\ell$}.  The model of the flat images is thus given
   by:
 \begin{equation}
   d_{j,k}^\Tag{flat} =
@@ -982,11 +982,11 @@ main purpose of the flat images is to estimate the amplitude correction $\V a$.
 \subsection{Maximum Likelihood Calibration}
 
 
-We first consider calibrating the detector parameters and then estimate the 
-correction of the non-uniformity of the response.  Without loss of generality, 
-it is easier to first subtract the contribution of the bias and of spurious 
-background sources to have intermediate data whose expectation is proportional 
-to the incident flux and to the exposure time. And to second compensate for 
+We first consider calibrating the detector parameters and then estimate the
+correction of the non-uniformity of the response.  Without loss of generality,
+it is easier to first subtract the contribution of the bias and of spurious
+background sources to have intermediate data whose expectation is proportional
+to the incident flux and to the exposure time. And to second compensate for
 the non-uniform throughput and detector gain.
 
 %Thus the pre-processed data write:
@@ -1000,17 +1000,17 @@ the non-uniform throughput and detector gain.
 %accounts for the bias and the background sources.  Clearly, there are two
 %needs: (1) estimating the contribution of the bias and of the background
 %sources, which can be done in ADUs, and (2) compensating for the combined
-%effects of the instrumental throughput, the detector quantum efficiency and 
+%effects of the instrumental throughput, the detector quantum efficiency and
 %the
 %converter gain.  For most needs, the correction factor $a_j$ only needs to be
-%known up to a multiplicative constant common to all pixels.  \oops{Put this 
+%known up to a multiplicative constant common to all pixels.  \oops{Put this
 %  before and omit the $\ell$ index.}
 %
 %Assuming that the errors in the parameters extracted form the calibration data
 %are negligible compared to the noise in the raw data $d_{j,k,\ell}$, the
 %expectation and variance of the calibrated data write:
 %\begin{align}
-%  \Expect{\estim{s}_{j,k,\ell}} &= \alpha\,r_{j,\ell}\,\Delta t_{k,\ell} \, , 
+%  \Expect{\estim{s}_{j,k,\ell}} &= \alpha\,r_{j,\ell}\,\Delta t_{k,\ell} \, ,
 %  \\
 %  \Var{\estim{s}_{j,k,\ell}} &= a_j^2\,\Var{d_{j,k,\ell}} \notag \\
 %  &= a_j^2\,\Paren*{
@@ -1020,7 +1020,7 @@ the non-uniform throughput and detector gain.
 %    \frac{\Expect*{d_{j,k,\ell}} - z_j}{g_j} + \sigma_j^2
 %  } \notag \\
 %  &\approx a_j^2\,\Paren*{
-%    \frac{\max\Paren*{\estim{s}_{j,k,\ell}, 0}/a_j + c^\Tag{bg}_j\,\Delta 
+%    \frac{\max\Paren*{\estim{s}_{j,k,\ell}, 0}/a_j + c^\Tag{bg}_j\,\Delta
 %      t_{k,\ell}}{g_j}
 %    + \sigma_j^2
 %  } \notag \\
@@ -1034,7 +1034,7 @@ with a distribution approximately Gaussian, the co-log-likelihood of the data
 writes:
 \begin{equation}
   \phi(\V\theta) = \sum_{j,k,\ell}\Paren*{
-    \frac{\Paren*{d_{j,k,\ell} - 
+    \frac{\Paren*{d_{j,k,\ell} -
         m_{k,\ell}(\V\theta_{j,\ell})}^2}{v_{k,\ell}(\V\theta_{j,\ell})}
     + \log\Paren*{v_{k,\ell}(\V\theta_{j,\ell})}
   }
@@ -1044,7 +1044,7 @@ expectation and variance (respectively) of the data $d_{j,k,\ell}$ knowing the
 parameters $\V\theta_{j,\ell}$ and given by:
 \begin{align}
   m_{k,\ell}(\V\theta_{j,\ell})
-  &= c_{j,\ell}\,\Delta t_{k,\ell} + z_j \, , 
+  &= c_{j,\ell}\,\Delta t_{k,\ell} + z_j \, ,
   \\
   v_{k,\ell}(\V\theta_{j,\ell})
   &= c_{j,\ell}\,\Delta t_{k,\ell}/g_j + \sigma_j^2 \, ,
@@ -1063,7 +1063,7 @@ gain is strictly positive.
 In spite of the fact that it is separable in pixels, the maximum likelihood
 criterion is not trivial to jointly minimize in all the parameters accounting
 for the constraints.  We propose in the following a strategy to solve the
-problem and first show how to eliminate the bias and the gain thanks to a 
+problem and first show how to eliminate the bias and the gain thanks to a
 simple change of variables.
 
 
@@ -1072,10 +1072,10 @@ simple change of variables.
 It is convenient to introduce $u_j = g_j\,\sigma^2_j$ so that the variance
 writes:
 \begin{equation}
-  v_{k,\ell}(\V\theta_{j,\ell}) = 
+  v_{k,\ell}(\V\theta_{j,\ell}) =
   \Paren*{c_{j,\ell}\,\Delta t_{k,\ell} + u_j}/g_j \,,
 \end{equation}
-and the maximum likelihood criterion becomes: 
+and the maximum likelihood criterion becomes:
 \begin{equation}
   \phi(\V\theta) = \sum_{j,k,\ell}\Paren*{
     g_j\,\frac{
@@ -1114,7 +1114,7 @@ which gives:
     }
   }
   \label{eq:best-bias}
-\end{equation} 
+\end{equation}
 We note that this expression does not depend on the gain $g_j$ as explicitly
 indicated by our notation. Thanks to this independence, the maximum likelihood
 estimator of the gain knowing the parameters $\V c_j$ and $u_j$ also has a
@@ -1188,7 +1188,7 @@ with $\V\theta_j = \Paren[\big]{z_j, \V c_j, g_j, u_j}$ and:
   } \,.
 \end{equation}
 
-Moreover, we have previously shown that $\varphi_j(\V\theta_j)$ can be 
+Moreover, we have previously shown that $\varphi_j(\V\theta_j)$ can be
 jointly minimized in $z_j$ and $g_j$ so the problem reduces to:
 \begin{align}
   \Paren[\big]{\estim{\V c}_j, \estim{u}_j}
@@ -1280,7 +1280,7 @@ averaged values:
   \Avg[\big]{w_{k,\ell}(\V c, u)\,x_{j,k,\ell}(\V c, u)}_{k}
   &\approx 0 \,,\\
   g^+_j(\V c, u)\,\Avg[\big]{w_{k,\ell}(\V c, u)\,
-    x_{j,\ell}^2(\V c, u)}_{k,\ell} 
+    x_{j,\ell}^2(\V c, u)}_{k,\ell}
   &= 1\,,
 \end{align*}
 the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
@@ -1290,7 +1290,7 @@ the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 %\begin{equation}
 %  \estim{\V\theta} = \argmin_{\V\theta \in \Omega} \Brace*{
 %    \varphi(\V\theta) = \sum_{k,\ell}\Paren*{
-%      \frac{\Paren*{d_{k,\ell} - 
+%      \frac{\Paren*{d_{k,\ell} -
 %m_{k,\ell}(\V\theta)}^2}{v_{k,\ell}(\V\theta)}
 %      + \log\Paren*{v_{k,\ell}(\V\theta)}
 %    }
@@ -1301,7 +1301,7 @@ the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 %acceptable parameters and:
 %\begin{align}
 %  m_{k,\ell}(\V\theta)
-%  &= c_{\ell}\,\Delta t_{k,\ell} + z \, , 
+%  &= c_{\ell}\,\Delta t_{k,\ell} + z \, ,
 %  \\
 %  v_{k,\ell}(\V\theta)
 %  &= \Paren*{c_{\ell}\,\Delta t_{k,\ell} + u}/g \,.
@@ -1309,14 +1309,14 @@ the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 %The feasible set $\Omega$ accounts for constraints on the parameters:
 %\begin{equation}
 %  \Omega = \Brace*{
-%    \V\theta = (b,\Paren*{c_{\ell}}_{\ell=1,2,\ldots},g,u) \in 
+%    \V\theta = (b,\Paren*{c_{\ell}}_{\ell=1,2,\ldots},g,u) \in
 %    \Reals^{3+n_\Tag{cls}} \SuchThat
 %    \forall\ell, c_\ell ≥ 0, g > 0, u ≥ g/12
 %  } \, .
 %\end{equation}
 
 \paragraph{Iterative Reweighted Least Squares}
-Another possibility would be to use an Iterative Reweighted Least Squares 
+Another possibility would be to use an Iterative Reweighted Least Squares
 (IRLS) method.
 
 \paragraph{Initial solution} Whatever the chosen non-linear optimization
@@ -1388,8 +1388,8 @@ $\varepsilon_2 > 0$:
       c_{j,\ell}\Iter0\,\Delta t_{k,\ell} > 0
   }} c_{j,\ell}\Iter0\,\Delta t_{k,\ell} \,.
   \label{eq:initial-u}
-\end{equation}  
-This choice ensures that $u_j\Iter0 > 0$.  Finally the initial estimate of the 
+\end{equation}
+This choice ensures that $u_j\Iter0 > 0$.  Finally the initial estimate of the
 pixelwise gain is given by Eq.~\eqref{eq:best-gain} but using the initial bias
 instead of the best bias given $\V c\Iter0_j$ and $u\Iter0_j$:
 \begin{equation}
@@ -1404,7 +1404,7 @@ instead of the best bias given $\V c\Iter0_j$ and $u\Iter0_j$:
   }_{\!\!k,\ell}^{-1} \, .
   \label{eq:initial-gain}
 \end{equation}
-Thus the initial solution is determined by the choice of two small positive 
+Thus the initial solution is determined by the choice of two small positive
 constants.  In practice, we take $\varepsilon_1 = \varepsilon_2 = 1/10$.
 
 
@@ -1430,7 +1430,7 @@ constants.  In practice, we take $\varepsilon_1 = \varepsilon_2 = 1/10$.
     m_{k,\ell}\Iter{i} = x_{k,\ell}\Iter{i} + b\Iter{i} \\
     \text{Fit constrained gain and readout noise variance: }\\
     \displaystyle\Paren[\big]{v\Iter{i},g\Iter{i}}
-    =  \argmin_{(g,v') \in \Psi} 
+    =  \argmin_{(g,v') \in \Psi}
     \phi\Paren*{a\Iter{i},b\Iter{i},c\Iter{i},g,v}\\
     \text{Update data variance: }\\
     v_k\Iter{i} = \Paren[\big]{x_{k}\Iter{i} + u\Iter{i}}/g\Iter{i}
@@ -1460,13 +1460,13 @@ this correspond to solving the following hierarchical constrained problem:
 \end{align}
 
 $\lim_{g \rightarrow 0^+}\phi\Paren*{a'^{[i]},b^{[i]},c'^{[i]},g,v'} = +\infty$
-and $\lim_{g \rightarrow +\infty}\phi\Paren*{a'^{[i]},b^{[i]},c'^{[i]},g,v'} = 
+and $\lim_{g \rightarrow +\infty}\phi\Paren*{a'^{[i]},b^{[i]},c'^{[i]},g,v'} =
 +\infty$
 
 the first and second partial derivatives of $\phi$ in $g$ are:
 \begin{align}
 \frac{\partial \phi\Paren*{a'^{[i]},b^{[i]},c'^{[i]},g,v'}}{\partial g}
-&= \sum_{k,\ell} \frac{\Paren[\big]{d_{k,\ell} - m_{k}^{[i]}}^2}{x_{k}^{[i]} + 
+&= \sum_{k,\ell} \frac{\Paren[\big]{d_{k,\ell} - m_{k}^{[i]}}^2}{x_{k}^{[i]} +
 v'}
 - \frac{\Images}{g} \, , \\
 \frac{\partial^2 \phi\Paren*{a'^{[i]},b^{[i]},c'^{[i]},g,v'}}{\partial g^2}
@@ -1483,12 +1483,12 @@ where:
 \begin{equation}
   \estim{g}_{\given a'^{[i]},b^{[i]},c'^{[i]},v'}^\Tag{uncons}
   = \frac{\Images}{
-    \sum_{k,\ell} \frac{\Paren[\big]{d_{k,\ell} - m_{k}^{[i]}}^2}{x_{k}^{[i]} 
-    + 
+    \sum_{k,\ell} \frac{\Paren[\big]{d_{k,\ell} - m_{k}^{[i]}}^2}{x_{k}^{[i]}
+    +
     v'}
   }
 \end{equation}
-is the unconstrained maximum likelihood estimator of the gain $g$ given the 
+is the unconstrained maximum likelihood estimator of the gain $g$ given the
 data and the other parameters.
 
 where $g_\Tag{min} > 0$ is some chosen minimal acceptable gain.
@@ -1515,20 +1515,20 @@ Minimize quadratic cost function $q(a',b,c')$ subject to $a'≥0$ and $c'≥0$.
 \begin{itemize}
   \item Assume no constraints are active and solve the $3\times3$ system for
   $a'$, $b$ and $c'$. If $a'≥0$ and $c'≥0$, the solution has been found.
-  
+
   \item Assume both constraints are active, $a'=0$ and $c'=0$ and solve the
   $1\times1$ system for $b$ and register the corresponding cost $q_1$.
-  
+
   \item Assume $a'= 0$ and solve the restricted $2\times2$ system for
-  $b$ and $c'$.  If $c'≥0$, compute the  corresponding cost $q_2$ and if $q_2 
-  < q_1$ (which should always be the case) remember the solution as the best 
+  $b$ and $c'$.  If $c'≥0$, compute the  corresponding cost $q_2$ and if $q_2
+  < q_1$ (which should always be the case) remember the solution as the best
   so far.
-  
+
   \item Assume $c'= 0$, and solve the restricted $2\times2$ system for
   $a'$ and $b$. If $a'≥0$, register the solution and associated cost $q_3$.
 \end{itemize}
 
-Note that it is possible to account for bad/clipped pixels in the calibration 
+Note that it is possible to account for bad/clipped pixels in the calibration
 data
 by defining the weights as:
 \begin{equation}
@@ -1702,7 +1702,7 @@ are given by:
     \Paren*{1 \pm \sqrt{\frac{2}{N^\Tag{dark} - 1}}} \,,
     \label{eq:Themis-dark-var}
 \end{align}
-with $\V d^\Tag{dark}_k$ the $k$-th dark image, $N^\Tag{dark}$ the number of 
+with $\V d^\Tag{dark}_k$ the $k$-th dark image, $N^\Tag{dark}$ the number of
 such images and $\V c^\Tag{dark}$ the contribution of the dark current.
 
 \item[Stable images] are acquired with an illumination that is stable in time.
@@ -1735,7 +1735,7 @@ and variance are given by:
     \Paren*{1 \pm \sqrt{\frac{2}{N^\Tag{lamp} - 1}}} \,,
     \label{eq:Themis-lamp-var-approx}
 \end{align}
-with $\V d^\Tag{lamp}_k$ the $k$-th dark image, $N^\Tag{lamp}$ the number of 
+with $\V d^\Tag{lamp}_k$ the $k$-th dark image, $N^\Tag{lamp}$ the number of
 such images and $\V c^\Tag{lamp}$ the contribution of the lamp only.
 
 \item[Flat images] are acquired with an illumination whose time average is
@@ -1805,7 +1805,7 @@ $j$-th pixel in the dark and stable images\footnote{The flat images are only
     \frac{v^\Tag{lamp'}_j + \Paren*{m^\Tag{lamp}_j - b_j - y_j}^2}{x_j + y_j}
   } \notag\\
   &\quad - \Paren*{N^\Tag{dark} + N^\Tag{lamp}}\log g_j
-    + N^\Tag{dark}\,\log u_j
+    + N^\Tag{dark}\,\log x_j
     + N^\Tag{lamp}\,\log\Paren*{x_j + y_j} \, ,
 \end{align}
 which depend on 4 unknown parameter $\V\theta_j =  (b_j, g_j, x_j, y_j)$ with:
@@ -1831,7 +1831,7 @@ the pixelwise variance in the dark images $c^\Tag{dark}_j\,\Delta t/g_j +
 It appears that conventional calibration amounts to first maximize the
 likelihood of the dark images in the bias $b_j$ and the noise in the dark
 images and then maximize the likelihood of the LED images in the remaining
-detector parameters.  The co-log-likelihood of calibration data with 
+detector parameters.  The co-log-likelihood of calibration data with
 conventional calibration is:
 \begin{align}
   \varphi^\Tag{conv}_j =
@@ -2031,7 +2031,7 @@ such that $p > x$.
 
 This section describes the version 1 of a FITS file format to store reduced
 calibration data. The calibration data is stored in a FIT Image extension
-whose keyword \FitsKeyword{HDUNAME} is \FitsString{REDUCED-DETECTOR-CALIBRATION}. 
+whose keyword \FitsKeyword{HDUNAME} is \FitsString{REDUCED-DETECTOR-CALIBRATION}.
 Using \FitsKeyword{HDUNAME} instead of \FitsKeyword{EXTNAME} is to allow
 for storing the reduced calibration data in the primary Header Data Unit
 (HDU) of the FITS file.
@@ -2063,25 +2063,25 @@ and correspond to various pixelwise calibration quantities. Assuming
 column-major ordering:
 \begin{align*}
 	\FitsVariable{cal}[i,j,k]
-  &= \text{value at macro-pixel $(i,j)$ of $k$-th calibration quantity,} \\ 
+  &= \text{value at macro-pixel $(i,j)$ of $k$-th calibration quantity,} \\
 	\FitsVariable{cal}[i,j,1]
-  &= \text{amplitude correction factor (in flux units per ADU),} \\ 
+  &= \text{amplitude correction factor (in flux units per ADU),} \\
 	\FitsVariable{cal}[i,j,2]
-  &= \text{constant bias (in ADU),} \\ 
+  &= \text{constant bias (in ADU),} \\
 	\FitsVariable{cal}[i,j,3]
-  &= \text{detector gain (in electrons per ADU),} \\ 
+  &= \text{detector gain (in electrons per ADU),} \\
 	\FitsVariable{cal}[i,j,4]
-  &= \text{standard deviation of the readout noise (in ADU/frame),} \\ 
+  &= \text{standard deviation of the readout noise (in ADU/frame),} \\
 	\FitsVariable{cal}[i,j,4+n]
-  &= \text{current due to $n$-th calibration source (in ADU/second).} 
+  &= \text{current due to $n$-th calibration source (in ADU/second).}
 \end{align*}
 
 The \emph{flux units} are arbitrary \oops{(could be indicated by a FITS keyword like BUNITS)}.
 
-FITS keyword \FitsKeyword{CAT}\FitsVariable{n} with \FitsVariable{n} an 
-integer number specifies the identifier (a string) of the calibration source 
-which is responsible of the \FitsVariable{n}-th \emph{current} term (in 
-ADUs/second).  There can be from 0 to 999 such sources.  The number is equal 
+FITS keyword \FitsKeyword{CAT}\FitsVariable{n} with \FitsVariable{n} an
+integer number specifies the identifier (a string) of the calibration source
+which is responsible of the \FitsVariable{n}-th \emph{current} term (in
+ADUs/second).  There can be from 0 to 999 such sources.  The number is equal
 to $\FitsKeyword{NAXIS4} - 4$.
 
 \section{Moments of the sample mean and variance}
