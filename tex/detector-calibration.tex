@@ -1067,6 +1067,77 @@ problem and first show how to eliminate the bias and the gain thanks to a
 simple change of variables.
 
 
+\subsection{Grouping calibration data acquired under same conditions}
+
+For a given category $\ell$ of illumination, several frames, say $N_{k,\ell}$,
+may have been acquired with the same exposure time $\Delta t_{k,\ell}$:
+\begin{equation}
+  d_{j,k,\ell,n} = c_{j,\ell}\,\Delta t_{k,\ell} + z_j + e_{j,k,\ell,n} \, .
+\end{equation}
+Each of these data frames is such that ($\forall n \in
+\Brace{1,2,\ldots,N_{k,\ell}}$):
+\begin{align}
+  \Expect*{d_{j,k,\ell,n}} &= m_{j,k,\ell} = c_{j,\ell}\,\Delta t_{k,\ell} + z_j\\
+  \Var*{d_{j,k,\ell,n}}
+   &= v_{j,k,\ell}
+   = \frac{c_{j,\ell}\,\Delta t_{k,\ell}}{g_j} + \sigma_j^2
+\end{align}
+
+Assuming mutually independent pixels and data frames and approximating their
+statistics by a non-uniform Gaussian distribution, the co-log-likelihood of the
+data set writes:
+\begin{align}
+  \phi &= \sum_{j} \Brace*{
+    \phi_j =
+    \sum_{k,\ell,n} \Paren*{
+      \frac{\Paren*{d_{j,k,\ell,n} - m_{j,k,\ell}}^2}{v_{j,k,\ell}}
+      + \log v_{j,k,\ell}
+    }
+  }
+\end{align}
+
+Introducing the empirical mean and variance of the $N_{k,\ell}$ data frames
+acquired with the same exposure time and illumination:
+\begin{align}
+  \label{eq:sample-mean}
+  \estim{m}_{j,k,\ell}
+  &= \frac{1}{N_{k,\ell}} \sum_{n=1}^{N_{k,\ell}} d_{j,k,\ell,n} \, , \\
+  \label{eq:sample-variance}
+  \estim{v}_{j,k,\ell}
+  &= \frac{1}{N_{k,\ell}}\sum_{n=1}^{N_{k,\ell}}
+    \Paren*{d_{j,k,\ell,n} - \estim{m}_{j,k,\ell}}^2 \, ,
+\end{align}
+the pixel-wise co-log-likelihood can be simplified\footnote{replace
+$\sum_n\Paren*{d_{j,k,\ell,n} - m_{j,k,\ell}}^2$ by
+$\sum_n\Paren*{\Paren*{d_{j,k,\ell,n} - \estim{m}_{j,k,\ell}} +
+\Paren*{\estim{m}_{j,k,\ell} - m_{j,k,\ell}}}^2$, then develop the squares and
+simplify} to:
+\begin{align}
+  \label{eq:pixelwise-cologlikelihood}
+  \phi_j =
+  \sum_{k,\ell} N_{k,\ell}\times\Paren*{
+    \frac{
+      \estim{v}_{j,k,\ell}
+      + \Paren*{\estim{m}_{j,k,\ell} - m_{j,k,\ell}}^2
+    }{
+      v_{j,k,\ell}
+    }
+    + \log v_{j,k,\ell}
+  } \, .
+\end{align}
+Hence the empirical mean $\estim{\V m}_{k,\ell}$ and variance  $\estim{\V
+v}_{k,\ell}$ provide sufficient statistics for the $N_{k,\ell}$ data frames
+acquired with the same exposure time and illumination.  Note that the empirical
+variance  $\estim{\V v}_{k,\ell}$ is a biased estimator of the variance (by a
+factor $N_{k,\ell}/(N_{k,\ell} - 1)$).  Using this sufficient statistics and the
+pixel-wise co-log-likelihood defined in Eq.~\eqref{eq:pixelwise-cologlikelihood}
+can significantly reduce the computational burden and the memory requirements.
+
+If only a single data frame has been acquired under $\ell$-th illumination and
+$k$-th exposure time, then $N_{k,\ell} = 1$ and $\estim{\V m}_{k,\ell} = \V
+d_{k,\ell}$ while $\estim{\V v}_{k,\ell} = \V0$.
+
+
 \subsubsection{Estimation of the bias and of the gain}
 
 It is convenient to introduce $u_j = g_j\,\sigma^2_j$ so that the variance
