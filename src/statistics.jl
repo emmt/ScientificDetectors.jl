@@ -30,14 +30,14 @@ struct SampleStatistics{T<:AbstractFloat,N}
     Δt::Float64
 
     # Dimensions, offsets and binning factors of the "Region Of Interest".
-    roi::NTuple{N,DetectorAxis}
+    roi::DetectorAxes{N}
 
     # Inner constructor provided to force using outer constructors.
     function SampleStatistics{T,N}(avg::Array{T,N},
                                    std::Array{T,N},
                                    samples::Integer,
                                    Δt::Real,
-                                   roi::NTuple{N,DetectorAxis}
+                                   roi::DetectorAxes{N}
                                    ) where {T<:AbstractFloat,N}
         @assert samples ≥ 2
         @assert isfinite(Δt) && Δt ≥ 0
@@ -102,7 +102,7 @@ function SampleStatistics(avg::Array{T,N},
                           std::Array{T,N},
                           samples::Integer,
                           Δt::Real,
-                          roi::NTuple{N,DetectorAxis} = regionofinterest(avg)
+                          roi::DetectorAxes{N} = regionofinterest(avg)
                           ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(avg, std, samples, Δt, roi)
 end
@@ -111,7 +111,7 @@ function SampleStatistics(avg::AbstractArray{<:Real,N},
                           std::AbstractArray{<:Real,N},
                           samples::Integer,
                           Δt::Real,
-                          roi::NTuple{N,DetectorAxis} = regionofinterest(avg)
+                          roi::DetectorAxes{N} = regionofinterest(avg)
                           ) where {N}
     T = float(promote_type(eltype(avg), eltype(std)))
     SampleStatistics{T,N}(convert(Array{T,N}, avg),
@@ -122,7 +122,7 @@ function SampleStatistics{T}(avg::AbstractArray{<:Real,N},
                              std::AbstractArray{<:Real,N},
                              samples::Integer,
                              Δt::Real,
-                             roi::NTuple{N,DetectorAxis} = regionofinterest(avg)
+                             roi::DetectorAxes{N} = regionofinterest(avg)
                              ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(convert(Array{T,N}, avg),
                           convert(Array{T,N}, std), samples, Δt, roi)
@@ -132,7 +132,7 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:Real,N},
                                std::AbstractArray{<:Real,N},
                                samples::Integer,
                                Δt::Real,
-                               roi::NTuple{N,DetectorAxis} = regionofinterest(avg)
+                               roi::DetectorAxes{N} = regionofinterest(avg)
                                ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(convert(Array{T,N}, avg),
                           convert(Array{T,N}, std), samples, Δt, roi)
@@ -155,7 +155,7 @@ function SampleStatistics{T}(dat::Union{AbstractVector{<:AbstractArray{<:Real,N}
                                         Tuple{Vararg{AbstractArray{<:Real,N}}},
                                         Sampler{T,N}},
                              Δt::Real,
-                             roi::NTuple{N,DetectorAxis} = regionofinterest(first(dat));
+                             roi::DetectorAxes{N} = regionofinterest(first(dat));
                              quick::Bool = false) where {T<:AbstractFloat,N}
     samples = length(dat)
     samples ≥ 2 || error("insufficient number of samples")

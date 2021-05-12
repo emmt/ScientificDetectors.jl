@@ -16,6 +16,7 @@ module ScientificDetectors
 
 export
     CalibrationData,
+    DetectorAxes,
     DetectorAxis,
     IndependentIdenticallyDistributedNoise,
     NoiseModel,

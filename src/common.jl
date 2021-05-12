@@ -26,12 +26,25 @@ here the source `src` and the destination `dst` can be instances of
 
 """
 struct DetectorAxis
-    len::Int # Number of (macro-)samples along the dimensions.
-    off::Int # Offset of the ROI with respect to the sensor (in physical samples).
-    bin::Int # Binning factor (in physical samples).
+    # Along the considered dimension:
+    len::Int # number of macro-pixels
+    off::Int # offset (in pixels) of the ROI relative to detector edge
+    bin::Int # binning factor (in pixels)
 end
+
+const DetectorAxes{N} = NTuple{N,DetectorAxis}
+const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
+                                <:OrdinalRange{<:Integer,<:Integer}}
+
+DetectorAxis(A::DetectorAxis) = A
+
 DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1) =
     DetectorAxis(len, off, bin)
+
+DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
+    step(R) > 0 || throw(ArgumentError("step must be positive"))
+    DetectorAxis(length(R), first(R) - 1, step(R))
+end
 
 offset(obj::DetectorAxis) = obj.off
 binning(obj::DetectorAxis) = obj.bin
@@ -40,14 +53,22 @@ binning(obj::DetectorAxis) = obj.bin
 @doc @doc(DetectorAxis) binning
 
 Base.length(obj::DetectorAxis) = obj.len
-Base.size(roi::NTuple{N,DetectorAxis}) where {N} = map(x -> length(x), roi)
-Base.size(roi::NTuple{N,DetectorAxis}, i::Integer) where {N} =
+Base.size(roi::DetectorAxes{N}) where {N} = map(length, roi)
+Base.size(roi::DetectorAxes{N}, i::Integer) where {N} =
     (i < 1 ? error("out of range dimension index") :
      i ≤ N ? length(roi[i]) : 1)
 
 Base.show(io::IO, obj::DetectorAxis) =
     print(io, "DetectorAxis(", length(obj), "; off=", offset(obj),
           ", bin=", binning(obj), ")")
+
+DetectorAxes{N}(A::AbstractArray{<:Any,N}) where {N} = DetectorAxes(A)
+DetectorAxes{N}(I::DetectorAxisTypes...) where {N} = DetectorAxes{N}(I)
+DetectorAxes{N}(I::NTuple{N,DetectorAxisTypes}) where {N} = DetectorAxes(I)
+
+DetectorAxes(A::AbstractArray) = DetectorAxes(axes(A))
+DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
+DetectorAxes(I::Tuple{Vararg{DetectorAxisTypes}}) = map(DetectorAxis, I)
 
 function Base.merge!(dst::FitsHeader,
                      prm::Union{Tuple{Vararg{T}},AbstractVector{T}}
@@ -88,7 +109,7 @@ function Base.get(::Type{Vector{DetectorAxis}},
     return res
 end
 
-function Base.get(::Type{NTuple{N,DetectorAxis}},
+function Base.get(::Type{DetectorAxes{N}},
                   src::Union{FitsHeader,FitsImage}) where {N}
     ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
@@ -100,7 +121,7 @@ struct Sampler{T,N,Np1,A<:AbstractArray{T,Np1}}
     data::A
     inds::NTuple{N,Colon}
     function Sampler{T,N,Np1,A}(data::A) where {T,N,Np1,A<:AbstractArray{T,Np1}}
-        @assert Np1 == N + 1
+        Np1 == N + 1 || error("Np1 ≠ N + 1")
         Np1 ≥ 2 || error("insufficient number of dimensions")
         Base.has_offset_axes(data) && error("data array has non-standard indexing")
         samples = size(data, Np1)
