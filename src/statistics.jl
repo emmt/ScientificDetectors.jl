@@ -4,11 +4,11 @@ export
     SampleStatistics,
     exposuretime,
     numberofsamples,
-    regionofinterest
+    DetectorAxes
 
 using ..ScientificDetectors
 using ..ScientificDetectors: Sampler, offset, binning
-import ..ScientificDetectors: regionofinterest, exposuretime, numberofsamples
+import ..ScientificDetectors: DetectorAxes, exposuretime, numberofsamples
 
 using EasyFITS
 using EasyFITS: isprimary
@@ -53,7 +53,7 @@ struct SampleStatistics{T<:AbstractFloat,N}
     end
 end
 
-regionofinterest(obj::SampleStatistics) = obj.roi
+DetectorAxes(obj::SampleStatistics) = obj.roi
 exposuretime(obj::SampleStatistics) = obj.Δt
 numberofsamples(obj::SampleStatistics) = obj.samples
 Statistics.mean(obj::SampleStatistics) = obj.avg
@@ -61,9 +61,9 @@ Statistics.std(obj::SampleStatistics) = obj.std
 Statistics.var(obj::SampleStatistics) = std(obj).^2
 Base.ndims(obj::SampleStatistics{T,N}) where {T,N} = N
 Base.eltype(obj::SampleStatistics{T,N}) where {T,N} = T
-Base.length(obj::SampleStatistics) = length(regionofinterest(obj))
-Base.size(obj::SampleStatistics) = size(regionofinterest(obj))
-Base.size(obj::SampleStatistics, i) = size(regionofinterest(obj), i)
+Base.length(obj::SampleStatistics) = length(DetectorAxes(obj))
+Base.size(obj::SampleStatistics) = size(DetectorAxes(obj))
+Base.size(obj::SampleStatistics, i) = size(DetectorAxes(obj), i)
 
 SampleStatistics(obj::SampleStatistics) = obj
 SampleStatistics{T}(obj::SampleStatistics{T}) where {T} = obj
@@ -93,16 +93,11 @@ Base.show(io::IO, obj::SampleStatistics{T,N}) where {T,N} = begin
           numberofsamples(obj), ", Δt = ", exposuretime(obj), " s")
 end
 
-regionofinterest(A::AbstractArray) = begin
-    Base.has_offset_axes(A) && error("array has non-standrad indexing")
-    map(DetectorAxis, size(A))
-end
-
 function SampleStatistics(avg::Array{T,N},
                           std::Array{T,N},
                           samples::Integer,
                           Δt::Real,
-                          roi::DetectorAxes{N} = regionofinterest(avg)
+                          roi::DetectorAxes{N} = DetectorAxes(avg)
                           ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(avg, std, samples, Δt, roi)
 end
@@ -111,7 +106,7 @@ function SampleStatistics(avg::AbstractArray{<:Real,N},
                           std::AbstractArray{<:Real,N},
                           samples::Integer,
                           Δt::Real,
-                          roi::DetectorAxes{N} = regionofinterest(avg)
+                          roi::DetectorAxes{N} = DetectorAxes(avg)
                           ) where {N}
     T = float(promote_type(eltype(avg), eltype(std)))
     SampleStatistics{T,N}(convert(Array{T,N}, avg),
@@ -122,7 +117,7 @@ function SampleStatistics{T}(avg::AbstractArray{<:Real,N},
                              std::AbstractArray{<:Real,N},
                              samples::Integer,
                              Δt::Real,
-                             roi::DetectorAxes{N} = regionofinterest(avg)
+                             roi::DetectorAxes{N} = DetectorAxes(avg)
                              ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(convert(Array{T,N}, avg),
                           convert(Array{T,N}, std), samples, Δt, roi)
@@ -132,7 +127,7 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:Real,N},
                                std::AbstractArray{<:Real,N},
                                samples::Integer,
                                Δt::Real,
-                               roi::DetectorAxes{N} = regionofinterest(avg)
+                               roi::DetectorAxes{N} = DetectorAxes(avg)
                                ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(convert(Array{T,N}, avg),
                           convert(Array{T,N}, std), samples, Δt, roi)
@@ -155,7 +150,7 @@ function SampleStatistics{T}(dat::Union{AbstractVector{<:AbstractArray{<:Real,N}
                                         Tuple{Vararg{AbstractArray{<:Real,N}}},
                                         Sampler{T,N}},
                              Δt::Real,
-                             roi::DetectorAxes{N} = regionofinterest(first(dat));
+                             roi::DetectorAxes{N} = DetectorAxes(first(dat));
                              quick::Bool = false) where {T<:AbstractFloat,N}
     samples = length(dat)
     samples ≥ 2 || error("insufficient number of samples")

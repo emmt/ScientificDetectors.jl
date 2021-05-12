@@ -24,6 +24,12 @@ Other methods:
 here the source `src` and the destination `dst` can be instances of
 `FitsHeader` or `FitsImage`, `obj` is a vector or a tuple of `DetectorAxis`.
 
+    DetectorAxes(obj)
+
+yields the detector geometry settings for object `obj` (note the plural) as an
+`N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
+detector.
+
 """
 struct DetectorAxis
     # Along the considered dimension:
@@ -66,7 +72,11 @@ DetectorAxes{N}(A::AbstractArray{<:Any,N}) where {N} = DetectorAxes(A)
 DetectorAxes{N}(I::DetectorAxisTypes...) where {N} = DetectorAxes{N}(I)
 DetectorAxes{N}(I::NTuple{N,DetectorAxisTypes}) where {N} = DetectorAxes(I)
 
-DetectorAxes(A::AbstractArray) = DetectorAxes(axes(A))
+DetectorAxes(A::AbstractArray) = begin
+    Base.has_offset_axes(A) && error("array has non-standrad indexing")
+    map(DetectorAxis, size(A))
+end
+
 DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
 DetectorAxes(I::Tuple{Vararg{DetectorAxisTypes}}) = map(DetectorAxis, I)
 
@@ -150,15 +160,11 @@ end
 Base.iterate(A::Sampler, i = 1) =
     (1 ≤ i ≤ numberofsamples(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
 
-"""
-    regionofinterest(obj) -> roi
-
-yields the region of interest (ROI) of object `obj`.
-
-See also [`DetectorAxis`](@ref).
-
-"""
-function regionofinterest end
+@nospecialize
+@noinline regionofinterest(args...; kwds...) =
+    error("Method `ScientificDetectors.regionofinterest` is no longer ",
+          "available, call `DetectorAxes` instead.")
+@specialize
 
 """
     exposuretime(obj) -> Δt
