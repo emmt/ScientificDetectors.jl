@@ -6,3 +6,7 @@
 *.out
 *.pdf
 *.synctex.gz
+__*
+*.fls
+*.fdb_latexmk
+*/
