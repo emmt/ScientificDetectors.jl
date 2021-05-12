@@ -143,7 +143,7 @@ function write(io::FitsIO, obj::ReducedCalibration{T,N},
     name, vers = hduname(obj)
     hdr["HDUNAME"] = (name, "reduced detector calibration")
     hdr["HDUVERS"] = (vers, "version of this format")
-    merge!(hdr, regionofinterest(obj))
+    merge!(hdr, DetectorAxes(obj))
     for k ∈ eachindex(obj.cat)
         hdr[string("CAT",k)] = obj.cat[k]
     end
@@ -230,7 +230,7 @@ function write(io::FitsIO, obj::SimpleCalibration{T,N},
     hdr["HDUNAME"] = (name, "simple detector calibration")
     hdr["HDUVERS"] = (vers, "version of this format")
     hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
-    merge!(hdr, regionofinterest(obj))
+    merge!(hdr, DetectorAxes(obj))
 
     # Write FITS HDU.
     write(io, dat, hdr)
@@ -314,7 +314,7 @@ function write(io::FitsIO, obj::PreprocessingParameters{T,N},
     hdr["HDUNAME"] = (name, "pre-processing parameters")
     hdr["HDUVERS"] = (vers, "version of this format")
     hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
-    merge!(hdr, regionofinterest(obj))
+    merge!(hdr, DetectorAxes(obj))
 
     # Write FITS HDU.
     write(io, dat, hdr)
@@ -510,7 +510,7 @@ function write(io::FitsIO, obj::SampleStatistics{T,N},
     hdr["HDUVERS"] = (vers, "version of this format")
     hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
     hdr["SAMPLES"] = (numberofsamples(obj), "number of samples")
-    merge!(hdr, regionofinterest(obj))
+    merge!(hdr, DetectorAxes(obj))
 
     # Write FITS HDU.
     write(io, dat, hdr)

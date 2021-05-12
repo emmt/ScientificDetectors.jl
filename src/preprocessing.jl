@@ -3,7 +3,7 @@ module Preprocessing
 using ..ScientificDetectors
 using ..ScientificDetectors: offset, binning
 import ..ScientificDetectors: ReducedCalibration, process, process!,
-    regionofinterest, exposuretime
+    DetectorAxes, exposuretime
 
 using ..Calibration: detectorbias, detectorgain, detectornoise,
     categories, exposuretimes, currents, find
@@ -172,15 +172,15 @@ PreprocessingParameters{T,N}(obj::PreprocessingParameters{<:Any,N}) where {T,N} 
 #
 # Getters.
 #
-regionofinterest(obj::PreprocessingParameters) = obj.roi
+DetectorAxes(obj::PreprocessingParameters) = obj.roi
 exposuretime(obj::PreprocessingParameters) = obj.Δt
 
 #
 # Basic operations on PreprocessingParameters structure.
 #
 Base.eltype(::PreprocessingParameters{T}) where {T} = T
-Base.size(obj::PreprocessingParameters) = size(regionofinterest(obj))
-Base.size(obj::PreprocessingParameters, i) = size(regionofinterest(obj), i)
+Base.size(obj::PreprocessingParameters) = size(DetectorAxes(obj))
+Base.size(obj::PreprocessingParameters, i) = size(DetectorAxes(obj), i)
 Base.length(obj::PreprocessingParameters) = prod(size(obj))
 Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
     T(obj)
@@ -387,7 +387,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
             end
         end
     end
-    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, q, r)
+    return PreprocessingParameters(DetectorAxes(cal), Δt, a, b, q, r)
 end
 
 PreprocessingParameters(cal::SimpleCalibration{T}, args...; kwds...) where {T} =
@@ -429,7 +429,7 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N},
             r[j] = a[j]*g[j]*σ[j]^2
         end
     end
-    return PreprocessingParameters(regionofinterest(cal), Δt, a, b, q, r)
+    return PreprocessingParameters(DetectorAxes(cal), Δt, a, b, q, r)
 end
 
 """

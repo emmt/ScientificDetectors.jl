@@ -2,7 +2,7 @@ module Calibration
 
 using ..ScientificDetectors
 using ..ScientificDetectors: offset, binning
-import ..ScientificDetectors: regionofinterest, exposuretime
+import ..ScientificDetectors: DetectorAxes, exposuretime
 
 using Statistics
 using OptimPackNextGen
@@ -188,7 +188,7 @@ end
 #
 # Getters.
 #
-regionofinterest(obj::ReducedCalibration) = obj.roi
+DetectorAxes(obj::ReducedCalibration) = obj.roi
 cologlikelihood(obj::ReducedCalibration) = obj.f
 detectorbias(obj::ReducedCalibration) = obj.z
 detectorgain(obj::ReducedCalibration) = obj.g
@@ -202,8 +202,8 @@ category(obj::ReducedCalibration, k::Integer) = getindex(categories(obj), k)
 # Basic operations on ReducedCalibration structure.
 #
 Base.eltype(::ReducedCalibration{T}) where {T} = T
-Base.size(obj::ReducedCalibration) = size(regionofinterest(obj))
-Base.size(obj::ReducedCalibration, i) = size(regionofinterest(obj), i)
+Base.size(obj::ReducedCalibration) = size(DetectorAxes(obj))
+Base.size(obj::ReducedCalibration, i) = size(DetectorAxes(obj), i)
 Base.length(obj::ReducedCalibration) = prod(size(obj))
 Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
     T(obj)
@@ -967,7 +967,7 @@ end
 #
 # Getters.
 #
-regionofinterest(obj::SimpleCalibration) = obj.roi
+DetectorAxes(obj::SimpleCalibration) = obj.roi
 exposuretime(obj::SimpleCalibration) = obj.Δt
 
 
@@ -975,8 +975,8 @@ exposuretime(obj::SimpleCalibration) = obj.Δt
 # Basic operations on SimpleCalibration structure.
 #
 Base.eltype(::SimpleCalibration{T}) where {T} = T
-Base.size(obj::SimpleCalibration) = size(regionofinterest(obj))
-Base.size(obj::SimpleCalibration, i) = size(regionofinterest(obj), i)
+Base.size(obj::SimpleCalibration) = size(DetectorAxes(obj))
+Base.size(obj::SimpleCalibration, i) = size(DetectorAxes(obj), i)
 Base.length(obj::SimpleCalibration) = prod(size(obj))
 Base.convert(::Type{T}, obj::SimpleCalibration) where {T<:SimpleCalibration} =
     T(obj)
