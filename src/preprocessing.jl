@@ -77,7 +77,7 @@ Also see [`process`](@ref).
 struct PreprocessingParameters{T<:AbstractFloat,N,
                                A<:DenseArray{T,N}}
     # Dimensions, offsets and binning factors of the "Region Of Interest".
-    roi::NTuple{N,DetectorAxis}
+    roi::DetectorAxes{N}
 
     # Exposure time (in seconds).
     Δt::Float64
@@ -93,7 +93,7 @@ struct PreprocessingParameters{T<:AbstractFloat,N,
     r::A
 
     # Inner constructor provided to force using outer constructors.
-    function PreprocessingParameters{T,N,A}(roi::NTuple{N,DetectorAxis},
+    function PreprocessingParameters{T,N,A}(roi::DetectorAxes{N},
                                             Δt::Real,
                                             a::A,
                                             b::A,
@@ -126,7 +126,7 @@ end
 #
 # Outer constructors for construction given all fields.
 #
-function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
+function PreprocessingParameters(roi::DetectorAxes{N},
                                  Δt::Real,
                                  a::AbstractArray{<:Real,N},
                                  b::AbstractArray{<:Real,N},
@@ -136,7 +136,7 @@ function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
     PreprocessingParameters(roi, Δt, a, b, q, r)
 end
 
-function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
+function PreprocessingParameters{T}(roi::DetectorAxes{N},
                                     Δt::Real,
                                     a::AbstractArray{<:Real,N},
                                     b::AbstractArray{<:Real,N},
@@ -149,7 +149,7 @@ function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
                                  convert(Array{T,N}, r))
 end
 
-function PreprocessingParameters{T,N}(roi::NTuple{N,DetectorAxis},
+function PreprocessingParameters{T,N}(roi::DetectorAxes{N},
                                       Δt::Real,
                                       a::AbstractArray{<:Real,N},
                                       b::AbstractArray{<:Real,N},
@@ -220,7 +220,7 @@ function PreprocessingParameters{T,N}(Δt::Real,
 end
 
 # Provide parameters T and N.
-function PreprocessingParameters(roi::NTuple{N,DetectorAxis}, Δt::Real,
+function PreprocessingParameters(roi::DetectorAxes{N}, Δt::Real,
                                  a::AbstractArray, b::AbstractArray,
                                  q::AbstractArray, r::AbstractArray) where {N}
     T = float(promote_eltype(a, b, q, r))
@@ -228,13 +228,13 @@ function PreprocessingParameters(roi::NTuple{N,DetectorAxis}, Δt::Real,
 end
 
 # Provide parameter N.
-function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis}, Δt::Real,
+function PreprocessingParameters{T}(roi::DetectorAxes{N}, Δt::Real,
                                     a::AbstractArray, b::AbstractArray,
                                     q::AbstractArray, r::AbstractArray) where {T,N}
     PreprocessingParameters{T,N}(roi, Δt, a, b, q, r)
 end
 
-function PreprocessingParameters{T,N}(roi::Tuple{Vararg{DetectorAxis}},
+function PreprocessingParameters{T,N}(roi::DetectorAxes,
                                       a::AbstractArray, b::AbstractArray,
                                       q::AbstractArray, r::AbstractArray) where {T,N}
     T <: AbstractFloat || error("parameter `T` must be a floating-point type")
@@ -254,21 +254,21 @@ function PreprocessingParameters{T,N}(roi::Tuple{Vararg{DetectorAxis}},
 end
 
 # These versions manage to directly call the inner constructor.
-function PreprocessingParameters(roi::NTuple{N,DetectorAxis},
+function PreprocessingParameters(roi::DetectorAxes{N},
                                  Δt::Real, a::A, b::A, q::A,
                                  r::A) where {T<:AbstractFloat,N,
                                               A<:DenseArray{T,N}}
     PreprocessingParameters{T,N,A}(roi, Δt, a, b, q, r)
 end
 
-function PreprocessingParameters{T}(roi::NTuple{N,DetectorAxis},
+function PreprocessingParameters{T}(roi::DetectorAxes{N},
                                     Δt::Real, a::A, b::A, q::A,
                                     r::A) where {T<:AbstractFloat,N,
                                                  A<:DenseArray{T,N}}
     PreprocessingParameters{T,N,A}(roi, Δt, a, b, q, r)
 end
 
-function PreprocessingParameters{T,N}(roi::NTuple{N,DetectorAxis},
+function PreprocessingParameters{T,N}(roi::DetectorAxes{N},
                                       Δt::Real, a::A, b::A, q::A,
                                       r::A) where {T<:AbstractFloat,N,
                                                    A<:DenseArray{T,N}}

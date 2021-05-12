@@ -403,7 +403,7 @@ _promote_eltype(T::Type, x::AbstractVector{<:AbstractArray}, n::Int) =
 given a vector `A` of identifiers or keys, yields the corresponding category
 indices `cat` and unique identifers `uid` such that `uid[cat[i]]` is the unique
 identifier corresponding to `A[i]`.  The elements of `A` can be of any type
-part of the union `Identifiers` (strings, symbols or integers).
+belonging to the union `Identifiers` (strings, symbols or integers).
 
 """
 function uniquecategories(A::AbstractVector{K}) where {K<:Identifiers}
