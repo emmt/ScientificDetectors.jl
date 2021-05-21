@@ -170,6 +170,11 @@ See also [`PreprocessingParameters`](@ref).
 """
 function exposuretime end
 
+@noinline argument_error(args...) =
+    argument_error(string(args...))
+@noinline argument_error(mesg::AbstractString) =
+    throw(ArgumentError(mesg))
+
 @noinline dimension_mismatch() =
     dimension_mismatch("arguments have incompatible dimensions")
 @noinline dimension_mismatch(args...) =

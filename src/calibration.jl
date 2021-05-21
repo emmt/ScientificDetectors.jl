@@ -310,7 +310,7 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
         eltype(A) <: Real || error("array has incompatible element type")
         ndims(A) == N || error("array has incompatible number of dimensions")
         size(A) == dims ||
-            throw(DimensionMismatch("array has incompatible dimensions"))
+            dimension_mismatch("array has incompatible dimensions")
         return convert(Array{T,N}, A)
     end
     ReducedCalibration{T,N}(roi,

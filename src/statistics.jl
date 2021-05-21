@@ -7,7 +7,11 @@ export
     DetectorAxes
 
 using ..ScientificDetectors
-import ..ScientificDetectors: DetectorAxes, exposuretime
+using ..ScientificDetectors:
+    dimension_mismatch
+import ..ScientificDetectors:
+    DetectorAxes,
+    exposuretime
 
 using EasyFITS
 using EasyFITS: isprimary
@@ -105,8 +109,8 @@ struct SampleStatistics{T<:AbstractFloat,N}
     function SampleStatistics{T,N}(stat::OnlineStatistics{T,N},
                                    Δt::Real,
                                    roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
-        size(roi) == size(stat) || throw(DimensionMismatch(
-            "statistics and region of interest have different dimensions"))
+        size(roi) == size(stat) || dimension_mismatch(
+            "statistics and region of interest have different dimensions")
         new{T,N}(stat, Δt, roi)
     end
 end
@@ -172,8 +176,8 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:AbstractFloat,N},
                                corrected::Bool=true) where {T<:AbstractFloat,N}
     # Check indexing.
     Base.has_offset_axes(avg, std) && error("arrays have non-standard indexing")
-    axes(avg) == axes(std) || throw(DimensionMismatch(
-        "arrays have different indices"))
+    axes(avg) == axes(std) || dimension_mismatch(
+        "arrays have different indices")
 
     # Convert the standard deviation to the sum the of squared differences with
     # the empirical mean.  Then re-build an instance of OnlineStatistics.
@@ -181,7 +185,7 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:AbstractFloat,N},
     if corrected
         n -= 1
     end
-    n ≥ 1 || throw(ArgumentError("not enough samples"))
+    n ≥ 1 || argument_error("not enough samples")
     eta = T(n)
     s2 = Array{T,N}(undef, size(std))
     @inbounds @simd for i in eachindex(s2, std)
@@ -297,12 +301,12 @@ Base.merge!(A::SampleStatistics, itr) = begin
 end
 
 Base.merge!(A::SampleStatistics, B::SampleStatistics) = begin
-    size(B) == size(A) || throw(DimensionMismatch(
-        "statistics must have the same dimensions"))
-    DetectorAxes(B) == DetectorAxes(A) || throw(DimensionMismatch(
-        "samples must be for the same geometrical settings"))
-    exposuretime(B) == exposuretime(A) || throw(DimensionMismatch(
-        "samples must have the same exposure time"))
+    size(B) == size(A) || dimension_mismatch(
+        "statistics must have the same dimensions")
+    DetectorAxes(B) == DetectorAxes(A) || dimension_mismatch(
+        "samples must be for the same geometrical settings")
+    exposuretime(B) == exposuretime(A) || dimension_mismatch(
+        "samples must have the same exposure time")
     merge!(A.stat, B.stat)
     A
 end
