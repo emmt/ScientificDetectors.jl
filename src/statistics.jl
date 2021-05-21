@@ -18,6 +18,75 @@ using MultivariateOnlineStatistics
 
 const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
 
+"""
+    A = SampleStatistics(stat, Δt, roi)
+
+yields an object `A` collecting pixel-wise detector statistics `stat`, each
+sample having the same exposure time `Δt` (in seconds) and corresponding to the
+detector geometrical settings in `roi` (for "Region of Interest").
+
+An instance may be built from the sample mean `avg` and standard deviation
+`std` computed from `n` independent samples:
+
+    A = SampleStatistics(avg, std, n, Δt, roi=DetectorAxes(avg); corrected=true)
+
+unbiased standard deviation is assumed by default, use keyword
+`corrected=false` otherwise.
+
+Detector sample statistics can be read from a FITS file by one of:
+
+    A = SampleStatistics(filename)
+    A = read(SampleStatistics, filename)
+
+Detector sample statistics can also be written to a FITS file by:
+
+    write(filename, A; overwrite=false)
+    write!(filename, A)
+
+Other possibilities to read/write detector sample statistics:
+
+    using EasyFITS
+    A = readfits(SampleStatistics, filename)
+    writefits(filename, A; overwrite=false)
+    writefits!(filename, A)
+
+Type parameters `T` (the floating-point type for computed statistics) and `N`
+(the number of dimensions of the samples) may be specified in most constructor
+calls:
+
+    A = SampleStatistics{T}(...)
+    A = SampleStatistics{T,N}(...)
+
+The statistics can be updated on-line by calling:
+
+    push!(A, x...) -> A
+
+where each argument in `x...` is an idependent sample of detector measurements
+under the same conditions (i.e exposure time and geometrical settings).
+
+If `itr` is an iterable object producing measurements, then:
+
+    merge!(A, itr) -> A
+
+has the same effect as:
+
+    foreach(x -> push!(A, x), itr)
+
+Basic methods:
+
+    eltype(A)                         # the floating-point type for the statistics
+    length(A)                         # the number of pixels per sample
+    ndims(A)                          # the number of dimensions of the samples
+    size(A)                           # the dimensions of the samples
+    size(A, i)                        # the i-th dimension of the samples
+    DetectorAxes(A)                   # the detector geometry settings
+    exposuretime(A)                   # the exposure time
+    Statistics.mean(A)                # the mean of samples
+    Statistics.std(A; corrected=true) # the standard deviation of samples
+    Statistics.var(A; corrected=true) # the variance of samples
+    StatsBase.nobs(A)                 # the number of independent samples
+
+"""
 struct SampleStatistics{T<:AbstractFloat,N}
     # Statistics.
     stat::OnlineStatistics{T,N}
@@ -217,12 +286,30 @@ Base.push!(A::SampleStatistics, x) = begin
     A
 end
 
+Base.merge!(A::SampleStatistics, itr) = begin
+    for x in itr
+        push!(A, x)
+    end
+    A
+end
+
+Base.merge!(A::SampleStatistics, B::SampleStatistics) = begin
+    size(B) == size(A) || throw(DimensionMismatch(
+        "statistics must have the same dimensions"))
+    DetectorAxes(B) == DetectorAxes(A) || throw(DimensionMismatch(
+        "samples must be for the same geometrical settings"))
+    exposuretime(B) == exposuretime(A) || throw(DimensionMismatch(
+        "samples must have the same exposure time"))
+    merge!(A.stat, B.stat)
+    A
+end
+
 Broadcast.broadcasted(::Type{T}, obj::SampleStatistics) where {T<:AbstractFloat} =
     SampleStatistics{T}(obj)
 
 Base.show(io::IO, obj::SampleStatistics{T,N}) where {T,N} = begin
     join(io, size(obj), "×")
-    print(io, " PreprocessingParameters{$T,$N}: samples = ",
+    print(io, " SampleStatistics{$T,$N}: samples = ",
           nobs(obj), ", Δt = ", exposuretime(obj), " s")
 end
 
