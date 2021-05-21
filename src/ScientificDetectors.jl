@@ -28,7 +28,10 @@ export
     StaticNoise,
     process!,
     process,
-    write!
+    readfits,
+    write!,
+    writefits!,
+    writefits
 
 import Base: read, write
 
@@ -36,7 +39,7 @@ using Statistics, StatsBase
 using ArrayTools
 using EasyFITS
 using EasyFITS: exists, isprimary, throw_file_already_exists
-import EasyFITS: write!, hduname
+import EasyFITS: write!, hduname, readfits, writefits, writefits!
 
 function process end
 function process! end
