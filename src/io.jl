@@ -34,24 +34,31 @@ to read detector preprocessing parameters from source `src` (a file name or a
 FITS handle).
 
 """
-write!(path::AbstractString, obj::WritableData) =
-    FitsIO(path, "w!") do io
-        write(io, obj)
-    end
+write!(path::AbstractString, obj::WritableData; kwds...) =
+    writefits!(path, obj; kwds...)
 
-function write(path::AbstractString, obj::WritableData;
-               overwrite::Bool=false, kwds...)
+write(path::AbstractString, obj::WritableData; kwds...) =
+    writefits(path, obj; kwds...)
+
+read(::Type{T}, path::AbstractString) where {T<:WritableData} =
+    readfits(T, path)
+
+writefits!(path::AbstractString, obj::WritableData; kwds...) =
+    writefits(path, obj; overwrite=true, kwds...)
+
+function writefits(path::AbstractString, obj::WritableData;
+                   overwrite::Bool=false, kwds...)
     (overwrite == false && exists(path)) &&
         throw_file_already_exists(path, "call `write!` or use `overwrite=true`")
     FitsIO(path, (overwrite ? "w!" : "w")) do io
-        write(io, obj)
+        write(io, obj; kwds...)
     end
 end
 
 write(io::FitsIO, obj::WritableData; kwds...) =
     write(io, obj, FitsHeader(; kwds...))
 
-function read(::Type{T}, path::AbstractString) where {T<:WritableData}
+function readfits(::Type{T}, path::AbstractString) where {T<:WritableData}
     FitsIO(path, "r") do io
         return read(T, io)
     end
