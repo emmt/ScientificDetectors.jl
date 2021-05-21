@@ -160,12 +160,6 @@ end
 Base.iterate(A::Sampler, i = 1) =
     (1 ≤ i ≤ numberofsamples(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
 
-@nospecialize
-@noinline regionofinterest(args...; kwds...) =
-    error("Method `ScientificDetectors.regionofinterest` is no longer ",
-          "available, call `DetectorAxes` instead.")
-@specialize
-
 """
     exposuretime(obj) -> Δt
 
@@ -176,18 +170,9 @@ See also [`PreprocessingParameters`](@ref).
 """
 function exposuretime end
 
-"""
-    numberofsamples(obj)
-
-yields the number of samples used for statistics stored in object `obj`.
-
-See also [`exposuretime`](@ref), [`SampleStatistics`](@ref).
-
-"""
-function numberofsamples end
-
 @noinline dimension_mismatch() =
     dimension_mismatch("arguments have incompatible dimensions")
-
+@noinline dimension_mismatch(args...) =
+    dimension_mismatch(string(args...))
 @noinline dimension_mismatch(mesg::AbstractString) =
     throw(DimensionMismatch(mesg))
