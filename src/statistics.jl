@@ -37,16 +37,12 @@ Detector sample statistics can be read from a FITS file by one of:
 
     A = SampleStatistics(filename)
     A = read(SampleStatistics, filename)
+    A = readfits(SampleStatistics, filename)
 
 Detector sample statistics can also be written to a FITS file by:
 
     write(filename, A; overwrite=false)
     write!(filename, A)
-
-Other possibilities to read/write detector sample statistics:
-
-    using EasyFITS
-    A = readfits(SampleStatistics, filename)
     writefits(filename, A; overwrite=false)
     writefits!(filename, A)
 
@@ -72,9 +68,16 @@ has the same effect as:
 
     foreach(x -> push!(A, x), itr)
 
+It is also possible to merge the statistics from `B` into `A` by calling:
+
+    merge!(A, B) -> A
+
+provided both statistics are for the same exposure time and detector
+geometrical settings (and the samples used in `A` and `B` are independent).
+
 Basic methods:
 
-    eltype(A)                         # the floating-point type for the statistics
+    eltype(A)                         # the floating-point type of statistics
     length(A)                         # the number of pixels per sample
     ndims(A)                          # the number of dimensions of the samples
     size(A)                           # the dimensions of the samples
