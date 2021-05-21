@@ -73,7 +73,7 @@ DetectorAxes{N}(I::DetectorAxisTypes...) where {N} = DetectorAxes{N}(I)
 DetectorAxes{N}(I::NTuple{N,DetectorAxisTypes}) where {N} = DetectorAxes(I)
 
 DetectorAxes(A::AbstractArray) = begin
-    Base.has_offset_axes(A) && error("array has non-standrad indexing")
+    Base.has_offset_axes(A) && error("array has non-standard indexing")
     map(DetectorAxis, size(A))
 end
 
