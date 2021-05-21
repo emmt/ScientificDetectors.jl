@@ -245,7 +245,7 @@ function PreprocessingParameters{T,N}(roi::DetectorAxes,
         eltype(A) <: Real || error("array has incompatible element type")
         ndims(A) == N || error("array has incompatible number of dimensions")
         size(A) == dims ||
-            throw(DimensionMismatch("array has incompatible dimensions"))
+            dimension_mismatch("array has incompatible dimensions")
         return convert(Array{T,N}, A)
     end
     PreprocessingParameters{T,N}(roi, Δt,
@@ -639,9 +639,9 @@ function staticweights!(wgt::AbstractArray{T,N},
 end
 
 @noinline incompatible_dimensions() =
-    throw(DimensionMismatch("incompatible dimensions"))
+    dimension_mismatch("incompatible dimensions")
 
 @noinline incompatible_indices() =
-    throw(DimensionMismatch("incompatible indices"))
+    dimension_mismatch("incompatible indices")
 
 end # module

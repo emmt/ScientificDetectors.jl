@@ -37,14 +37,14 @@ for a method to compute `log(n!)` with a sufficient precision.
 """
 function fact(::Type{BigInt}, n::Integer)
     n == 0 && return one(BigInt)
-    n < 0 && throw(ArgumentError("invalid negative value"))
+    n < 0 && argument_error("invalid negative value")
     n ≤ length(FACT_INT) || grow_factorial_tables(round(Int, sqrt(2)*n))
     return @inbounds FACT_INT[n]
 end
 
 function fact(::Type{BigFloat}, n::Integer)
     n == 0 && return one(BigFloat)
-    n < 0 && throw(ArgumentError("invalid negative value"))
+    n < 0 && argument_error("invalid negative value")
     n ≤ length(FACT_FLT) || grow_factorial_tables(round(Int, sqrt(2)*n))
     return @inbounds FACT_FLT[n]
 end
