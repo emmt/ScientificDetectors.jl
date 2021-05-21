@@ -32,7 +32,7 @@ export
 
 import Base: read, write
 
-using Statistics
+using Statistics, StatsBase
 using ArrayTools
 using EasyFITS
 using EasyFITS: exists, isprimary, throw_file_already_exists
@@ -58,5 +58,7 @@ import .Preprocessing:
     StaticNoise
 
 include("io.jl")
+
+@deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 
 end # module

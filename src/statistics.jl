@@ -7,74 +7,66 @@ export
     DetectorAxes
 
 using ..ScientificDetectors
-using ..ScientificDetectors: Sampler, offset, binning
-import ..ScientificDetectors: DetectorAxes, exposuretime, numberofsamples
+import ..ScientificDetectors: DetectorAxes, exposuretime
 
 using EasyFITS
 using EasyFITS: isprimary
 
 using ArrayTools
-using Statistics
+using Statistics, StatsBase
+using MultivariateOnlineStatistics
+
+const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
 
 struct SampleStatistics{T<:AbstractFloat,N}
-    # Sample mean.
-    avg::Array{T,N}
-
-    # Sample standard deviation.
-    std::Array{T,N}
-
-    # Number of samples.
-    samples::Int
+    # Statistics.
+    stat::OnlineStatistics{T,N}
 
     # Exposure time (in seconds).
     Δt::Float64
 
-    # Dimensions, offsets and binning factors of the "Region Of Interest".
+    # Detector geometry settings.
     roi::DetectorAxes{N}
 
-    # Inner constructor provided to force using outer constructors.
-    function SampleStatistics{T,N}(avg::Array{T,N},
-                                   std::Array{T,N},
-                                   samples::Integer,
+    # This inner constructor is needed to avoid ambiguities and to check
+    # compatibility of arguments.
+    function SampleStatistics{T,N}(stat::OnlineStatistics{T,N},
                                    Δt::Real,
-                                   roi::DetectorAxes{N}
-                                   ) where {T<:AbstractFloat,N}
-        @assert samples ≥ 2
-        @assert isfinite(Δt) && Δt ≥ 0
-        for i in 1:N
-            @assert length(roi[i]) ≥ 1
-            @assert offset(roi[i]) ≥ 0
-            @assert binning(roi[i]) ≥ 1
-        end
-        dims = size(roi)
-        @assert size(avg) == dims
-        @assert size(std) == dims
-        return new{T,N}(avg, std, samples, Δt, roi)
+                                   roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
+        size(roi) == size(stat) || throw(DimensionMismatch(
+            "statistics and region of interest have different dimensions"))
+        new{T,N}(stat, Δt, roi)
     end
 end
 
-DetectorAxes(obj::SampleStatistics) = obj.roi
-exposuretime(obj::SampleStatistics) = obj.Δt
-numberofsamples(obj::SampleStatistics) = obj.samples
-Statistics.mean(obj::SampleStatistics) = obj.avg
-Statistics.std(obj::SampleStatistics) = obj.std
-Statistics.var(obj::SampleStatistics) = std(obj).^2
-Base.ndims(obj::SampleStatistics{T,N}) where {T,N} = N
-Base.eltype(obj::SampleStatistics{T,N}) where {T,N} = T
-Base.length(obj::SampleStatistics) = length(DetectorAxes(obj))
-Base.size(obj::SampleStatistics) = size(DetectorAxes(obj))
-Base.size(obj::SampleStatistics, i) = size(DetectorAxes(obj), i)
+# Regular constructors (just provide missing type parameter).
+function SampleStatistics{T}(A::OnlineStatistics{<:AbstractFloat,N},
+                             Δt::Real,
+                             roi::DetectorAxes{N} = DetectorAxes(size(A))
+                             ) where {T<:AbstractFloat,N}
+    SampleStatistics{T,N}(A, Δt, roi)
+end
+function SampleStatistics(A::OnlineStatistics{T,N},
+                          Δt::Real,
+                          roi::DetectorAxes{N} = DetectorAxes(size(A))
+                          ) where {T<:AbstractFloat,N}
+    SampleStatistics{T,N}(A, Δt, roi)
+end
 
-SampleStatistics(obj::SampleStatistics) = obj
-SampleStatistics{T}(obj::SampleStatistics{T}) where {T} = obj
-SampleStatistics{T,N}(obj::SampleStatistics{T,N}) where {T,N} = obj
-SampleStatistics{T}(obj::SampleStatistics{<:Any,N}) where {T,N} =
-    SampleStatistics{T,N}(obj.roi, obj.Δt, obj.samples,
-                          convert(Array{T,N}, obj.avg),
-                          convert(Array{T,N}, obj.std))
-SampleStatistics{T,N}(obj::SampleStatistics{<:Any,N}) where {T,N} =
-    SampleStatistics{T}(obj)
+# Conversion constructors (return their input if possible, not a copy).
+SampleStatistics(A::SampleStatistics) = A
+SampleStatistics{T}(A::SampleStatistics{T}) where {T} = A
+SampleStatistics{T,N}(A::SampleStatistics{T,N}) where {T,N} = A
+SampleStatistics{T}(A::SampleStatistics{<:Any,N}) where {T,N} =
+    SampleStatistics(
+        OnlineStatistics{T,N}(
+            map(x -> convert(Array{T,N}, x), storage(A.stat)), nobs(A.stat)),
+        exposuretime(A),
+        DetectorAxes(A))
+SampleStatistics{T,N}(A::SampleStatistics{<:Any,N}) where {T,N} =
+    SampleStatistics{T}(A)
 
+# Constructors that read data from a file.
 # FIXME: Add keyword `ext=...` to select the FITS extension.
 SampleStatistics(path::AbstractString) = read(SampleStatistics, path)
 SampleStatistics{T}(path::AbstractString) where {T} =
@@ -82,7 +74,148 @@ SampleStatistics{T}(path::AbstractString) where {T} =
 SampleStatistics{T,N}(path::AbstractString) where {T,N} =
     read(SampleStatistics{T,N}, path)
 
+# Constructors from given statistics.
+function SampleStatistics(avg::AbstractArray{<:AbstractFloat,N},
+                          std::AbstractArray{<:AbstractFloat,N},
+                          nsamples::Integer,
+                          Δt::Real,
+                          roi::DetectorAxes{N} = DetectorAxes(avg);
+                          corrected::Bool=true) where {N}
+    T = promote_eltype(avg, std)
+    return SampleStatistics{T,N}(avg, std, nsamples, Δt, roi; corrected=corrected)
+end
+function SampleStatistics{T}(avg::AbstractArray{<:AbstractFloat,N},
+                             std::AbstractArray{<:AbstractFloat,N},
+                             nsamples::Integer,
+                             Δt::Real,
+                             roi::DetectorAxes{N} = DetectorAxes(avg);
+                             corrected::Bool=true) where {T<:AbstractFloat,N}
+    return SampleStatistics{T,N}(avg, std, nsamples, Δt, roi; corrected=corrected)
+end
+function SampleStatistics{T,N}(avg::AbstractArray{<:AbstractFloat,N},
+                               std::AbstractArray{<:AbstractFloat,N},
+                               nsamples::Integer,
+                               Δt::Real,
+                               roi::DetectorAxes{N} = DetectorAxes(avg);
+                               corrected::Bool=true) where {T<:AbstractFloat,N}
+    # Check indexing.
+    Base.has_offset_axes(avg, std) && error("arrays have non-standard indexing")
+    axes(avg) == axes(std) || throw(DimensionMismatch(
+        "arrays have different indices"))
+
+    # Convert the standard deviation to the sum the of squared differences with
+    # the empirical mean.  Then re-build an instance of OnlineStatistics.
+    n = Int(nsamples)
+    if corrected
+        n -= 1
+    end
+    n ≥ 1 || throw(ArgumentError("not enough samples"))
+    eta = T(n)
+    s2 = Array{T,N}(undef, size(std))
+    @inbounds @simd for i in eachindex(s2, std)
+        s2[i] = eta*std[i]^2
+    end
+    s1 = convert(Array{T,N}, avg)
+    stat = OnlineStatistics{T,N}((s1, s2), nsamples)
+
+    return SampleStatistics{T,N}(stat, Δt, roi)
+end
+
+SampleStatistics(itr, Δt::Real) =
+    SampleStatistics(Iterators.Stateful(itr), Δt)
+function SampleStatistics(itr::Iterators.Stateful, Δt::Real)
+    x1 = popfirst!(itr)
+    T = float(eltype(x1))
+    N = ndims(x1)
+    return SampleStatistics{T,N}(x1, itr, Δt)
+end
+
+SampleStatistics{T}(itr, Δt::Real) where {T<:AbstractFloat} =
+    SampleStatistics{T}(Iterators.Stateful(itr), Δt)
+function SampleStatistics{T}(itr::Iterators.Stateful,
+                             Δt::Real) where {T<:AbstractFloat}
+    x1 = popfirst!(itr)
+    N = ndims(x1)
+    return SampleStatistics{T,N}(x1, itr, Δt)
+end
+
+SampleStatistics{T,N}(itr, Δt::Real) where {T<:AbstractFloat,N} =
+    SampleStatistics{T,N}(Iterators.Stateful(itr), Δt)
+function SampleStatistics{T,N}(itr::Iterators.Stateful,
+                               Δt::Real) where {T<:AbstractFloat,N}
+    x1 = popfirst!(itr)
+    ndims(x1) == N || error("first sample does not have $N dimension(s)")
+    return SampleStatistics{T,N}(x1, itr, Δt)
+end
+
+SampleStatistics(itr, Δt::Real, roi::DetectorAxes{N}) where {N} =
+    SampleStatistics(Iterators.Stateful(itr), Δt, roi)
+function SampleStatistics(itr::Iterators.Stateful, Δt::Real,
+                          roi::DetectorAxes{N}) where {N}
+    x1 = popfirst!(itr)
+    ndims(x1) == N || error("first sample does not have $N dimension(s)")
+    T = float(eltype(x1))
+    return SampleStatistics{T,N}(x1, itr, Δt, roi)
+end
+
+SampleStatistics{T}(itr, Δt::Real, roi::DetectorAxes{N}) where {T<:AbstractFloat,N} =
+    SampleStatistics{T}(Iterators.Stateful(itr), Δt, roi)
+function SampleStatistics{T}(itr::Iterators.Stateful, Δt::Real,
+                             roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
+    x1 = popfirst!(itr)
+    ndims(x1) == N || error("first sample does not have $N dimension(s)")
+    return SampleStatistics{T,N}(x1, itr, Δt, roi)
+end
+
+SampleStatistics{T,N}(itr, Δt::Real, roi::DetectorAxes{N}) where {T<:AbstractFloat,N} =
+    SampleStatistics{T,N}(Iterators.Stateful(itr), Δt, roi)
+function SampleStatistics{T,N}(itr::Iterators.Stateful, Δt::Real,
+                               roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
+    dims = size(roi)
+    stat = OnlineStatistics{T,N}((zeros(T, dims), zeros(T, dims)), 0)
+    for x in itr
+        push!(stat, x)
+    end
+    return SampleStatistics{T,N}(stat, Δt, roi)
+end
+
+# Pursue the construction with `x1` the first sample and `itr` an iterator over
+# the other samples.
+function SampleStatistics{T,N}(x1::AbstractArray{<:Real,N},
+                               itr::Iterators.Stateful,
+                               Δt::Real,
+                               roi::DetectorAxes{N} = DetectorAxes(x)
+                               ) where {T<:AbstractFloat,N}
+    dims = size(roi)
+    stat = OnlineStatistics{T,N}((zeros(T, dims), zeros(T, dims)), 0)
+    push!(stat, x1)
+    for x in itr
+        push!(stat, x)
+    end
+    return SampleStatistics{T,N}(stat, Δt, roi)
+end
+
+# Extend methods for instances of SampleStatistics.
+DetectorAxes(A::SampleStatistics) = A.roi
+exposuretime(A::SampleStatistics) = A.Δt
+StatsBase.nobs(A::SampleStatistics) = nobs(A.stat)
+Statistics.mean(A::SampleStatistics) = mean(A.stat)
+Statistics.std(A::SampleStatistics; corrected::Bool=true) =
+    std(A.stat; corrected=corrected)
+Statistics.var(A::SampleStatistics; corrected::Bool=true) =
+    var(A.stat; corrected=corrected)
+Base.ndims(A::SampleStatistics{T,N}) where {T,N} = N
+Base.eltype(A::SampleStatistics{T,N}) where {T,N} = T
+Base.length(A::SampleStatistics) = length(DetectorAxes(A))
+Base.size(A::SampleStatistics) = size(DetectorAxes(A))
+Base.size(A::SampleStatistics, i) = size(DetectorAxes(A), i)
+
 Base.convert(::Type{T}, obj::SampleStatistics) where {T<:SampleStatistics} = T(obj)
+
+Base.push!(A::SampleStatistics, x) = begin
+    push!(A.stat, x)
+    A
+end
 
 Broadcast.broadcasted(::Type{T}, obj::SampleStatistics) where {T<:AbstractFloat} =
     SampleStatistics{T}(obj)
@@ -90,135 +223,7 @@ Broadcast.broadcasted(::Type{T}, obj::SampleStatistics) where {T<:AbstractFloat}
 Base.show(io::IO, obj::SampleStatistics{T,N}) where {T,N} = begin
     join(io, size(obj), "×")
     print(io, " PreprocessingParameters{$T,$N}: samples = ",
-          numberofsamples(obj), ", Δt = ", exposuretime(obj), " s")
-end
-
-function SampleStatistics(avg::Array{T,N},
-                          std::Array{T,N},
-                          samples::Integer,
-                          Δt::Real,
-                          roi::DetectorAxes{N} = DetectorAxes(avg)
-                          ) where {T<:AbstractFloat,N}
-    SampleStatistics{T,N}(avg, std, samples, Δt, roi)
-end
-
-function SampleStatistics(avg::AbstractArray{<:Real,N},
-                          std::AbstractArray{<:Real,N},
-                          samples::Integer,
-                          Δt::Real,
-                          roi::DetectorAxes{N} = DetectorAxes(avg)
-                          ) where {N}
-    T = float(promote_type(eltype(avg), eltype(std)))
-    SampleStatistics{T,N}(convert(Array{T,N}, avg),
-                          convert(Array{T,N}, std), samples, Δt, roi)
-end
-
-function SampleStatistics{T}(avg::AbstractArray{<:Real,N},
-                             std::AbstractArray{<:Real,N},
-                             samples::Integer,
-                             Δt::Real,
-                             roi::DetectorAxes{N} = DetectorAxes(avg)
-                             ) where {T<:AbstractFloat,N}
-    SampleStatistics{T,N}(convert(Array{T,N}, avg),
-                          convert(Array{T,N}, std), samples, Δt, roi)
-end
-
-function SampleStatistics{T,N}(avg::AbstractArray{<:Real,N},
-                               std::AbstractArray{<:Real,N},
-                               samples::Integer,
-                               Δt::Real,
-                               roi::DetectorAxes{N} = DetectorAxes(avg)
-                               ) where {T<:AbstractFloat,N}
-    SampleStatistics{T,N}(convert(Array{T,N}, avg),
-                          convert(Array{T,N}, std), samples, Δt, roi)
-end
-
-SampleStatistics(dat::AbstractArray, Δt::Real, args...; kwds...) =
-    SampleStatistics(Sampler(dat), Δt, args...; kwds...)
-
-SampleStatistics{T}(dat::AbstractArray, Δt::Real, args...; kwds...) where {T<:AbstractFloat} =
-    SampleStatistics{T}(Sampler(dat), Δt, args...; kwds...)
-
-function SampleStatistics(dat::Union{AbstractVector{<:AbstractArray{T,N}},
-                                     Tuple{Vararg{AbstractArray{T,N}}},
-                                     Sampler{T,N}},
-                          args...; kdws...) where {T<:Real,N}
-    SampleStatistics{float(T)}(dat, args...; kdws...)
-end
-
-function SampleStatistics{T}(dat::Union{AbstractVector{<:AbstractArray{<:Real,N}},
-                                        Tuple{Vararg{AbstractArray{<:Real,N}}},
-                                        Sampler{T,N}},
-                             Δt::Real,
-                             roi::DetectorAxes{N} = DetectorAxes(first(dat));
-                             quick::Bool = false) where {T<:AbstractFloat,N}
-    samples = length(dat)
-    samples ≥ 2 || error("insufficient number of samples")
-    dims = size(roi)
-    S1 = zeros(T, dims)
-    S2 = zeros(T, dims)
-    q = T(1/samples)
-    r = T(1/(samples - 1))
-    if quick
-        # Integerate statistics in a single pass.
-        for A in dat
-            Base.has_offset_axes(A) && error("data array has non-standard indexing")
-            size(A) == dims ||
-                throw(DimensionMismatch("all data arrays must have the same size"))
-            _singlepass!(S1, S2, A)
-        end
-        @inbounds @simd for i in eachindex(S1, S2)
-            s = S1[i]
-            a = q*s
-            S1[i] = a
-            S2[i] = sqrt(max(S2[i] - a*s, zero(T))*r)
-        end
-    else
-        # Integerate statistics in two passes.
-        for A in dat
-            Base.has_offset_axes(A) && error("data array has non-standard indexing")
-            size(A) == dims ||
-                throw(DimensionMismatch("all data arrays must have the same size"))
-            _firstpass!(S1, A)
-        end
-        @inbounds @simd for i in eachindex(S1)
-            S1[i] *= q
-        end
-        for A in dat
-            _secondpass!(S2, A, S1)
-        end
-        @inbounds @simd for i in eachindex(S2)
-            S2[i] = sqrt(r*S2[i])
-        end
-    end
-    SampleStatistics(S1, S2, samples, Δt, roi)
-end
-
-function _singlepass!(S1::AbstractArray{T,N}, S2::AbstractArray{T,N},
-                      A::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
-    @inbounds @simd for i in eachindex(S1, S2, A)
-        a = T(A[i])
-        S1[i] += a
-        S2[i] += a*a
-    end
-    nothing
-end
-
-function _firstpass!(S1::AbstractArray{T,N},
-                     A::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
-    @inbounds @simd for i in eachindex(S1, A)
-        S1[i] += T(A[i])
-    end
-    nothing
-end
-
-function _secondpass!(S2::AbstractArray{T,N},
-                      A::AbstractArray{<:Real,N},
-                      avg::AbstractArray{T,N}) where {T<:AbstractFloat,N}
-    @inbounds @simd for i in eachindex(S2, A)
-        S2[i] += (T(A[i]) - avg[i])^2
-    end
-    nothing
+          nobs(obj), ", Δt = ", exposuretime(obj), " s")
 end
 
 end # module
