@@ -509,7 +509,7 @@ function write(io::FitsIO, obj::SampleStatistics{T,N},
     hdr["HDUNAME"] = (name, "detector sample statistics")
     hdr["HDUVERS"] = (vers, "version of this format")
     hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
-    hdr["SAMPLES"] = (numberofsamples(obj), "number of samples")
+    hdr["SAMPLES"] = (nobs(obj), "number of samples")
     merge!(hdr, DetectorAxes(obj))
 
     # Write FITS HDU.
