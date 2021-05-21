@@ -451,16 +451,16 @@ identifier and exposure time of the corresponding data frame.  The keys can be
 integers, symbols or strings.  A given key uniquely identify the category of
 the corresponding data frame. Exposure times are in seconds.
 
-    numberofdataframes(obj)  # yields the number of data frames
-    numberofcategories(obj)  # yields the number of different categories
-    dataframes(obj)          # yields the vector of data frames
-    dataframe(obj, i)        # yields the i-th data frame
-    categories(obj)          # yields the category indices of the data frames
-    category(obj, i)         # yields the category index of the i-th data frame
-    exposuretimes(obj)       # yields the exposure times of the data frames
-    exposuretime(obj, i)     # yields the exposure time of the i-th data frame
-    uniqueidentifiers(obj)   # yields the list of unique identifiers of categories
-    uniqueidentifier(obj, l) # yields the l-th unique identifier of categories
+    numberofdataframes(obj)  # the number of data frames
+    numberofcategories(obj)  # the number of different categories
+    dataframes(obj)          # the vector of data frames
+    dataframe(obj, i)        # the i-th data frame
+    categories(obj)          # the category indices of the data frames
+    category(obj, i)         # the category index of the i-th data frame
+    exposuretimes(obj)       # the exposure times of the data frames
+    exposuretime(obj, i)     # the exposure time of the i-th data frame
+    uniqueidentifiers(obj)   # the list of unique identifiers of categories
+    uniqueidentifier(obj, l) # the l-th unique identifier of categories
 
 """
 struct CalibrationData{P<:Real,N,T<:AbstractFloat}
