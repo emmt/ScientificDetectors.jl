@@ -8,7 +8,9 @@ export
 
 using ..ScientificDetectors
 using ..ScientificDetectors:
+    OnlineStatistics,
     dimension_mismatch
+
 import ..ScientificDetectors:
     DetectorAxes,
     exposuretime
@@ -19,8 +21,6 @@ using EasyFITS: isprimary
 using ArrayTools
 using Statistics, StatsBase
 using MultivariateOnlineStatistics
-
-const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
 
 """
     A = SampleStatistics(stat, Δt, roi)

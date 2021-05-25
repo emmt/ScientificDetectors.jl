@@ -36,6 +36,7 @@ export
 import Base: read, write
 
 using Statistics, StatsBase
+using MultivariateOnlineStatistics
 using ArrayTools
 using EasyFITS
 using EasyFITS: exists, isprimary, throw_file_already_exists

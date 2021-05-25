@@ -1,32 +1,43 @@
 """
-    DetectorAxis(len; off=0, bin=1) -> obj
+    ScientificDetectors.OnlineStatistics{T,N}
 
-yields an instance of `DetectorAxis` describing a detector axis with `len`
+is an alias for:
+
+    MultivariateOnlineStatistics.IndependentStatistics{2,T,N,Array{T,N}}
+
+"""
+const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
+
+"""
+    A = DetectorAxis(len; off=0, bin=1)
+
+builds an instance `A` of `DetectorAxis` describing a detector axis with `len`
 samples starting at offset `off` with respect to the corresponding sensor egde
 and with a binning factor `bin`.  The offset `off` and the binning factor `bin`
 are in units sensor samples (e.g., *pixels*), the length `len` is in units of
 macro-samples (i.e., `bin` sensor samples each).
 
-Basic methods:
+Basic methods (`A` is an instance of `DetectorAxis`, `ROI` is a tuple of
+`DetectorAxis`):
 
-    length(obj)    # yields the length `len`
-    offset(obj)    # yields the offset `off`
-    binning(obj)   # yields the binning factor `bin`
-    size(roi)      # yields the size of roi, a N-tuple of DetectorAxis
-    size(roi, i)   # yields the length of the i-th dimension of roi
+    length(A)    # the length `len`
+    offset(A)    # the offset `off`
+    binning(A)   # the binning factor `bin`
+    size(ROI)    # the size of ROI
+    size(ROI, i) # the length of the i-th dimension of ROI
 
 Other methods:
 
-    get(DetectorAxis, i, src)      # yields i-th detector axis of `src`
-    get(Vector{DetectorAxis}, src) # yields all detector axes of `src`
-    merge!(dst, obj)               # set detector axes of `dst`
+    get(DetectorAxis, i, src)      # the i-th detector axis of `src`
+    get(Vector{DetectorAxis}, src) # all detector axes of `src`
+    merge!(dst, ROI)               # set detector axes of `dst`
 
 here the source `src` and the destination `dst` can be instances of
-`FitsHeader` or `FitsImage`, `obj` is a vector or a tuple of `DetectorAxis`.
+`FitsHeader` or `FitsImage`, `ROI` is a vector or a tuple of `DetectorAxis`.
 
-    DetectorAxes(obj)
+    DetectorAxes(B)
 
-yields the detector geometry settings for object `obj` (note the plural) as an
+yields the detector geometry settings for object `B` (note the plural) as an
 `N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
 detector.
 
@@ -39,6 +50,8 @@ struct DetectorAxis
 end
 
 const DetectorAxes{N} = NTuple{N,DetectorAxis}
+
+# Union of types that can be interpreted as DetectorAxis.
 const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
                                 <:OrdinalRange{<:Integer,<:Integer}}
 
@@ -48,25 +61,27 @@ DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1) =
     DetectorAxis(len, off, bin)
 
 DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
-    step(R) > 0 || throw(ArgumentError("step must be positive"))
-    DetectorAxis(length(R), first(R) - 1, step(R))
+    step(R) > 0 || argument_error("step must be positive")
+    DetectorAxis(length(R), offset(R), binning(R))
 end
 
-offset(obj::DetectorAxis) = obj.off
-binning(obj::DetectorAxis) = obj.bin
+offset(A::DetectorAxis) = A.off
+offset(R::OrdinalRange{<:Integer,<:Integer}) = Int(first(R)) - 1
+binning(A::DetectorAxis) = A.bin
+binning(R::OrdinalRange{<:Integer,<:Integer}) = Int(step(R))
 
 @doc @doc(DetectorAxis) offset
 @doc @doc(DetectorAxis) binning
 
-Base.length(obj::DetectorAxis) = obj.len
+Base.length(A::DetectorAxis) = A.len
 Base.size(roi::DetectorAxes{N}) where {N} = map(length, roi)
 Base.size(roi::DetectorAxes{N}, i::Integer) where {N} =
     (i < 1 ? error("out of range dimension index") :
      i ≤ N ? length(roi[i]) : 1)
 
-Base.show(io::IO, obj::DetectorAxis) =
-    print(io, "DetectorAxis(", length(obj), "; off=", offset(obj),
-          ", bin=", binning(obj), ")")
+Base.show(io::IO, A::DetectorAxis) =
+    print(io, "DetectorAxis(", length(A), "; off=", offset(A),
+          ", bin=", binning(A), ")")
 
 DetectorAxes{N}(A::AbstractArray{<:Any,N}) where {N} = DetectorAxes(A)
 DetectorAxes{N}(I::DetectorAxisTypes...) where {N} = DetectorAxes{N}(I)
