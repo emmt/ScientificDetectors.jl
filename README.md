@@ -12,10 +12,10 @@ Assuming `dir` is the path to the directory where are stored FITS files with
 calibration data, reduced calibration data can be obtained as follows:
 
 ```julia
-using ScientificDetectors
+using ScientificDetectors, Glob
 include("test/SphereData.jl")
-lst = SphereData.listcalibrations(dir)
-dat = SphereData.readcalibrations(Float32, lst, 401:600, 401:600)
+lst = SphereData.listcalibrations(glob("SPHER.2015-12-2*", dir))
+dat = SphereData.readcalibrations(Float32, lst, (401:600, 401:60)
 cal = ReducedCalibration(dat)
 ```
 

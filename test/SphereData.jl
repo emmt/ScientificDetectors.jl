@@ -1,5 +1,6 @@
 module SphereData
 
+using ScientificDetectors
 using ScientificDetectors: CalibrationData
 using FITSIO, EasyFITS
 
@@ -10,6 +11,59 @@ struct CalibrationInformation
     nframes::Int  # number of frames
     Δt::Float64   # exposure time (seconds)
     cat::String   # category name
+end
+
+struct CalibrationProducer{T,N,L<:AbstractVector{CalibrationInformation},
+                           I<:NTuple{N,IndexRange}}
+    list::L
+    inds::I
+    roi::DetectorAxes{N}
+end
+
+function CalibrationProducer{T}(list::AbstractVector{CalibrationInformation},
+                                inds::NTuple{N,IndexRange},
+                                roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
+    CalibrationProducer{T,N,typeof(list),typeof(inds)}(list, inds, roi)
+end
+
+Base.iterate(itr::CalibrationProducer) =
+    iterate(itr, (firstindex(itr.list) - 1, 0, 0, nothing))
+
+Base.iterate(itr::CalibrationProducer{T,N}, state) where {T,N} = begin
+    i, j, nframes, = state
+
+    if j < nframes
+        # Move to next slice in same FITS file of list.
+        j += 1
+        calib = itr.list[i]
+        hdu = state[end]
+    else
+        # Move to next FITS file in list.
+        i += 1
+        if i > lastindex(itr.list)
+            return nothing
+        end
+        j = 1
+        calib = itr.list[i]
+        hdu = FITS(calib.path)[1]
+        naxis = read_key(hdu,"NAXIS")[1]
+        nframes = calib.nframes
+        if naxis == N && nframes == 1
+            # Return single data frame in FITS file.
+            return (CalibrationDataFrame{T,N}(calib.cat, calib.Δt,
+                                              read(hdu, itr.inds...);
+                                              roi = itr.roi),
+                    (i, j, nframes, hdu))
+        elseif naxis != N+1
+            error("other dimensions than $(N)D and $(N+1)D not implemented")
+        end
+    end
+
+    # Return next slice.
+    return (CalibrationDataFrame{T,N}(calib.cat, calib.Δt,
+                                      read(hdu, itr.inds..., j);
+                                      roi = itr.roi),
+            (i, j, nframes, hdu))
 end
 
 """
@@ -23,54 +77,17 @@ Typical usage (`dir` is the directory where are located calibration data):
 
     using ScientificDetectors, SphereData
     lst = SphereData.listcalibrations(dir)
-    dat = SphereData.readcalibrations(Float32, lst, 401:600, 401:600)
+    dat = SphereData.readcalibrations(Float32, lst, (401:600, 401:600))
     cal = ScientificDetectors.ReducedCalibration(dat)
     write("calib.fits", cal)
 
 """
 function readcalibrations(::Type{T},
                           list::AbstractVector{CalibrationInformation},
-                          xrng::IndexRange = Colon(),
-                          yrng::IndexRange = Colon()) where {T<:AbstractFloat}
-    # FIXME: only work for images or cubes of images (OK for SPHERE)
-    N = 2
+                          inds::NTuple{N,IndexRange}) where {T<:AbstractFloat,N}
 
-    # Unpack calibration data
-    nframes = 0
-    for calib in list
-        nframes += calib.nframes
-    end
-    slice = Array{Array{<:Real,2}}(undef, nframes)
-    cat = Array{String}(undef, nframes)
-    Δt = Array{T}(undef, nframes)
-    i = 0 # frame index
-    for calib in list
-        hdu = FITS(calib.path)[1]
-        naxis = read_key(hdu,"NAXIS")[1]
-        if naxis == N && calib.nframes == 1
-            i += 1
-            slice[i] = read(hdu, xrng, yrng)
-            cat[i] = calib.cat
-            Δt[i] = calib.Δt
-        elseif naxis == N+1
-            for k in 1:calib.nframes
-                i += 1
-                slice[i] = read(hdu, xrng, yrng, k)
-                cat[i] = calib.cat
-                Δt[i] = calib.Δt
-            end
-        else
-            error("other dimensions than $(N)D and $(N+1)D not implemented")
-        end
-    end
-
-    # Convert data to a common type.
-    P = promote_type(map(eltype, slice)...)
-    data = Array{Array{P,N}}(undef, nframes)
-    for i in 1:nframes
-        data[i] = convert(Array{P,N}, slice[i])
-    end
-    return CalibrationData{P,N,T}(data, cat, Δt)
+    roi = DetectorAxes(inds)
+    CalibrationData{T,N}(CalibrationProducer{T}(list, inds, roi))
 end
 
 """
