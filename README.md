@@ -3,7 +3,6 @@
 `ScientificDetectors` is a [Julia][julia-url] package for calibrating and
 pre-processing data from scientific detectors.
 
-
 ## Usage
 
 ### Reduce calibration data
@@ -15,7 +14,7 @@ calibration data, reduced calibration data can be obtained as follows:
 using ScientificDetectors, Glob
 include("test/SphereData.jl")
 lst = SphereData.listcalibrations(glob("SPHER.2015-12-2*", dir))
-dat = SphereData.readcalibrations(Float32, lst, (401:600, 401:60)
+dat = SphereData.readcalibrations(Float32, lst, (401:600, 401:60))
 cal = ReducedCalibration(dat)
 ```
 
@@ -30,7 +29,6 @@ In order to read the reduced calibration data, call:
 ```julia
 cal = read(ReducedCalibration, "calib.fits.gz");
 ```
-
 
 ### Using reduced calibration
 
@@ -79,7 +77,6 @@ method can be called:
 process!(wgt, dat, prm, raw[:,:,7]);
 ```
 
-
 ## Installation
 
 `ScientificDetectors` is not yet an [official Julia package][julia-pkgs-url] so you
@@ -103,7 +100,7 @@ The above commands may fail because some other *non-official* packages
 [EasyFITS](https://github.com/emmt/EasyFITS.jl),
 [LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) and
 [OptimPackNextGen](https://github.com/emmt/OptimPackNextGen.jl)) are required.
-The recommanded way to install them (assuming HTTPS) is to type:
+The recommended way to install them (assuming HTTPS) is to type:
 
 ```julia
 pkg> add https://github.com/emmt/ArrayTools.jl
