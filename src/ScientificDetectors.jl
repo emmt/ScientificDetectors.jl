@@ -16,6 +16,7 @@ module ScientificDetectors
 
 export
     CalibrationData,
+    CalibrationDataFrame,
     DetectorAxes,
     DetectorAxis,
     IndependentIdenticallyDistributedNoise,
@@ -51,7 +52,11 @@ include("statistics.jl")
 import .DetectorStatistics: SampleStatistics
 
 include("calibration.jl")
-import .Calibration: ReducedCalibration, SimpleCalibration, CalibrationData
+import .Calibration:
+    CalibrationData,
+    CalibrationDataFrame,
+    ReducedCalibration,
+    SimpleCalibration
 
 include("preprocessing.jl")
 import .Preprocessing:

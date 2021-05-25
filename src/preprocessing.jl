@@ -2,11 +2,21 @@ module Preprocessing
 
 using ..ScientificDetectors
 using ..ScientificDetectors: offset, binning
-import ..ScientificDetectors: ReducedCalibration, process, process!,
-    DetectorAxes, exposuretime
+import ..ScientificDetectors:
+    DetectorAxes,
+    ReducedCalibration,
+    exposuretime,
+    process!,
+    process
 
-using ..Calibration: detectorbias, detectorgain, detectornoise,
-    categories, exposuretimes, currents, find
+using ..Calibration:
+    categories,
+    currents,
+    detectorbias,
+    detectorgain,
+    detectornoise,
+    #exposuretimes,
+    find
 
 using ArrayTools
 

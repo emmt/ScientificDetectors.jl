@@ -1,11 +1,22 @@
 module Calibration
 
-using ..ScientificDetectors
-using ..ScientificDetectors: offset, binning
-import ..ScientificDetectors: DetectorAxes, exposuretime
-
-using Statistics
+using StatsBase, Statistics
 using OptimPackNextGen
+using MultivariateOnlineStatistics
+using MultivariateOnlineStatistics:
+    storage
+using ..ScientificDetectors
+using ..ScientificDetectors:
+    DetectorAxisTypes,
+    OnlineStatistics,
+    binning,
+    offset
+import ..ScientificDetectors:
+    DetectorAxes,
+    argument_error,
+    dimension_mismatch,
+    exposuretime
+import Base: push!, merge!
 
 const Colons{N} = NTuple{N,Colon}
 
@@ -441,76 +452,266 @@ mutable struct FitResult{T}
     c::Vector{T} # contributions of the different sources
 end
 
-# Structure used to store all calibration data.
-"""
-    CalibrationData(D, keys, Δt) -> obj
-
-yields an object which stores detector calibration data.  Argument `D` is a
-vector of detector data frames, `keys` and `Δt` respectively specify the
-identifier and exposure time of the corresponding data frame.  The keys can be
-integers, symbols or strings.  A given key uniquely identify the category of
-the corresponding data frame. Exposure times are in seconds.
-
-    numberofdataframes(obj)  # the number of data frames
-    numberofcategories(obj)  # the number of different categories
-    dataframes(obj)          # the vector of data frames
-    dataframe(obj, i)        # the i-th data frame
-    categories(obj)          # the category indices of the data frames
-    category(obj, i)         # the category index of the i-th data frame
-    exposuretimes(obj)       # the exposure times of the data frames
-    exposuretime(obj, i)     # the exposure time of the i-th data frame
-    uniqueidentifiers(obj)   # the list of unique identifiers of categories
-    uniqueidentifier(obj, l) # the l-th unique identifier of categories
+const Category = Union{AbstractString,Symbol}
 
 """
-struct CalibrationData{P<:Real,N,T<:AbstractFloat}
-    dims::Dims{N}            # dimensions of frames
-    data::Vector{Array{P,N}} # data[i][j] is j-th pixel of i-th frame
-    Δt::Vector{T}            # Δt[i] yields the exposure time of i-th frame
-    cat::Vector{Int}         # cat[i] yields the category index of i-th frame
-    uid::Vector{String}      # uid[l] is the unique identifer of l-th
-                             # calibration category
-    function CalibrationData{P,N,T}(data::AbstractVector{Array{P,N}},
-                                    keys::AbstractVector{<:Identifiers},
-                                    Δt::AbstractVector{T}
-                                    ) where {P<:Real,N,T<:AbstractFloat}
-        nframes = length(data)
-        @assert nframes > 0
-        @assert length(keys) == nframes
-        @assert length(Δt) == nframes
-        dims = size(first(data))
-        for A in data
-            @assert size(A) == dims
-        end
-        @assert minimum(Δt) ≥ 0
+    A = CalibrationDataFrame(cat, Δt, pxl; roi=DetectorAxes(pxl))
 
-        cat, uid = uniquecategories(keys)
-        ntypes = maximum(cat)
+builds an instance of a calibration data frame with `cat` the category of the
+calibration, `Δt` the exposure time (in seconds), and `pxl` the array of pixel
+values.  Keyword `roi` may be used to specify a region of interest (that is the
+geometric settings of the detector) other than the default.
 
-        return new{P,N,T}(dims,
-                          convert(Vector{Array{P,N}}, data),
-                          convert(Vector{T}, Δt), cat, uid)
+The pixel type `T` and number `N` of dimensions can be specified as type
+parameters:
+
+    A = CalibrationDataFrame{T}(cat, Δt, pxl; kwds...)
+
+or
+
+    A = CalibrationDataFrame{T}(cat, Δt, pxl; kwds...)
+
+"""
+struct CalibrationDataFrame{T<:Real,N,A<:AbstractArray{T,N}}
+    cat::String           # Category.
+    Δt::Float64           # Exposure time.
+    pxl::A                # Detector pixels.
+    roi::DetectorAxes{N}  # Detector axes settings.
+
+    # The inner constructor checks arguments and, for maximum flexibility, is
+    # able to provide a default ROI and to convert most arguments (pxl, cat and
+    # Δt).
+    function CalibrationDataFrame{T,N,A}(cat::Category,
+                                         Δt::Real,
+                                         pxl::AbstractArray{<:Real,N};
+                                         roi::DetectorAxes{N} = DetectorAxes(pxl)
+                                         ) where {T<:Real,N,A<:AbstractArray{T,N}}
+        Δt ≥ 0 || argument_error("exposure time must be nonnegative")
+        size(pxl) == size(roi) || dimension_mismatch(
+            "array of pixels and region of interest have different sizes")
+        obj = new{T,N,A}(cat, Δt, pxl, roi)
+        # Check indexing and pixel type *after* possible conversions.
+        eltype(obj.pxl) === T || argument_error(
+            "invalid pixel type (expecting `$T`, got `$(eltype(obj.pxl))`)")
+        Base.has_offset_axes(obj.pxl) && argument_error(
+            "array of pixels must have 1-based indices")
+        return obj
     end
 end
 
-Base.size(obj::CalibrationData) = obj.dims
-Base.size(obj::CalibrationData{P,N,T}, d::Integer) where {P,N,T} =
-    (d < 1 ? error("invalid dimension index") :
-     d ≤ N ? size(obj)[d] : 1)
+function CalibrationDataFrame(cat::Category,
+                              Δt::Real,
+                              pxl::AbstractArray{T,N};
+                              kwds...) where {T<:Real,N}
+    CalibrationDataFrame{T,N,typeof(pxl)}(cat, Δt, pxl; kwds...)
+end
 
-dataframes(obj::CalibrationData) = obj.data
-categories(obj::CalibrationData) = obj.cat
-exposuretimes(obj::CalibrationData) = obj.Δt
-uniqueidentifiers(obj::CalibrationData) = obj.uid
+function CalibrationDataFrame{T}(cat::Category,
+                                 Δt::Real,
+                                 pxl::AbstractArray{<:Real,N};
+                                 kwds...) where {T<:Real,N}
+    # Do convert pixel type.
+    CalibrationDataFrame{T,N,Array{T,N}}(cat, Δt, pxl; kwds...)
+end
 
-numberofdataframes(obj::CalibrationData) = length(dataframes(obj))
-numberofcategories(obj::CalibrationData) = length(uniqueidentifiers(obj))
+function CalibrationDataFrame{T}(cat::Category,
+                                 Δt::Real,
+                                 pxl::AbstractArray{T,N};
+                                 kwds...) where {T<:Real,N}
+    # No needs to convert pixel type.
+    CalibrationDataFrame{T,N,typeof(pxl)}(cat, Δt, pxl; kwds...)
+end
 
-dataframe(obj::CalibrationData, i::Integer) = getindex(dataframes(obj), i)
-category(obj::CalibrationData, i::Integer) = getindex(categories(obj), i)
-exposuretime(obj::CalibrationData, i::Integer) = getindex(exposuretime(obj), i)
-uniqueidentifier(obj::CalibrationData, l::Integer) =
-    getindex(uniqueidentifiers(obj), l)
+function CalibrationDataFrame{T,N}(cat::Category,
+                                   Δt::Real,
+                                   pxl::AbstractArray{<:Real,N};
+                                   kwds...) where {T<:Real,N}
+    # Numbers of dimensions match.  Call a simpler constructor.
+    CalibrationDataFrame{T}(cat, Δt, pxl; kwds...)
+end
+
+# FIXME: make CalibrationDataFrame a sub-type of AbstractArray?
+
+pixels(A::CalibrationDataFrame) = A.pxl
+exposuretime(A::CalibrationDataFrame) = A.Δt
+category(A::CalibrationDataFrame) = A.cat
+DetectorAxes(A::CalibrationDataFrame) = A.roi
+Base.size(A::CalibrationDataFrame) = size(pixels(A))
+Base.ndims(A::CalibrationDataFrame) = ndims(typeof(A))
+Base.ndims(::Type{<:CalibrationDataFrame{T,N}}) where {T,N} = N
+Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
+Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
+
+"""
+    A = CalibrationData{T}(roi::DetectorAxes)
+
+builds an empty instance of `CalibrationData` to collect statistics about
+calibration data frames in the region of interest `roi` specified as a tuple of
+`DetectorAxis` instances.  Parameter `T` is the floating-point type to compute
+statistics; if omitted, `Float64` is assumed.  To add some calibration data
+frame(s) to `A`, call:
+
+    push!(A, x...)
+
+where each `x` is an instance of `CalibrationDataFrame`.
+
+To push all calibration data frames produced by an iterator `itr`, just call:
+
+    merge!(A, itr)
+
+The iterator `itr` shall directly produce instances of `CalibrationDataFrame`.
+For maximum flexibility, it is also possible to specialize the method
+
+    Base.push!(A::CalibrationData, x)
+
+where `x` is the kind of items produced by the iterator `itr`.  The `merge!`
+method can also be used to merge data from two `CalibrationData` instances.  As
+a short-cut, calling:
+
+    A = CalibrationData{T}(itr)
+
+builds a `CalibrationData` instance collecting sufficient statistics from all
+calibration data frames produced by the iterator `itr`.  It is an error to have
+an empty iterator in this context because the first calibration data frame is
+needed to determine the region of interest.
+
+Other methods applicable to a `CalibrationData` instance `A`:
+
+- `isempty(A)` yields whether any calibration data has been collected;
+
+- `empty!(A)` discards all calibration data collected so far and returns `A`;
+
+- `nobs(A)` yields the total number of collected data frames;
+
+- `keys(A)` yields an iterable over the 2-tuples `(cat,Δt)` of categories and
+  exposure times in collected data frames;
+
+"""
+struct CalibrationData{T<:AbstractFloat,N}
+    # All calibration data must have the same detector axes settings.
+    roi::DetectorAxes{N}
+
+    # Mapping between (cat,Δt) pairs and indices in the vector of collected
+    # statistics.
+    dict::Dict{Tuple{String,Float64},Int}
+
+    # Vector of collected data statistics, each entry is for a given
+    # (cat,Δt) pair.
+    stat::Vector{OnlineStatistics{T,N}}
+
+    # Array shared by statistics of singleton data-sets to store their 2nd
+    # moment.
+    null::Array{T,N}
+end
+
+# Use double precision if type parameter is not specified.
+CalibrationData(I::NTuple{N,DetectorAxisTypes}) where {N} =
+    CalibrationData{Float64,N}(I)
+
+CalibrationData{T}(I::NTuple{N,DetectorAxisTypes}) where {T<:AbstractFloat,N} =
+    CalibrationData{T}(DetectorAxes(I))
+
+CalibrationData{T}(roi::DetectorAxes{N}) where {T<:AbstractFloat,N} =
+    CalibrationData{T,N}(roi, Dict{Tuple{String,Float64},Int}(),
+                         OnlineStatistics{T,N}[],
+                         zeros(T, size(roi)))
+
+CalibrationData{T,N}(I::NTuple{N,DetectorAxisTypes}) where {T<:AbstractFloat,N} =
+    CalibrationData{T}(I)
+
+CalibrationData{T,N}(roi::Tuple{Vararg{DetectorAxisTypes}}) where {T<:AbstractFloat,N} =
+    dimension_mismatch("not same number of dimensions")
+
+CalibrationData{T}(itr) where {T<:AbstractFloat} =
+    CalibrationData{T}(Iterators.Stateful(itr))
+
+CalibrationData{T,N}(itr) where {T<:AbstractFloat,N} =
+    CalibrationData{T,N}(Iterators.Stateful(itr))
+
+CalibrationData{T}(itr::Iterators.Stateful) where {T<:AbstractFloat} = begin
+    isempty(itr) && error("no calibration data")
+    x1 = popfirst!(itr)
+    merge!(push!(CalibrationData{T}(DetectorAxes(x1)), x1), itr)
+end
+
+CalibrationData{T,N}(itr::Iterators.Stateful) where {T<:AbstractFloat,N} = begin
+    isempty(itr) && error("no calibration data")
+    x1 = popfirst!(itr)
+    merge!(push!(CalibrationData{T,N}(DetectorAxes(x1)), x1), itr)
+end
+
+function merge!(A::CalibrationData, itr)
+    for x in itr
+        push!(A, x)
+    end
+    return A
+end
+
+function push!(A::CalibrationData{T,N},
+               x::CalibrationDataFrame{<:Real,N}) where {T<:AbstractFloat,N}
+    # Extract and check fields.
+    cat = category(x)
+    Δt = exposuretime(x)
+    pxl = pixels(x)
+    roi = DetectorAxes(x)
+    Δt ≥ 0 || argument_error("exposure time must be nonnegative")
+    Base.has_offset_axes(pxl) && argument_error(
+        "array of pixels must have 1-based indices")
+    dims = size(pxl)
+    dims == size(roi) || dimension_mismatch(
+        "array of pixels and region of interest have different sizes")
+    roi == A.roi || argument_error(
+        "detector ROI settings must be identical for all calibration data")
+
+    # Update statistics for given category and exposure time.
+    key = (cat, Δt)
+    if haskey(A.dict, key)
+        index = A.dict[key]
+        stat = A.stat[index]
+        if storage(stat, 2) === A.null
+            # Pushing one more sample will result in non-zero 2nd moment.
+            # Allocate one for this sub-dataset.
+            @assert nobs(stat) == 1
+            A.stat[index] = IndependentStatistics(
+                (storage(stat, 1), zeros(T, dims)), nobs(stat))
+        end
+    else
+        # Create new instance of statistics sharing its 2nd moment with other
+        # singleton data-sets.
+        push!(A.stat, IndependentStatistics((zeros(T, dims), A.null), 0))
+        index = length(A.stat)
+        A.dict[key] = index
+    end
+    push!(A.stat[index], pxl)
+    return A
+end
+
+@noinline push!(A::CalibrationData, x::T) where {T} =
+    argument_error(
+        "Cannot convert argument(s) of type `$T` to calibration data frame of type ",
+        "`CalibrationDataFrame`.  The solution may be to extend ",
+        "`Base.push!(A::CalibrationData, x::$T)` for such kind of argument.")
+
+Base.keys(A::CalibrationData) = keys(A.dict)
+Base.isempty(A::CalibrationData) = isempty(A.dict)
+Base.empty!(A::CalibrationData) = begin
+    empty!(A.dict)
+    empty!(A.stat)
+    return A
+end
+
+StatsBase.nobs(A::CalibrationData) = begin
+    n = 0
+    for x in A.stat
+        n += nobs(x)
+    end
+    return n
+end
+
+
+
+
+
 
 """
     ReducedCalibration(cal) -> redcal
@@ -518,7 +719,7 @@ uniqueidentifier(obj::CalibrationData, l::Integer) =
 fit the detector parameters in calibration data `cal`.
 
 """
-function ReducedCalibration(cal::CalibrationData{P,N,T}) where {P,N,T}
+function ReducedCalibration(cal::CalibrationData{T,N}) where {T,N}
     nframes = numberofdataframes(cal)
     ntypes = numberofcategories(cal)
     dat = dataframes(cal)
