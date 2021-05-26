@@ -13,59 +13,6 @@ struct CalibrationInformation
     cat::String   # category name
 end
 
-struct CalibrationProducer{T,N,L<:AbstractVector{CalibrationInformation},
-                           I<:NTuple{N,IndexRange}}
-    list::L
-    inds::I
-    roi::DetectorAxes{N}
-end
-
-function CalibrationProducer{T}(list::AbstractVector{CalibrationInformation},
-                                inds::NTuple{N,IndexRange},
-                                roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
-    CalibrationProducer{T,N,typeof(list),typeof(inds)}(list, inds, roi)
-end
-
-Base.iterate(itr::CalibrationProducer) =
-    iterate(itr, (firstindex(itr.list) - 1, 0, 0, nothing))
-
-Base.iterate(itr::CalibrationProducer{T,N}, state) where {T,N} = begin
-    i, j, nframes, = state
-
-    if j < nframes
-        # Move to next slice in same FITS file of list.
-        j += 1
-        calib = itr.list[i]
-        hdu = state[end]
-    else
-        # Move to next FITS file in list.
-        i += 1
-        if i > lastindex(itr.list)
-            return nothing
-        end
-        j = 1
-        calib = itr.list[i]
-        hdu = FITS(calib.path)[1]
-        naxis = read_key(hdu,"NAXIS")[1]
-        nframes = calib.nframes
-        if naxis == N && nframes == 1
-            # Return single data frame in FITS file.
-            return (CalibrationDataFrame{T,N}(calib.cat, calib.Δt,
-                                              read(hdu, itr.inds...);
-                                              roi = itr.roi),
-                    (i, j, nframes, hdu))
-        elseif naxis != N+1
-            error("other dimensions than $(N)D and $(N+1)D not implemented")
-        end
-    end
-
-    # Return next slice.
-    return (CalibrationDataFrame{T,N}(calib.cat, calib.Δt,
-                                      read(hdu, itr.inds..., j);
-                                      roi = itr.roi),
-            (i, j, nframes, hdu))
-end
-
 """
     readcalibrations(T, lst, xrng = :, yrng = :)
 
@@ -85,10 +32,48 @@ Typical usage (`dir` is the directory where are located calibration data):
 function readcalibrations(::Type{T},
                           list::AbstractVector{CalibrationInformation},
                           inds::NTuple{N,IndexRange}) where {T<:AbstractFloat,N}
-
-    roi = DetectorAxes(inds)
-    CalibrationData{T,N}(CalibrationProducer{T}(list, inds, roi))
+    function producer(chn::Channel)
+        cnt = 0
+        roi = Ref{DetectorAxes{N}}()
+        for calib in list
+            hdu = FITS(calib.path)[1] :: ImageHDU
+            naxis = ndims(hdu)
+            nframes = calib.nframes
+            if naxis == N && nframes == 1
+                if cnt == 0
+                    roi[] = generate_detector_axes(size(hdu), inds)
+                end
+                put!(chn,
+                     CalibrationDataFrame{T,N}(calib.cat, calib.Δt,
+                                               read(hdu, inds...);
+                                               roi = roi[]))
+                cnt += 1
+            elseif naxis == N+1
+                if cnt == 0
+                    roi[] = generate_detector_axes(size(hdu)[1:N], inds)
+                end
+                for j in 1:calib.nframes
+                    put!(chn,
+                         CalibrationDataFrame{T,N}(calib.cat, calib.Δt,
+                                                   read(hdu, inds..., j);
+                                                   roi = roi[]))
+                    cnt += 1
+                end
+            else
+                error("other dimensions than $(N)D and $(N+1)D not implemented")
+            end
+        end
+    end
+    CalibrationData{T,N}(Channel{CalibrationDataFrame{T,N}}(producer))
 end
+
+generate_detector_axis(dim::Int, ::Colon) = DetectorAxis(dim)
+generate_detector_axis(dim::Int, rng::OrdinalRange{<:Integer,<:Integer}) = begin
+    1 ≤ first(rng) ≤ last(rng) ≤ dim || error("invalid range")
+    DetectorAxis(length(rng); bin=step(rng), off=first(rng)-1)
+end
+generate_detector_axes(dims::Dims{N}, inds::NTuple{N,IndexRange}) where {N} =
+    ntuple(i -> generate_detector_axis(dims[i], inds[i]), Val(N))
 
 """
     listfitsfiles(dir = pwd(), sfx=(".fits", ".fits.gz")) -> lst

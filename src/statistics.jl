@@ -64,7 +64,8 @@ The statistics can be updated on-line by calling:
 where each argument in `x...` is an idependent sample of detector measurements
 under the same conditions (i.e exposure time and geometrical settings).
 
-If `itr` is an iterable object producing measurements, then:
+If `itr` is an iterable object or a `Channel` instance producing measurements,
+then:
 
     merge!(A, itr) -> A
 
@@ -197,55 +198,57 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:AbstractFloat,N},
     return SampleStatistics{T,N}(stat, Δt, roi)
 end
 
-SampleStatistics(itr, Δt::Real) =
-    SampleStatistics(Iterators.Stateful(itr), Δt)
-function SampleStatistics(itr::Iterators.Stateful, Δt::Real)
-    x1 = popfirst!(itr)
+"""
+    first_and_others!(obj) -> (x1, itr)
+
+yields the first item `x1` from channel or iterable object `obj` and an
+iterator `itr` to the remaining items of `obj`.  Calling this method may change
+the state of `obj`.
+
+"""
+first_and_others!(chn::Channel) = (take!(chn), chn)
+first_and_others!(itr::Iterators.Stateful) = (popfirst!(itr), itr)
+first_and_others!(itr) = begin
+    # FIXME: calling `applicable` is not a cheap operations (about 100 ns).
+    applicable(iterate, itr) || argument_error(
+        "object of type $(typeof(itr)) is not iterable")
+    first_and_others!(Iterators.Stateful(itr))
+end
+
+function SampleStatistics(obj, Δt::Real)
+    x1, itr = first_and_others!(obj)
     T = float(eltype(x1))
     N = ndims(x1)
     return SampleStatistics{T,N}(x1, itr, Δt)
 end
 
-SampleStatistics{T}(itr, Δt::Real) where {T<:AbstractFloat} =
-    SampleStatistics{T}(Iterators.Stateful(itr), Δt)
-function SampleStatistics{T}(itr::Iterators.Stateful,
-                             Δt::Real) where {T<:AbstractFloat}
-    x1 = popfirst!(itr)
+function SampleStatistics{T}(obj, Δt::Real) where {T<:AbstractFloat}
+    x1, itr = first_and_others!(obj)
     N = ndims(x1)
     return SampleStatistics{T,N}(x1, itr, Δt)
 end
 
-SampleStatistics{T,N}(itr, Δt::Real) where {T<:AbstractFloat,N} =
-    SampleStatistics{T,N}(Iterators.Stateful(itr), Δt)
-function SampleStatistics{T,N}(itr::Iterators.Stateful,
-                               Δt::Real) where {T<:AbstractFloat,N}
-    x1 = popfirst!(itr)
+function SampleStatistics{T,N}(obj, Δt::Real) where {T<:AbstractFloat,N}
+    x1, itr = first_and_others!(obj)
     ndims(x1) == N || error("first sample does not have $N dimension(s)")
     return SampleStatistics{T,N}(x1, itr, Δt)
 end
 
-SampleStatistics(itr, Δt::Real, roi::DetectorAxes{N}) where {N} =
-    SampleStatistics(Iterators.Stateful(itr), Δt, roi)
-function SampleStatistics(itr::Iterators.Stateful, Δt::Real,
-                          roi::DetectorAxes{N}) where {N}
-    x1 = popfirst!(itr)
+function SampleStatistics(obj, Δt::Real, roi::DetectorAxes{N}) where {N}
+    x1, itr = first_and_others!(obj)
     ndims(x1) == N || error("first sample does not have $N dimension(s)")
     T = float(eltype(x1))
     return SampleStatistics{T,N}(x1, itr, Δt, roi)
 end
 
-SampleStatistics{T}(itr, Δt::Real, roi::DetectorAxes{N}) where {T<:AbstractFloat,N} =
-    SampleStatistics{T}(Iterators.Stateful(itr), Δt, roi)
-function SampleStatistics{T}(itr::Iterators.Stateful, Δt::Real,
+function SampleStatistics{T}(obj, Δt::Real,
                              roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
-    x1 = popfirst!(itr)
+    x1, itr = first_and_others!(obj)
     ndims(x1) == N || error("first sample does not have $N dimension(s)")
     return SampleStatistics{T,N}(x1, itr, Δt, roi)
 end
 
-SampleStatistics{T,N}(itr, Δt::Real, roi::DetectorAxes{N}) where {T<:AbstractFloat,N} =
-    SampleStatistics{T,N}(Iterators.Stateful(itr), Δt, roi)
-function SampleStatistics{T,N}(itr::Iterators.Stateful, Δt::Real,
+function SampleStatistics{T,N}(itr, Δt::Real,
                                roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
     dims = size(roi)
     stat = OnlineStatistics{T,N}((zeros(T, dims), zeros(T, dims)), 0)
@@ -258,7 +261,7 @@ end
 # Pursue the construction with `x1` the first sample and `itr` an iterator over
 # the other samples.
 function SampleStatistics{T,N}(x1::AbstractArray{<:Real,N},
-                               itr::Iterators.Stateful,
+                               itr,
                                Δt::Real,
                                roi::DetectorAxes{N} = DetectorAxes(x)
                                ) where {T<:AbstractFloat,N}
