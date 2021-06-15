@@ -182,6 +182,7 @@ Base.eltype(::PreprocessingParameters{T}) where {T} = T
 Base.size(obj::PreprocessingParameters) = size(regionofinterest(obj))
 Base.size(obj::PreprocessingParameters, i) = size(regionofinterest(obj), i)
 Base.length(obj::PreprocessingParameters) = prod(size(obj))
+Base.convert(::Type{T}, obj::T) where {T<:PreprocessingParameters} = obj
 Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
     T(obj)
 
