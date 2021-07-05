@@ -82,34 +82,14 @@ process!(wgt, dat, prm, raw[:,:,7]);
 
 ## Installation
 
-`ScientificDetectors` is not yet an [official Julia package][julia-pkgs-url] so you
-have to clone its repository.  In Julia, hit the `]` key to switch to the
-package manager REPL (you should get a `... pkg>` prompt) and type:
+The easiest way to install `ScientificDetectors` is via
+[`EmmtRegistry`](https://github.com/emmt/EmmtRegistry) which is my own registry
+of Julia packages:
 
 ```julia
-pkg> add https://git-cral.univ-lyon1.fr/emmt/scientificdetectors.git
-```
-
-if you use HTTPS, or:
-
-```julia
-pkg> add git@git-cral.univ-lyon1.fr:emmt/scientificdetectors.git
-```
-
-if you use SSH.
-
-The above commands may fail because some other *non-official* packages
-([ArrayTools](https://github.com/emmt/ArrayTools.jl),
-[EasyFITS](https://github.com/emmt/EasyFITS.jl),
-[LazyAlgebra](https://github.com/emmt/LazyAlgebra.jl) and
-[OptimPackNextGen](https://github.com/emmt/OptimPackNextGen.jl)) are required.
-The recommanded way to install them (assuming HTTPS) is to type:
-
-```julia
-pkg> add https://github.com/emmt/ArrayTools.jl
-pkg> add https://github.com/emmt/EasyFITS.jl
-pkg> add https://github.com/emmt/LazyAlgebra.jl
-pkg> add https://github.com/emmt/OptimPackNextGen.jl
+using Pkg
+pkg"registry add https://github.com/emmt/EmmtRegistry"
+pkg"add ScientificDetectors"
 ```
 
 [doc-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
