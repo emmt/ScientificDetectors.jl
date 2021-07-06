@@ -79,9 +79,8 @@ process!(wgt, dat, prm, raw[:,:,7]);
 
 ## Installation
 
-The easiest way to install `ScientificDetectors` is via
-[`EmmtRegistry`](https://github.com/emmt/EmmtRegistry) which is my own registry
-of Julia packages:
+The easiest way to install `ScientificDetectors` is via Julia registry
+[`EmmtRegistry`](https://github.com/emmt/EmmtRegistry):
 
 ```julia
 using Pkg
