@@ -157,11 +157,11 @@ end
 
 Sampler(data::A) where {T,N,A<:AbstractArray{T,N}} = Sampler{T,N-1,N,A}(data)
 
-numberofsamples(A::Sampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
+StatsBase.nobs(A::Sampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
 
 Base.eltype(A::Sampler{T,N}) where {T,N} = T
 Base.ndims(A::Sampler{T,N}) where {T,N} = N
-Base.length(A::Sampler) = numberofsamples(A)
+Base.length(A::Sampler) = nobs(A)
 Base.size(A::Sampler) = size(A.data)[1:end-1]
 Base.size(A::Sampler{T,N}, i::Integer) where {T,N} =
     (i < 1 ? error("out of range dimension index") :
@@ -169,11 +169,11 @@ Base.size(A::Sampler{T,N}, i::Integer) where {T,N} =
 
 Base.show(io::IO, obj::Sampler{T,N}) where {T,N} = begin
     join(io, size(obj),"×")
-    print(io, " Sampler{$T,$N}: samples = ", numberofsamples(obj))
+    print(io, " Sampler{$T,$N}: samples = ", nobs(obj))
 end
 
 Base.iterate(A::Sampler, i = 1) =
-    (1 ≤ i ≤ numberofsamples(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
+    (1 ≤ i ≤ nobs(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
 
 """
     exposuretime(obj) -> Δt

@@ -3,7 +3,7 @@ module DetectorStatistics
 export
     SampleStatistics,
     exposuretime,
-    numberofsamples,
+    nobs,
     DetectorAxes
 
 using ..ScientificDetectors

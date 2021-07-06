@@ -27,6 +27,7 @@ export
     SampleStatistics,
     SimpleCalibration,
     StaticNoise,
+    nobs,
     process!,
     process,
     readfits,
