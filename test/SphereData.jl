@@ -63,6 +63,7 @@ function readcalibrations(::Type{T},
                 error("other dimensions than $(N)D and $(N+1)D not implemented")
             end
         end
+        close(chn)
     end
     CalibrationData{T,N}(Channel{CalibrationDataFrame{T,N}}(producer))
 end
