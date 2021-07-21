@@ -1137,6 +1137,21 @@ If only a single data frame has been acquired under $\ell$-th illumination and
 $k$-th exposure time, then $N_{k,\ell} = 1$ and $\estim{\V m}_{k,\ell} = \V
 d_{k,\ell}$ while $\estim{\V v}_{k,\ell} = \V0$.
 
+The best bias given the other parameters is a simple weighted average:
+\begin{equation}
+  \boxed{
+    z^+_j = \frac{
+      \sum_{k,\ell}\frac{N_{k,\ell}}{v_{j,k,\ell}}\,\Paren*{
+        \estim{m}_{j,k,\ell} - c_{j,\ell}\,\Delta t_{k,\ell}
+      }
+    }{
+      \sum_{k,\ell}\frac{N_{k,\ell}}{v_{j,k,\ell}}
+    }
+  }
+  \label{eq:best-bias}
+\end{equation}
+
+
 
 \subsubsection{Estimation of the bias and of the gain}
 

@@ -170,8 +170,9 @@ citecolor=Purple4]{hyperref}
 \newcommand*{\SIM}{\smash{\sim}}
 \newcommand*{\proxy}[1]{\overset{\SIM}{#1}} % random value/variable
 %\newcommand*{\proxy}[1]{\widetilde{#1}}
-\newcommand*{\estim}[1]{\hat{#1}}
-%\newcommand*{\estim}[1]{\widehat{#1}}
+%\newcommand*{\estim}[1]{\hat{#1}}
+\newcommand*{\estim}[1]{\widehat{#1}}
+\newcommand*{\empirical}[1]{\widetilde{#1}}
 %\newcommand*{\FT}[1]{\widehat{#1}}
 %\newcommand*{\FT}[1]{\mathring{#1}}
 \newcommand*{\FT}[1]{\widetilde{#1}}
@@ -627,7 +628,7 @@ Vertical axis is in $\ADU$ and tighten margins (for all figs.).]}}
 
 \caption{Difference between the variance of the detector signal and $\mu/g^2$
 for various fluxes $\mu$ and gains $g$. The curves have been averaged with
-respect to the zero-level $z $. \oops{[ET: Vertical axis is in $\ADU^2$.]}}
+respect to the zero-level $z$. \oops{[ET: Vertical axis is in $\ADU^2$.]}}
 \label{fig:variances}
 \end{figure}
 
@@ -721,8 +722,10 @@ which is expressed in ADU per second ($\ADU/\second$). Replacing $µ$ by
 $c\,g\,\Delta t$ in the previous expressions of the expectation and of the
 variance of the detector output yields:
 \begin{align}
+  \label{eq:assumed-expectation}
   \Expect{d} &= c\,\Delta t + z\,,\\
-  \Var{d} &= c\,\Delta t/g + \sigma^2 \,.
+   \label{eq:assumed-variance}
+ \Var{d} &= c\,\Delta t/g + \sigma^2 \,.
 \end{align}
 The above expectation shows that $\estim{c} = (d - z)/\Delta t$ is an unbiased
 estimator of $c$ given the data $d$.
@@ -785,7 +788,7 @@ under identical conditions (except the exposure time) but different
 illumination sources.}
 
 
-\section{Relevant parameters}
+\section{Estimation of Model Parameters}
 
 \begin{table}
   \begin{tabular}{ll}
@@ -793,45 +796,48 @@ illumination sources.}
     Symbol & Description (Units)\\
     \hline
     \hline
-    $a_j$ ($^\ast$) & Conversion factor ($\propto\:$photons/ADU)\\
-    $b_j$ & Bias and background correction (ADU)\\
-    $c_{j,\ell}$ & Signal rate (ADU/second) \\[0.3ex]
-    $c^\Tag{dark}_j$ ($^\ast$) & Dark current (ADU/second) \\[0.3ex]
-    $c^\Tag{bg}_{j,\ell}$ & Contribution of spurious background sources\\
-    &\multicolumn{1}{l}{(ADU/second)}\\[0.3ex]
-    $c^\Tag{fg}_{j,\ell}$ & Contribution of the source(s) of interest\\
-    &\multicolumn{1}{l}{(ADU/second)}\\
-    $d_{j,k,\ell}$ & Pixel value (ADU) \\
-    $e_{j,k,\ell}$ & Noise (ADU) \\
-    $g_j$ ($^\ast$) & Gain of analog to digital converter\\
+    %$a_j$ ($^\ast$) & Conversion factor ($\propto\:$photons/ADU)\\
+    %$b_j$ & Bias and background correction (ADU)\\
+    $c_{\ell}$ & Current (ADU/second) \\[0.3ex]
+    %$c^\Tag{dark}_j$ ($^\ast$) & Dark current (ADU/second) \\[0.3ex]
+    %$c^\Tag{bg}_{j,\ell}$ & Contribution of spurious background sources\\
+    %&\multicolumn{1}{l}{(ADU/second)}\\[0.3ex]
+    %$c^\Tag{fg}_{j,\ell}$ & Contribution of the source(s) of interest\\
+    %&\multicolumn{1}{l}{(ADU/second)}\\
+    $d_{k,\ell,n}$ & Pixel value (ADU) \\
+    %$e_{k,\ell,n}$ & Noise (ADU) \\
+    $g$ ($^\ast$) & Gain of analog to digital converter\\
       &\multicolumn{1}{l}{(electrons/ADU)} \\
-    $r_{j,\ell}$ & Illumination by the source(s) of interest\\
-      &\multicolumn{1}{r}{($\propto\:$photons/second)}\\
-    $s_j$ & Signal of interest ($\propto\:$photons) \\
-    $\estim{s}_j$ & Estimator of the signal of interest
-    ($\propto\:$photons) \\
-    $q_j$ & Numerator for the precision of $s_j$ \\
-    $r_j$ & Denominator bias for the precision of $s_j$ \\
-    $w_j$ & Precision of $s_j$ \\
-    $z_j$ ($^\ast$) & Zero-level in analog to digital
+    %$r_{j,\ell}$ & Illumination by the source(s) of interest\\
+    %  &\multicolumn{1}{r}{($\propto\:$photons/second)}\\
+    %$s_j$ & Signal of interest ($\propto\:$photons) \\
+    %$\estim{s}_j$ & Estimator of the signal of interest
+    %($\propto\:$photons) \\
+    %$q_j$ & Numerator for the precision of $s_j$ \\
+    %$r_j$ & Denominator bias for the precision of $s_j$ \\
+    %$w_j$ & Precision of $s_j$ \\
+    $z$ ($^\ast$) & Zero-level in analog to digital
     converter (ADU) \\
-    $\sigma_j$ ($^\ast$)
+    $\sigma$ ($^\ast$)
     & Standard deviation of the readout noise\\
     & \multicolumn{1}{l}{(ADU/pixel/frame)} \\
     $\Delta t_{k,\ell}$ & Exposure time (seconds) \\
     \hline
   \end{tabular}
-  \caption{Notations. Indices $j$ and $k$ are for the pixel and the frame
-  respectively. Index $\ell$ specifies the type of illumination. Detector
-  parameters, which are common to all data sets, are indicated by an asterisk
-  ($^\ast$). ADU stands for \emph{Analog-Digital Units}.  The units of the
-  conversion factor $a_j$ and the illumination $r_{j,\ell}$ are given up to a
-  factor (denoted by the $\propto$ sign) which is the same for these two
-  quantities whatever the pixel, the frame and the type of illumination.}
-  \label{tab:notation}
+  \caption{Notations for a given detector pixel. Index $\ell$ corresponds to
+  the illumination. Index $k$ is to distinguish different exposure times for a
+  given illumination. Index $n$ is to distinguish data acquired under the same
+  conditions, illumination and exposure time.  Detector parameters, which are
+  common to all data sets, are indicated by an asterisk ($^\ast$). ADU stands
+  for \emph{Analog-Digital Units}.
+  %The units of the conversion factor $a_j$
+  %and the illumination $r_{j,\ell}$ are given up to a factor (denoted by the
+  %$\propto$ sign) which is the same for these two quantities whatever the
+  %pixel, the frame and the type of illumination.
+  } \label{tab:notation}
 \end{table}
 
-
+The parameters to be calibrated are:
 \begin{itemize}
 \item the detector  zero-level (or bias) $z$;
 
@@ -841,169 +847,269 @@ illumination sources.}
 
 \item the throughput of the instrument;
 
-\item the standard deviation $\sigma$ of the sources of noise other than shot
-noise
+\item the standard deviation $\sigma$ of the \emph{readout noise} (in fact, of
+all other sources of noise than shot noise);
 \end{itemize}
 
 \subsection{Maximum Likelihood Calibration}
 
+\oops{We first consider calibrating the detector parameters and the current
+terms and then estimate the correction of the non-uniformity of the response.
+Without loss of generality, it is easier to first subtract the contribution of
+the bias and of spurious background sources to have intermediate data whose
+expectation is proportional to the incident flux and to the exposure time. And
+to second compensate for the non-uniform throughput and detector gain.}
 
-We first consider calibrating the detector parameters and then estimate the
-correction of the non-uniformity of the response.  Without loss of generality,
-it is easier to first subtract the contribution of the bias and of spurious
-background sources to have intermediate data whose expectation is proportional
-to the incident flux and to the exposure time. And to second compensate for
-the non-uniform throughput and detector gain.
+Available calibration data consists in sequences of images of $N_\Tag{pix}$
+pixels acquired under various conditions of illumination and with different
+(known) exposure times. We denote by $\V c_\ell \in \Reals^{N_\Tag{pix}}$ the
+current term corresponding to a given illumination and by $\Delta t_{k,\ell}$
+the different exposure times of the calibration images acquired under the
+$\ell$-th illumination. There may be several images acquired under the same
+conditions (same illumination and exposure time) and we denote by $\V
+d_{k,\ell,n} \in \Reals^{N_\Tag{pix}}$ the $n$-th calibration image acquired
+under the $\ell$-th illumination and with exposure time $\Delta t_{k,\ell}$,
+let $N_{k,\ell}$ denote the number of such images.
 
-Available calibration data consists in images acquired under various
-conditions of illumination and with different (known) exposure times.
-For each pixel, the available calibration data is $d_{k,\ell}$ for $(k,\ell)
-\in \mathcal{L}$
-where index $\ell$ uniquely defines the observing conditions while, for the
-\begin{align}
-  \Expect{d_{k,\ell}} &= c_{\ell}\,\Delta t_{k,\ell} + z\,,\\
-  \Var{d_{k,\ell}} &= c_{\ell}\,\Delta t_{k,\ell}/g + \sigma^2
-\end{align}
+All unknown parameters (the zero level, the gain, the currents and the
+readout-noise) are pixel-wise quantities.  Assuming pixels have independent
+statistics, the unknown parameters can be estimated separately for each pixel.
+Unless otherwise specified, we consider a given pixel in what follows.  Above,
+boldface letters were used to denote \emph{vectors} of size $N_\Tag{pix}$.
+\oops{Not clear!}
 
-We first ignore saturations and defective pixels. Assuming independent noise
-with a distribution approximately Gaussian, the co-log-likelihood of the data
-writes:
+Maximum likelihood estimators are well known for their good properties and our
+objective is to design a numerical method to find the maximum likelihood
+estimator defined by:
 \begin{equation}
-  \phi(\V\theta) = \sum_{k,\ell}\Paren*{
-    \frac{\Paren*{d_{k,\ell} -
-        m_{k,\ell}(\V\theta_{\ell})}^2}{v_{k,\ell}(\V\theta_{\ell})}
-    + \log\Paren*{v_{k,\ell}(\V\theta_{\ell})}
+  \estim{\V\theta} = \argmin_{\V\theta\:\in\:\Omega}\phi(\V\theta)\,,
+\end{equation}
+where $\phi(\V\theta)$ is the co-log-likelihood of the available data given the
+unknown parameters $\V\theta$ and $\Omega$ denotes the set of acceptable
+parameters.  For a given pixel, the parameters to retrieve are $(z, g, \sigma^2,
+c_{1}, c_{2}, \ldots)$ and $\V\theta$ can be any one-to-one mapping of these.
+
+For a given pixel, the available calibration data is a set of values
+$d_{k,\ell,n}$. Ignoring saturations or other defects and assuming independent
+noise with a distribution approximately Gaussian, the co-log-likelihood of these
+data writes:
+\begin{equation}
+  \label{eq:cologlikelihood}
+  \phi(\V\theta) = \sum_{k,\ell,n}\Paren*{
+    \frac{\Paren*{d_{k,\ell,n} -
+        m_{k,\ell}}^2}{v_{k,\ell}}
+    + \log v_{k,\ell}
   }
 \end{equation}
-with $m_{k,\ell}(\V\theta_{\ell})$ and $v_{k,\ell}(\V\theta_{\ell})$ the
-expectation and variance (respectively) of the data $d_{k,\ell}$ knowing the
-parameters $\V\theta_{\ell}$ and given by:
+with $m_{k,\ell}$ and $v_{k,\ell}$ the expectation and variance of the data
+$d_{k,\ell}$ knowing the parameters $\V\theta$:
 \begin{align}
-  m_{k,\ell}(\V\theta_{\ell})
-  &= c_{\ell}\,\Delta t_{k,\ell} + z \, ,
-  \\
-  v_{k,\ell}(\V\theta_{\ell})
-  &= c_{\ell}\,\Delta t_{k,\ell}/g + \sigma^2 \, ,
+  \label{eq:expectation-model}
+  m_{k,\ell}
+  &= \Expect{d_{k,\ell,n} \Given \V\theta}
+   = c_{\ell}\,\Delta t_{k,\ell} + z\,,\\
+  \label{eq:variance-model}
+  v_{k,\ell}
+  &= \Var{d_{k,\ell,n} \Given \V\theta}
+   = c_{\ell}\,\Delta t_{k,\ell}/g + \sigma^2\,,
 \end{align}
-for parameters:
+which follow from Eqs.~\eqref{eq:assumed-expectation} and
+\eqref{eq:assumed-variance}.
+
+Introducing the empirical mean and variance of the considered pixel in the
+$N_{k,\ell}$ data frames acquired with the same exposure time and illumination:
+\begin{align}
+  \label{eq:sample-mean}
+  \empirical{m}_{k,\ell}
+  &\bydef \frac{1}{N_{k,\ell}} \sum_{n=1}^{N_{k,\ell}} d_{k,\ell,n} \, , \\
+  \label{eq:sample-variance}
+  \empirical{v}_{k,\ell}
+  &\bydef \frac{1}{N_{k,\ell}}\sum_{n=1}^{N_{k,\ell}}
+    \Paren*{d_{k,\ell,n} - \empirical{m}_{k,\ell}}^2 \, ,
+\end{align}
+the pixel co-log-likelihood can be simplified\footnote{replace
+$\sum_n\Paren*{d_{k,\ell,n} - m_{k,\ell}}^2$ by
+$\sum_n\Paren*{\Paren*{d_{k,\ell,n} - \empirical{m}_{k,\ell}} +
+\Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}}^2$, then develop the squares and
+simplify} to:
+\begin{align}
+  \label{eq:factorized-cologlikelihood}
+  \phi(\V\theta) =
+  \sum_{k,\ell} N_{k,\ell}\,\Paren*{
+    \frac{
+      \empirical{v}_{k,\ell}
+      + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
+    }{
+      v_{k,\ell}
+    }
+    + \log v_{k,\ell}
+  } \, .
+\end{align}
+Hence the empirical mean $\empirical{m}_{k,\ell}$ and variance
+$\empirical{v}_{k,\ell}$ provide \emph{sufficient statistics} for the considered
+pixel in the $N_{k,\ell}$ data frames acquired with the same exposure time and
+illumination.  Using this sufficient statistics and the pixel co-log-likelihood
+$\phi(\V\theta)$ defined in Eq.~\eqref{eq:factorized-cologlikelihood} can
+significantly reduce the computational burden and the memory requirements for
+minimizing $\phi(\V\theta)$ in the parameters $\V\theta$.
+
+Note that the empirical variance $\empirical{v}_{k,\ell}$ defined by
+Eq.~\eqref{eq:sample-variance} is a biased estimator of the variance\footnote{by
+a factor $N_{k,\ell}/(N_{k,\ell} - 1)$}.  Also note that, if only a single data
+frame has been acquired under $\ell$-th illumination and with exposure time
+$\Delta t_{k,\ell}$, then $N_{k,\ell} = 1$ and $\empirical{m}_{k,\ell} =
+d_{k,\ell,1}$ while $\empirical{v}_{k,\ell} = 0$.
+
+The standard deviation $\sigma$ accounts for all other noises than the shot
+noise.  In particular, $\sigma$ accounts for the digitization errors.  Hence
+assuming rounding to the nearest ADU yields $\sigma ≥ 1/\sqrt{12}$.  Other
+constraints are that the incident light level and the dark current are
+necessarily nonnegative and  that the gain is strictly positive.  Hence the set
+of acceptable parameters is:
 \begin{equation}
-  \V\theta_{\ell} = \Paren*{z, c_{j,\ell}, g, \sigma} \, .
+  \label{eq:feasible-set}
+  \Omega = \Brace*{\V\theta \SuchThat \sigma ≥ 12^{-1/2},\ c_{\ell} ≥ 0
+  \ (\forall\ell),\ g > 0}\,.
 \end{equation}
-
-\oops{Other possible notation: $m(\V\theta_{\ell}, \Delta t_{k,\ell})$ and
-$v(\V\theta_{\ell}, \Delta t_{k,\ell})$.}
-
-The readout noise $\sigma$ accounts for all detector noises, including the
-digitization errors.  Hence assuming rounding to the nearest ADU yields
-$\sigma ≥ 1/\sqrt{12}$.  Other constraints are $c_{\ell} ≥ 0$ and $g > 0$
-because the incident light level and the dark current are nonnegative and the
-gain is strictly positive.
 
 In spite of the fact that it is separable in pixels, the maximum likelihood
-criterion is not trivial to jointly minimize in all the parameters accounting
-for the constraints.  We propose in the following a strategy to solve the
-problem and first show how to eliminate the bias and the gain thanks to a
+criterion $\phi(\V\theta)$ is not trivial to jointly minimize in all the
+parameters accounting for the constraints implemented by $\Omega$.  We propose
+in the following a strategy to solve the problem by means of hierarchical
+optimization and first show how to eliminate the bias and the gain thanks to a
 simple change of variables.
 
+\subsection{Estimation of the zero level and of the gain}
 
-\subsubsection{Estimation of the bias and of the gain}
-
-It is convenient to introduce $u = g\,\sigma^2$ so that the variance
-writes:
+As we shall see, it is convenient to replace the variance $\sigma^2$ of the
+readout noise  by the parameter $\vartheta = g\,\sigma^2$.  As the gain is
+necessarily strictly positive, the readout noise variance is retrieved by
+$\sigma^2 = \vartheta/g$ so we can choose the unknown parameters to be:
 \begin{equation}
-  v_{k,\ell}(\V\theta_{\ell}) =
-  \Paren*{c_{\ell}\,\Delta t_{k,\ell} + u}/g \,,
+  \label{eq:unknowns}
+  \V\theta = (z, g, \vartheta, c_{1}, c_{2}, \ldots) \, .
 \end{equation}
-and the maximum likelihood criterion becomes:
-\begin{equation}
-  \phi(\V\theta) = \sum_{k,\ell}\Paren*{
-    g\,\frac{
-      \Paren*{d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z}^2
+The co-log-likelihood now write:
+\begin{align}
+  \label{eq:rewritten-cologlikelihood}
+  \phi(\V\theta) =
+  \sum_{k,\ell} N_{k,\ell}\,\Paren*{
+    \frac{
+      \empirical{v}_{k,\ell}
+      + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
     }{
-      c_{\ell}\,\Delta t_{k,\ell} + u
+      u_{k,\ell}/g
     }
-    + \log\Paren*{c_{\ell}\,\Delta t_{k,\ell} + u} - \log g
-  } \,.
-\end{equation}
-This expression is straightforward to minimize with respect to the bias $z$
-leading to the maximum likelihood estimator of the bias knowing the other
-parameters. Introducing $\V c = \Paren*{c_{\ell}}_{\ell=1}^L$ with $L$ the
-number of considered illuminations, the maximum likelihood estimator of the
-bias knowing the other parameters is given by:
-\begin{align*}
-  z^+(\V c, u)
-  &\bydef \argmin_{z} \phi(\V\theta) \notag\\
-  &= \argmin_{z} \sum_{k,\ell}\frac{
-    \Paren*{d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z}^2
-  }{
-    c_{\ell}\,\Delta t_{k,\ell} + u
-  }
-\end{align*}
-which gives:
+    + \log u_{k,\ell} - \log g
+  } \, \,
+\end{align}
+with:
 \begin{equation}
-  \boxed{
-    z^+(\V c, u) = \frac{
-      \sum_{k,\ell}\frac{
-        d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell}
-      }{
-        c_{\ell}\,\Delta t_{k,\ell} + u
-      }
-    }{
-      \sum_{k,\ell}\frac{1}{c_{\ell}\,\Delta t_{k,\ell} + u}
-    }\,.
-  }
-  \label{eq:best-bias}
+  u_{k,\ell}
+  \bydef g\,v_{k,\ell} = c_{\ell}\,\Delta t_{k,\ell} + \vartheta \, .
 \end{equation}
-We note that this expression does not depend on the gain $g$ as explicitly
-indicated by our notation. Thanks to this independence, the maximum likelihood
-estimator of the gain knowing the parameters $\V c$ and $u$ also has a
-closed form expression:
-\begin{align*}
-  g^+(\V c, u)
-  &\bydef \argmin_{g} \Brace*{ \min_{\V z} \phi(\V\theta) } \notag\\
-  &= \argmin_{g} \sum_{k,\ell} \Paren*{
-    g\,\frac{
-      \Paren*{
-        d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+(\V c, u)
-      }^2
-    }{
-      c_{\ell}\,\Delta t_{k,\ell} + u
-    } - \log g
-  } \,,
-\end{align*}
-which gives:
-\begin{equation}
-  \boxed{
-    g^+(\V c, u) = \Avg*{
-      \frac{
-        \Paren[\big]{
-          d_{k,\ell} -c_{\ell}\,\Delta t_{k,\ell} - z^+(\V c, u)
-        }^2
-      }{
-        c_{\ell}\,\Delta t_{k,\ell} + u
-      }
-    }_{\!\!k,\ell}^{-1}
-  }
-  \label{eq:best-gain}
-\end{equation}
-where $\Avg{\ldots}_{k,\ell}$ denotes averaging of the enclosed expression with
-respect to indices $k$ and $\ell$. Equations~\eqref{eq:best-bias} and
-\eqref{eq:best-gain} show that the remaining parameters to determine are $\V
-c$ and $u$ for each pixel.
 
-With the proposed change of variables, $u = g\,\sigma^2$, the constraint on the
-readout noise variance becomes $u ≥ g\,\sigma^2_\Tag{min}$ and the standard
+A first interesting consequence of the chosen parametrization is that the
+maximum likelihood zero level $z$ knowing the other parameters has a closed form
+expression that does not depend on the gain $g$:
+\begin{align}
+  z^+\Paren*{\V\theta\setminus\Brace{z,g}}
+  &\bydef \argmin_{z} \phi(\V\theta) \notag\\
+  &= \argmin_{z} g\,\sum_{k,\ell} N_{k,\ell}\,\frac{
+     \empirical{v}_{k,\ell} + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
+   }{
+     u_{k,\ell}
+   } \notag \\
+  &= \argmin_{z} \sum_{k,\ell} \frac{
+     N_{k,\ell}\,\Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
+   }{
+     u_{k,\ell}
+   } \notag \\
+  &= \frac{
+      \sum_{k,\ell} N_{k,\ell}\,
+      \Paren*{\empirical{m}_{k,\ell} - c_\ell\,\Delta t_{k,\ell}}/u_{k,\ell}
+    }{
+      \sum_{k,\ell} N_{k,\ell}/u_{k,\ell}
+    }
+\end{align}
+which follow from the fact that $m_{k,\ell}$ linearly depends on $z$ according
+to Eq.~\eqref{eq:expectation-model} while $u_{k,\ell}$ does not depend on $z$,
+and that the gain $g$ is strictly positive.  The expression
+$\V\theta\setminus\Brace{z,g}$ denotes the set of parameters $\V\theta$ minus
+the parameters $z$ and $g$.
+
+Noting that $m_{k,\ell}$ and $u_{k,\ell}$ do not depend on the gain $g$ and that
+$\phi(\V\theta)$ is strictly convex in $g$ (for $g > 0$), the best gain knowing
+the other parameters has a closed form expression given by:
+\begin{equation}
+  \label{eq:best-gain-knowing-others}
+  \argmin_{g} \phi(\V\theta)
+  = \frac{\sum_{k,\ell} N_{k,\ell}}{
+    \sum_{k,\ell} N_{k,\ell}\,\Paren*{
+      \empirical{v}_{k,\ell}
+      + \Paren[\big]{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
+    }/u_{k,\ell}
+  } \, ,
+\end{equation}
+which is obtained by solving $\partial\phi(\V\theta)/\partial g=0$ in $g$.  The
+right hand side of Eq.~\eqref{eq:best-gain-knowing-others} is always strictly
+positive.  Hence it is also the minimum of $\phi(\V\theta)$ in $g$ under the
+constraint that $g > 0$. Now since $z^+$, the minimum of $\phi(\V\theta)$ in $z$
+does not depend on the gain $g$, replacing the zero level $z$ by $z^+$ in the
+right hand side of Eq.~\eqref{eq:best-gain-knowing-others} yields the maximum
+likelihood estimator of the gain knowing all other parameters than $z$ and $g$:
+\begin{align}
+  g^+\Paren*{\V\theta\setminus\Brace{z,g}}
+  &\bydef \argmin_{g > 0} \Brace*{\min_{z} \phi(\V\theta)} \notag\\
+  &= \frac{\sum_{k,\ell} N_{k,\ell}}{
+    \sum_{k,\ell} N_{k,\ell}\,\Paren*{
+      \empirical{v}_{k,\ell}
+      + \Paren[\big]{\empirical{m}_{k,\ell} - m^+_{k,\ell}}^2
+    }/u_{k,\ell}
+  } \, ,
+\end{align}
+with:
+\begin{equation}
+  m^+_{k,\ell} \bydef c_\ell\,\Delta t_{k,\ell}
+  + z^+\Paren*{\V\theta\setminus\Brace{z,g}} \, .
+\end{equation}
+
+Replacing these values of the zero level and of the gain in the
+co-log-likelihood yields:
+\begin{align}
+  \label{eq:marginal-cologlikelihood}
+  \psi(\V\theta\setminus\Brace{z,g})
+  &\bydef \min_{z,g > 0}\phi(\V\theta) \notag\\
+  &= \sum_{k,\ell} N_{k,\ell}\,\log u_{k,\ell}
+     + N\,\Paren*{1 - \log g^+} \notag \\
+  &= \xi + \sum_{k,\ell} N_{k,\ell}\,\log u_{k,\ell} \notag \\
+  &\quad + N\,\log\Paren[\Bigg]{\sum_{k,\ell} \frac{N_{k,\ell}}{u_{k,\ell}}\,
+    \Paren*{\empirical{v}_{k,\ell} +
+    \Paren[\big]{\empirical{m}_{k,\ell} - m^+_{k,\ell}}^2}}
+  \, \,
+\end{align}
+with $N = \sum_{k,\ell}N_{k,\ell}$ is the total number of data and $\xi = N - N
+\,\log N$ is a constant.
+
+\subsection{Hierarchical Optimization}
+
+With the proposed change of variables, $\vartheta = g\,\sigma^2$, the
+constraint on the
+readout noise variance becomes $\vartheta ≥ g\,\sigma^2_\Tag{min}$ and the
+standard
 deviation of the readout noise in ADU/pixel/frame is given by $\sigma =
-\sqrt{u/g}$. Provided the constraints $u > 0$ and $c_{\ell} ≥ 0$ hold, then
-$c_{\ell}\,\Delta t_{k,\ell} + u > 0$ and the right hand side of
+\sqrt{\vartheta/g}$. Provided the constraints $\vartheta > 0$ and $c_{\ell} ≥
+0$ hold, then
+$c_{\ell}\,\Delta t_{k,\ell} + \vartheta > 0$ and the right hand side of
 Eq.~\eqref{eq:best-gain} is strictly positive\footnote{Unless $d_{k,\ell} =
-c_{\ell}\,\Delta t_{k,\ell} + z^+(\V c, u)$ whatever $k$ and $\ell$ which
+c_{\ell}\,\Delta t_{k,\ell} + z^+(\V c, \vartheta)$ whatever $k$ and $\ell$
+which
 implies exact model and noiseless data!}.
 
 %with:
 %\begin{equation}
-%  w_{k,\ell}(\V c, u) =
-%  1/\Paren*{ c_{\ell}\,\Delta t_{k,\ell} + u} \, ,
+%  w_{k,\ell}(\V c, \vartheta) =
+%  1/\Paren*{ c_{\ell}\,\Delta t_{k,\ell} + \vartheta} \, ,
 %\end{equation}
 %the precision of the datum $d_{k,\ell}$ divided by the gain $g$.
 
@@ -1015,63 +1121,54 @@ separable with respect to the pixel index $j$.}
 We have just shown that $\phi(\V\theta)$ can be jointly minimized in $z$ and
 $g$ so the problem reduces to:
 \begin{align}
-  \Paren[\big]{\estim{\V c}, \estim{u}}
-  &= \argmin_{\V c ≥ 0, u > 0}
+  \Paren[\big]{\estim{\V c}, \estim{\vartheta}}
+  &= \argmin_{\V c ≥ 0, \vartheta > 0}
   \Brace[\Big]{\min_{g,z} \phi(\V\theta)} \notag \\
-  &= \argmin_{\V c ≥ 0, u > 0} \psi(\V c, u)
+  &= \argmin_{\V c ≥ 0, \vartheta > 0} \psi(\V c, \vartheta)
 \end{align}
-with:
-\begin{align}
-  \psi(\V c, u)
-  &= g^+(\V c, u)\,\sum_{k,\ell} \frac{
-    \Paren*{d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+(\V c, u)}^2
-  }{
-    c_{\ell}\,\Delta t_{k,\ell} + u
-  } \notag\\
-  &\quad + \sum_{k,\ell}\log\Paren*{c_{\ell}\,\Delta t_{k,\ell} + u}
-  - n\,\log g^+(\V c, u) \,,
-\end{align}
-with \oops{$n$} the number of terms in $\sum_{k,\ell}$.
 
 \paragraph{Non-linear optimization} There is no closed form for the minimum of
-$\psi(\V c, u)$, but starting from some initial guess $\V c\Iter0$ and
-$u\Iter0$, $\psi(\V c, u)$ can be minimized by a nonlinear multi-dimensional
+$\psi(\V c, \vartheta)$, but starting from some initial guess $\V c\Iter0$ and
+$\vartheta\Iter0$, $\psi(\V c, \vartheta)$ can be minimized by a nonlinear
+multi-dimensional
 optimization algorithm implementing bound constraints, \eg BOBYQA
 \citep{Powell-2009-BOBYQA} or VMLMB \citep{Thiebaut-2002-optim_bdec}. To
 simplify the equations, we introduce the \emph{residuals} and the precision
 (divided by the gain):
 \begin{align}
-  x_{k,\ell}(\V c, u)
-  &= d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+(\V c, u) \,, \\
-  w_{k,\ell}(\V c, u)
-  &= \Paren*{c_{\ell}\,\Delta t_{k,\ell} + u}^{-1}\,,
+  x_{k,\ell}(\V c, \vartheta)
+  &= d_{k,\ell} - c_{\ell}\,\Delta t_{k,\ell} - z^+(\V c, \vartheta) \,, \\
+  w_{k,\ell}(\V c, \vartheta)
+  &= \Paren*{c_{\ell}\,\Delta t_{k,\ell} + \vartheta}^{-1}\,,
 \end{align}
 so that:
 \begin{equation}
-  \psi(\V c, u) = \sum_{k,\ell} \Paren*{
+  \psi(\V c, \vartheta) = \sum_{k,\ell} \Paren*{
     g^+\,w_{k,\ell}\,x_{k,\ell}^2 - \log g^+ - \log w_{k,\ell}
  } \, ,
 \end{equation}
 where the dependency of all the terms of the right hand side with $\V c$ and
-$u$ is implicitly assumed to simplify the expression. The partial derivatives
+$\vartheta$ is implicitly assumed to simplify the expression. The partial
+derivatives
 of the criterion are needed by VMLMB. These derivatives are given by:
 \begin{align}
-  \PDer{\psi(\V c, u)}{c_{\ell}}
+  \PDer{\psi(\V c, \vartheta)}{c_{\ell}}
   &=\sum_{k} w_{k,\ell}\cdot\Paren*{
     1 - g^+ \cdot x_{k,\ell}\cdot\Paren*{2 + w_{k,\ell}\cdot x_{k,\ell}}
   }\cdot\Delta t_{k,\ell} \,,\\
-  \PDer{\psi(\V c, u)}{u}
+  \PDer{\psi(\V c, \vartheta)}{\vartheta}
   &= \sum_{k,\ell} w_{k,\ell}\cdot\Paren*{
     1 - g^+ \cdot w_{k,\ell} \cdot x_{k,\ell}^2
   } \,.
 \end{align}
 To obtain these expressions one has to account for the fact that $z^+(\V c,
-u)$ and $g^+(\V c, u)$ minimize $\phi(\V\theta)$ in $z$ and $g$.
+\vartheta)$ and $g^+(\V c, \vartheta)$ minimize $\phi(\V\theta)$ in $z$ and
+$g$.
 
 To speedup iterations, a diagonal preconditioner can be implemented using the
 following approximations for the second derivatives:
 \begin{align}
-  \PDer{^2\psi(\V c, u)}{c_{\ell}^2}
+  \PDer{^2\psi(\V c, \vartheta)}{c_{\ell}^2}
   &= 2\,g^+\,\sum_{k} w_{k,\ell}\,
     \Paren*{1 + w_{k,\ell}\,x_{k,\ell}}^2\,\Delta t_{k,\ell}^2
     - \sum_{k} w_{k,\ell}^2\,\Delta t_{k,\ell}^2
@@ -1088,23 +1185,23 @@ following approximations for the second derivatives:
     \,\Delta t_{k,\ell}^2
   } \,,\\
   %
-  \PDer{^2\psi(\V c, u)}{u^2}
+  \PDer{^2\psi(\V c, \vartheta)}{\vartheta^2}
   &= 2\,g^+\,\sum_{k,\ell} w_{k,\ell}^3\,x_{k,\ell}^2
    - \sum_{k,\ell} w_{k,\ell}^2
   \notag\\
-  &\quad - \PDer{g^+}{u}\,\sum_{k,\ell} w_{k,\ell}^2\,x_{k,\ell}^2
+  &\quad - \PDer{g^+}{\vartheta}\,\sum_{k,\ell} w_{k,\ell}^2\,x_{k,\ell}^2
   \notag\\
-  &\quad+ 2\,g^+\,\sum_{k,\ell} w_{k,\ell}^2\,x_{k,\ell}\,\PDer{z^+}{u}
+  &\quad+ 2\,g^+\,\sum_{k,\ell} w_{k,\ell}^2\,x_{k,\ell}\,\PDer{z^+}{\vartheta}
   \notag\\
   &\oops{\approx \sum_{k,\ell} w_{k,\ell}^2} \,,
 \end{align}
 where the two approximations follows from the following approximate and exact
 averaged values:
 \begin{align*}
-  \Avg[\big]{w_{k,\ell}(\V c, u)\,x_{k,\ell}(\V c, u)}_{k}
+  \Avg[\big]{w_{k,\ell}(\V c, \vartheta)\,x_{k,\ell}(\V c, \vartheta)}_{k}
   &\approx 0 \,,\\
-  g^+(\V c, u)\,\Avg[\big]{w_{k,\ell}(\V c, u)\,
-    x_{\ell}^2(\V c, u)}_{k,\ell}
+  g^+(\V c, \vartheta)\,\Avg[\big]{w_{k,\ell}(\V c, \vartheta)\,
+    x_{\ell}^2(\V c, \vartheta)}_{k,\ell}
   &= 1\,,
 \end{align*}
 the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
@@ -1120,22 +1217,23 @@ the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 %    }
 %  }
 %\end{equation}
-%with, using the parameter $u$ instead of $\sigma$, $\V\theta =
-%(b,\Paren*{c_{\ell}}_{\ell=1,2,\ldots},g,u)$, $\Omega$ the feasible set of
+%with, using the parameter $\vartheta$ instead of $\sigma$, $\V\theta =
+%(b,\Paren*{c_{\ell}}_{\ell=1,2,\ldots},g,\vartheta)$, $\Omega$ the feasible
+%set of
 %acceptable parameters and:
 %\begin{align}
 %  m_{k,\ell}(\V\theta)
 %  &= c_{\ell}\,\Delta t_{k,\ell} + z \, ,
 %  \\
 %  v_{k,\ell}(\V\theta)
-%  &= \Paren*{c_{\ell}\,\Delta t_{k,\ell} + u}/g \,.
+%  &= \Paren*{c_{\ell}\,\Delta t_{k,\ell} + \vartheta}/g \,.
 %\end{align}
 %The feasible set $\Omega$ accounts for constraints on the parameters:
 %\begin{equation}
 %  \Omega = \Brace*{
-%    \V\theta = (b,\Paren*{c_{\ell}}_{\ell=1,2,\ldots},g,u) \in
+%    \V\theta = (b,\Paren*{c_{\ell}}_{\ell=1,2,\ldots},g,\vartheta) \in
 %    \Reals^{3+n_\Tag{cls}} \SuchThat
-%    \forall\ell, c_\ell ≥ 0, g > 0, u ≥ g/12
+%    \forall\ell, c_\ell ≥ 0, g > 0, \vartheta ≥ g/12
 %  } \, .
 %\end{equation}
 
@@ -1145,13 +1243,13 @@ the latter is a direct consequence of Eq.~\eqref{eq:best-gain}.
 \paragraph{Initial solution} Whatever the chosen non-linear optimization
 method, the problem being non-convex, providing a starting point not too far
 from the solution is of prime importance. We note that if the zero-level $z$
-and the ratio $\tau_{\ell} = u/c_{\ell} > 0$ are assumed known, the
+and the ratio $\tau_{\ell} = \vartheta/c_{\ell} > 0$ are assumed known, the
 \emph{current} terms $c_{\ell}$ are approximately solutions of simple
 independent linear least squares problems:
 \begin{align}
   c^+_{\ell}(z,\tau)
   &= \argmin_{{\ell}}\phi(\V\theta)
-  \quad\text{s.t.\ $u = \tau\,c_{\ell}$}\quad \notag\\
+  \quad\text{s.t.\ $\vartheta = \tau\,c_{\ell}$}\quad \notag\\
   &\approx \argmin_{c ≥ 0}\sum_{k} \frac{
     \Paren*{d_{k,\ell} - c\,\Delta t_{k,\ell} -  z}^2
   }{
@@ -1200,21 +1298,23 @@ where  $\varepsilon_1 > 0$ is a small factor, and then choose the initial
   }\,.
   \label{eq:initial-c}
 \end{equation}
-To select the initial value $u\Iter0$ of $u$, we assume that the readout
+To select the initial value $\vartheta\Iter0$ of $\vartheta$, we assume that
+the readout
 noise is small for most cases and take the initial value to be the least
 nonzero value of $c_{\ell}\Iter0\,\Delta t_{k,\ell}$ times a small factor
 $\varepsilon_2 > 0$:
 \begin{equation}
-  u\Iter0 = \varepsilon_2 \,
+  \vartheta\Iter0 = \varepsilon_2 \,
   \min_{\substack{
       k,\ell\\
       c_{\ell}\Iter0\,\Delta t_{k,\ell} > 0
   }} c_{\ell}\Iter0\,\Delta t_{k,\ell} \,.
-  \label{eq:initial-u}
+  \label{eq:initial-vartheta}
 \end{equation}
-This choice ensures that $u\Iter0 > 0$.  Finally the initial estimate of the
+This choice ensures that $\vartheta\Iter0 > 0$.  Finally the initial estimate
+of the
 pixelwise gain is given by Eq.~\eqref{eq:best-gain} but using the initial bias
-instead of the best bias given $\V c\Iter0$ and $u\Iter0$:
+instead of the best bias given $\V c\Iter0$ and $\vartheta\Iter0$:
 \begin{equation}
   g\Iter0 = \Avg*{
     \frac{
@@ -1222,7 +1322,7 @@ instead of the best bias given $\V c\Iter0$ and $u\Iter0$:
         d_{k,\ell} -c\Iter0_{\ell}\,\Delta t_{k,\ell} - z\Iter0
       }^2
     }{
-      c\Iter0_{\ell}\,\Delta t_{k,\ell} + u\Iter0
+      c\Iter0_{\ell}\,\Delta t_{k,\ell} + \vartheta\Iter0
     }
   }_{\!\!k,\ell}^{-1} \, .
   \label{eq:initial-gain}
