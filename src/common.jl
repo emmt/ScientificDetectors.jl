@@ -14,8 +14,8 @@ const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
 builds an instance `A` of `DetectorAxis` describing a detector axis with `len`
 samples starting at offset `off` with respect to the corresponding sensor egde
 and with a binning factor `bin`.  The offset `off` and the binning factor `bin`
-are in units sensor samples (e.g., *pixels*), the length `len` is in units of
-macro-samples (i.e., `bin` sensor samples each).
+are in units of sensor samples (e.g., *pixels*), the length `len` is in units
+of macro-samples (i.e., `bin` sensor samples each).
 
 Basic methods (`A` is an instance of `DetectorAxis`, `ROI` is a tuple of
 `DetectorAxis`):
@@ -148,7 +148,8 @@ struct Sampler{T,N,Np1,A<:AbstractArray{T,Np1}}
     function Sampler{T,N,Np1,A}(data::A) where {T,N,Np1,A<:AbstractArray{T,Np1}}
         Np1 == N + 1 || error("Np1 ≠ N + 1")
         Np1 ≥ 2 || error("insufficient number of dimensions")
-        Base.has_offset_axes(data) && error("data array has non-standard indexing")
+        Base.has_offset_axes(data) && error(
+            "data array has non-standard indexing")
         samples = size(data, Np1)
         samples ≥ 2 || error("insufficient number of samples")
         new{T,N,Np1,A}(data, colons(N))
