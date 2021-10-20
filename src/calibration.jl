@@ -543,15 +543,26 @@ Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
 Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
 
 """
-    A = CalibrationData{T}(roi::DetectorAxes,
-                           "cat1" => (1,0,0),
-                           "cat2" => (0,1,1), ...)
+    A = CalibrationData{T}(roi,
+                           "dark"  => (1,0,0),
+                           "lamp1" => (1,1,0),
+                           "lamp2" => (1,0,1), ...)
 
 builds an empty instance of `CalibrationData` to collect statistics about
-calibration data frames in the region of interest `roi` specified as a tuple of
-`DetectorAxis` instances.  Parameter `T` is the floating-point type to compute
-statistics; if omitted, `Float64` is assumed.  To add some calibration data
-frame(s) to `A`, call:
+calibration data frames in the region of interest `roi` and for calibration
+categories paired with the corresponding coefficients of linear combination of
+the sources.  In the above example, the first category is named `"dark"` and is
+given by `1×src[1] + 0×src[2] + 0×src[3]`, the second category `"dark"` is
+given by `1×src[1] + 1×src[2] + 0×src[3]`, and the thrid category `"dark"` is
+given by `1×src[1] + 0×src[2] + 1×src[3]`.
+
+The region of interest `roi` is an `N`-tuple of detector dimensions or
+instances of `DetectorAxis`.
+
+The type parameter `T` is the floating-point type for computations.  If
+unspecified, `Float64` is assumed.
+
+To add some calibration data frame(s) to `A`, call:
 
     push!(A, x...)
 
@@ -560,22 +571,6 @@ where each `x` is an instance of `CalibrationDataFrame`.
 To push all calibration data frames produced by an iterator `itr`, just call:
 
     merge!(A, itr)
-
-The iterator `itr` shall directly produce instances of `CalibrationDataFrame`.
-For maximum flexibility, it is also possible to specialize the method
-
-    Base.push!(A::CalibrationData, x)
-
-where `x` is the kind of items produced by the iterator `itr`.  The `merge!`
-method can also be used to merge data from two `CalibrationData` instances.  As
-a short-cut, calling:
-
-FIXME:    A = CalibrationData{T}(itr)
-
-builds a `CalibrationData` instance collecting sufficient statistics from all
-calibration data frames produced by the iterator `itr`.  It is an error to have
-an empty iterator in this context because the first calibration data frame is
-needed to determine the region of interest.
 
 Other methods applicable to a `CalibrationData` instance `A`:
 
@@ -588,6 +583,8 @@ Other methods applicable to a `CalibrationData` instance `A`:
 - `keys(A)` yields an iterable over the 2-tuples `(cat,Δt)` of categories and
   exposure times in collected data frames;
 
+- `DetectorAxes(A)` yields the ROI.
+
 """
 struct CalibrationData{T<:AbstractFloat,N}
     # All calibration data must have the same detector axes settings.
@@ -595,7 +592,7 @@ struct CalibrationData{T<:AbstractFloat,N}
 
     # Mapping between (cat,Δt) pairs and indices in the vector of collected
     # statistics.
-    stat_index::Dict{Tuple{String,Float64},Int}
+    stat_index::Dict{Tuple{String,T},Int}
 
     # Vector of collected data statistics, each entry is for a given
     # (cat,Δt) pair.
@@ -617,6 +614,7 @@ end
 const CategorySpec = Pair{<:Union{AbstractString,Symbol},
                           <:Union{Tuple{Vararg{Real}},
                                   AbstractVector{<:Real}}}
+
 # @test isa("cat1" => [1,0,0], CategorySpec)
 # @test isa(:cat1  => [1,0,0], CategorySpec)
 # @test isa("cat1" => (1,0), CategorySpec)
@@ -676,10 +674,19 @@ function merge!(A::CalibrationData, itr)
     return A
 end
 
+function push!(A::CalibrationData, args...)
+    for x in args
+        push!(A, x)
+    end
+    return A
+end
+
 function push!(A::CalibrationData{T,N},
                x::CalibrationDataFrame{<:Real,N}) where {T<:AbstractFloat,N}
     # Extract and check fields.
     cat = category(x)
+    haskey(A.cat_index, cat) || argument_error(
+        "category\"", cat, "\" does not exists in calibration data")
     Δt = exposuretime(x)
     pxl = pixels(x)
     roi = DetectorAxes(x)
@@ -737,10 +744,7 @@ StatsBase.nobs(A::CalibrationData) = begin
     return n
 end
 
-
-
-
-
+DetectorAxes(A::CalibrationData) = A.roi
 
 """
     ReducedCalibration(cal) -> redcal
@@ -1232,15 +1236,15 @@ images: "dark" (or "bias") images, "lamp" images with a stable illumination
 (although not necessarily uniform) and "flat" images with a uniform
 illumination.  Arguments are as follows:
 
-* `ROI` is a `N`-tuple of `DetectorAxis` describing the region of interest;
-* `Δt` is the exposure time (in seconds);
-* `NumDark` is the number of averaged "dark" images;
-* `AvgDark` is the sample mean of the "dark" images;
-* `VarDark` is the sample variance of the "dark" images;
-* `NumLamp` is the number of averaged "lamp" images;
-* `AvgLamp` is the sample mean of the "lamp" images;
-* `VarLamp` is the sample variance of the "lamp" images;
-* `AvgFlat` is the sample mean of the "flat" images;
+- `ROI` is a `N`-tuple of `DetectorAxis` describing the region of interest;
+- `Δt` is the exposure time (in seconds);
+- `NumDark` is the number of averaged "dark" images;
+- `AvgDark` is the sample mean of the "dark" images;
+- `VarDark` is the sample variance of the "dark" images;
+- `NumLamp` is the number of averaged "lamp" images;
+- `AvgLamp` is the sample mean of the "lamp" images;
+- `VarLamp` is the sample variance of the "lamp" images;
+- `AvgFlat` is the sample mean of the "flat" images;
 
 The sample variances are the maximum likelihood (i.e. biased) estimator of the
 variances.  The sample mean and variance are computed as follows:
