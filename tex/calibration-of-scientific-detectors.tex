@@ -18,7 +18,6 @@
 %\usepackage{textcomp}
 %\usepackage{mathrsfs}
 \usepackage{stmaryrd}
-
 %\newcommand*{\PDFTitle}{Calibration of scientific image detectors}
 %\newcommand*{\PDFAuthors}{É.\ Thiébaut et al.}
 
@@ -171,8 +170,8 @@ citecolor=Purple4]{hyperref}
 \newcommand*{\proxy}[1]{\overset{\SIM}{#1}} % random value/variable
 %\newcommand*{\proxy}[1]{\widetilde{#1}}
 %\newcommand*{\estim}[1]{\hat{#1}}
-\newcommand*{\estim}[1]{\widehat{#1}}
-\newcommand*{\empirical}[1]{\widetilde{#1}}
+\newcommand*{\estim}[1]{\hat{#1}}
+\newcommand*{\empirical}[1]{\mathring{#1}}
 %\newcommand*{\FT}[1]{\widehat{#1}}
 %\newcommand*{\FT}[1]{\mathring{#1}}
 \newcommand*{\FT}[1]{\widetilde{#1}}
@@ -330,12 +329,23 @@ of the detector is necessary to obtain an unbiased estimator of the light level
 seen by each pixel and the corresponding variance or precision.
 
 Note: other approaches for considering non-uniform noise level: Anscombe
-transform, exact Guassian + Poissonian PDF, pragmatic models (like the
+transform, exact Gaussian + Poissonian PDF, pragmatic models (like the
 proposed Gaussian approximation):
+
 \begin{itemize}
-\item See \citet{Foi_et_al-2008-Poissonian_Gaussian_noise_model_fitting}
-  proposed a method to derive the detector parameters as well as the clipping
-  levels of the analog to digital converter.
+\item \citet{Foi_et_al-2008-Poissonian_Gaussian_noise_model_fitting} proposed a
+method to derive the detector parameters as well as the clipping levels of the
+analog to digital converter.  They consider a mixture of a Poissonian signal
+dependent noise and a Gaussian signal independent noise described by two
+parameters analogous to the gain\footnote{which they wrongly combine with the
+quantum efficiency} and the variance of the readout noise (no zero-level
+parameter) and account for clipping of values. Assuming that the model
+parameters and the clipping levels are the same for all the pixels, they propose
+a method to estimate all these parameters from a single calibration image of a
+sufficiently \emph{smooth} object.  Like us they approximate the statistics of
+the measured pixels by an independent heteroskedastic\footnote{with non-uniform
+parameters} Gaussian distribution. Unlike us, they assume that all pixels have
+the same parameters and do not consider defective pixels.
 
 \item \citet{Jezierska_et_al-2011-Poisson_Gaussian_noise} proposed an EM
   algorithm to fit the parameters of a mixture of Poissonian and Gaussian
@@ -711,6 +721,10 @@ parameters $\sigma$ and $z$ (if these other contributions are not centered).
 \label{fig:pdf-approx}
 \end{figure}
 
+\oops{Summarize our model of the detector and compare with others, as there may
+be some confusion.  Also discuss the effects of the quantum efficiency and of
+the instrument throughput.}
+
 
 \section{Calibration of the detector}
 
@@ -912,12 +926,12 @@ a simple change of variables.
 \subsection{Estimation of the zero level and of the gain}
 
 As we shall see, it is convenient to replace the variance $\sigma^2$ of the
-readout noise  by the parameter $\vartheta = g\,\sigma^2$.  As the gain is
+readout noise  by the parameter $\eta = g\,\sigma^2$.  As the gain is
 necessarily strictly positive, the readout noise variance is always given by
-$\sigma^2 = \vartheta/g$, so we can choose the unknown parameters to be:
+$\sigma^2 = \eta/g$, so we can choose the unknown parameters to be:
 \begin{equation}
   \label{eq:unknowns}
-  \V\theta = (z, g, \vartheta, s_{1}, s_{2}, \ldots).
+  \V\theta = (z, g, \eta, s_{1}, s_{2}, \ldots).
 \end{equation}
 The co-log-likelihood now write:
 \begin{align}
@@ -942,23 +956,23 @@ with $N = \sum_{k,\ell} N_{k,\ell}$ the total number of calibration images and:
 \begin{align}
   %\label{eq:variance-times-gain}
   %u_{k,\ell}
-  %&\bydef g\,v_{k,\ell} = c_{\ell}\,\Delta t_{k,\ell} + \vartheta
-  %= \V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + \vartheta,\\
+  %&\bydef g\,v_{k,\ell} = c_{\ell}\,\Delta t_{k,\ell} + \eta
+  %= \V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + \eta,\\
   \label{eq:reduced-precision-over-gain}
   w_{k,\ell} %&= N_{k,\ell}/u_{k,\ell}
   &\bydef \frac{N_{k,\ell}}{g\,v_{k,\ell}}
-  = \frac{N_{k,\ell}}{c_{\ell}\,\Delta t_{k,\ell} + \vartheta}
-  = \frac{N_{k,\ell}}{\V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + \vartheta},
+  = \frac{N_{k,\ell}}{c_{\ell}\,\Delta t_{k,\ell} + \eta}
+  = \frac{N_{k,\ell}}{\V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + \eta},
 \end{align}
 which is the precision of the data-set
 $\Paren*{d_{k,\ell,n}}_{n\in\IntRange{1,N_{k,\ell}}}$ times the gain $g$ and
-which only depends on the unknowns $\vartheta$ and $\V s$.
+which only depends on the unknowns $\eta$ and $\V s$.
 
 A first interesting consequence of the chosen re-parametrization is that the
 maximum likelihood zero level $z$ knowing the other parameters has a closed form
 expression that does not depend on the gain $g$:
 \begin{align}
-  z^+\Paren*{\vartheta, \V s}
+  z^+\Paren*{\eta, \V s}
   &\bydef \argmin_{z} \lkl(\V\theta) \notag\\
   &= \argmin_{z} g\,\sum_{k,\ell} w_{k,\ell}\,\Paren*{
       \empirical{v}_{k,\ell}
@@ -997,8 +1011,8 @@ gain knowing the other parameters has a closed form expression given by:
 which is obtained by solving $\partial\lkl(\V\theta)/\partial g=0$ in $g$.  The
 right hand side of Eq.~\eqref{eq:best-gain-knowing-others} is always strictly
 positive\footnote{This follows from, on the one hand, that
-  $w_{k,\ell} = N_{k,\ell}/\Paren{\V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + \vartheta} > 0$ because
-  $\vartheta = g\,\sigma^2 ≥ g\,\sigma^2_\Tag{min} = g/12 > 0$ as $g > 0$, and
+  $w_{k,\ell} = N_{k,\ell}/\Paren{\V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + \eta} > 0$ because
+  $\eta = g\,\sigma^2 ≥ g\,\sigma^2_\Tag{min} = g/12 > 0$ as $g > 0$, and
   because all entries of $\V h_\ell$ are nonnegative and the source terms
   $\V s$ are necessarily nonnegative; on the other hand,
   $\empirical{v}_{k,\ell} + \Paren[\big]{\empirical{m}_{k,\ell} -
@@ -1010,7 +1024,7 @@ replacing the zero level $z$ by $z^+$ in the right hand side of
 Eq.~\eqref{eq:best-gain-knowing-others} yields the maximum likelihood estimator
 of the gain knowing all other parameters than $z$ and $g$:
 \begin{align}
-  g^+\Paren*{\vartheta, \V s}
+  g^+\Paren*{\eta, \V s}
   &\bydef \argmin_{g > 0} \Brace*{\min_{z} \lkl(\V\theta)} \notag\\
   &= \frac{N}{
     \sum_{k,\ell} w_{k,\ell}\,\Paren*{
@@ -1023,16 +1037,16 @@ of the gain knowing all other parameters than $z$ and $g$:
 with $N = \sum_{k,\ell} N_{k,\ell}$ and:
 \begin{equation}
   m^+_{k,\ell} \bydef c_\ell\,\Delta t_{k,\ell}
-  + z^+\Paren*{\vartheta, \V s}
-  = \V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + z^+\Paren*{\vartheta, \V s},
+  + z^+\Paren*{\eta, \V s}
+  = \V h_\ell\T⋅\V s\,\Delta t_{k,\ell} + z^+\Paren*{\eta, \V s},
 \end{equation}
-which only depends on the unknowns $\vartheta$ and $\V s$.
+which only depends on the unknowns $\eta$ and $\V s$.
 
 Replacing these values of the zero level and of the gain in the
 co-log-likelihood yields:
 \begin{align}
   \label{eq:marginal-cologlikelihood}
-  \lklplus(\vartheta, \V s)
+  \lklplus(\eta, \V s)
   &\bydef \min_{z,g > 0}\lkl(\V\theta) \notag\\
   &= \sum\nolimits_{k,\ell} N_{k,\ell}\,\Paren*{\log N_{k,\ell} - \log w_{k,\ell}}
      + N\,\Paren*{1 - \log g^+} \notag \\
@@ -1123,24 +1137,24 @@ to second compensate for the non-uniform throughput and detector gain.}
 We have just shown that $\lkl(\V\theta)$ can be jointly minimized in $z$ and
 $g$, so the problem reduces to:
 \begin{equation}
-  \estim{\vartheta}, \estim{\V s}
-  = \argmin_{\vartheta > 0, \V s ≥ 0}
-  \Brace*{\lklplus(\vartheta, \V s) \bydef \min_{g,z} \lkl(\V\theta)}.
+  \estim{\eta}, \estim{\V s}
+  = \argmin_{\eta > 0, \V s ≥ 0}
+  \Brace*{\lklplus(\eta, \V s) \bydef \min_{g,z} \lkl(\V\theta)}.
 \end{equation}
 
-There is no closed form for the minimum of $\lklplus(\vartheta, \V s)$, but
-starting from some initial guess $\vartheta\Iter0$ and  $\V s\Iter0$,
-$\lklplus(\vartheta, \V s)$ can be minimized by a nonlinear multi-dimensional
+There is no closed form for the minimum of $\lklplus(\eta, \V s)$, but
+starting from some initial guess $\eta\Iter0$ and  $\V s\Iter0$,
+$\lklplus(\eta, \V s)$ can be minimized by a nonlinear multi-dimensional
 optimization algorithm implementing bound constraints.  Instances of such
 algorithms are \eg BOBYQA \citep{Powell-2009-BOBYQA} which is a derivative free
 method and only requires to compute the criterion to minimize or VMLMB
 \citep{Thiebaut-2002-optim_bdec} which is a quasi-Newton method which requires
 to compute the criterion to minimize and its derivatives with respect to the
 parameters.   Simplified expressions of the partial derivatives
-$\partial\lklplus(\vartheta, \V s)/\partial\vartheta$ and
-$\partial\lklplus(\vartheta, \V s)/\partial\V s$ of the reduced
-co-log-likelihood $\lklplus(\vartheta, \V s)$ in the reduced parameters
-$(\vartheta, \V s)$ are derived in
+$\partial\lklplus(\eta, \V s)/\partial\eta$ and
+$\partial\lklplus(\eta, \V s)/\partial\V s$ of the reduced
+co-log-likelihood $\lklplus(\eta, \V s)$ in the reduced parameters
+$(\eta, \V s)$ are derived in
 Appendix~\ref{sec:marginal-cologlikelihood-derivatives}.
 
 
@@ -1177,19 +1191,19 @@ importance.
 method: (i) the zero-level $z$ and the current / source terms can be initially
 estimated by a simple least-squares fit by first assuming i.i.d.\ noise; (ii)
 using a typical value for the gain $g\Iter0$ and for the standard deviation
-$\vartheta\Iter0 = g\Iter0\,\sigma^2_\Tag{min}$, the zero-level $z$ and the
+$\eta\Iter0 = g\Iter0\,\sigma^2_\Tag{min}$, the zero-level $z$ and the
 current / source terms can be improved by iteratively minimizing the criterion;
 (iii) the criterion is minimized in all the parameters by iteratively minimizing
-$\lkl(\V\theta)$ or by minimizing $\lklplus(\vartheta, \V s)$ (hierarchical
+$\lkl(\V\theta)$ or by minimizing $\lklplus(\eta, \V s)$ (hierarchical
 optimization).}
 
 We note that if the zero-level $z$ and the ratio $\tau_{\ell} =
-\vartheta/c_{\ell} > 0$ are assumed known, the \emph{current} terms $c_{\ell}$
+\eta/c_{\ell} > 0$ are assumed known, the \emph{current} terms $c_{\ell}$
 are approximately solutions of simple independent linear least squares problems:
 \begin{align}
   c^+_{\ell}(z,\tau)
   &= \argmin_{{\ell}}\lkl(\V\theta)
-  \quad\text{s.t.\ $\vartheta = \tau\,c_{\ell}$}\quad \notag\\
+  \quad\text{s.t.\ $\eta = \tau\,c_{\ell}$}\quad \notag\\
   &\approx \argmin_{c ≥ 0}\sum_{k} \frac{
     \Paren*{d_{k,\ell} - c\,\Delta t_{k,\ell} -  z}^2
   }{
@@ -1238,22 +1252,22 @@ where  $\varepsilon_1 > 0$ is a small factor, and then choose the initial
   }.
   \label{eq:initial-c}
 \end{equation}
-To select the initial value $\vartheta\Iter0$ of $\vartheta$, we assume that the
+To select the initial value $\eta\Iter0$ of $\eta$, we assume that the
 readout noise is small for most cases and take the initial value to be the least
 nonzero value of $c_{\ell}\Iter0\,\Delta t_{k,\ell}$ times a small factor
 $\varepsilon_2 > 0$:
 \begin{equation}
-  \vartheta\Iter0 = \varepsilon_2 \,
+  \eta\Iter0 = \varepsilon_2 \,
   \min_{\substack{
       k,\ell\\
       c_{\ell}\Iter0\,\Delta t_{k,\ell} > 0
   }} c_{\ell}\Iter0\,\Delta t_{k,\ell}.
-  \label{eq:initial-vartheta}
+  \label{eq:initial-beta}
 \end{equation}
-This choice ensures that $\vartheta\Iter0 > 0$.  Finally the initial estimate
+This choice ensures that $\eta\Iter0 > 0$.  Finally the initial estimate
 of the
 pixelwise gain is given by Eq.~\eqref{eq:best-gain} but using the initial bias
-instead of the best bias given $\V c\Iter0$ and $\vartheta\Iter0$:
+instead of the best bias given $\V c\Iter0$ and $\eta\Iter0$:
 \begin{equation}
   g\Iter0 = \Avg*{
     \frac{
@@ -1261,7 +1275,7 @@ instead of the best bias given $\V c\Iter0$ and $\vartheta\Iter0$:
         d_{k,\ell} -c\Iter0_{\ell}\,\Delta t_{k,\ell} - z\Iter0
       }^2
     }{
-      c\Iter0_{\ell}\,\Delta t_{k,\ell} + \vartheta\Iter0
+      c\Iter0_{\ell}\,\Delta t_{k,\ell} + \eta\Iter0
     }
   }_{\!\!k,\ell}^{-1}.
   \label{eq:initial-gain}
@@ -1280,7 +1294,7 @@ constants.  In practice, we take $\varepsilon_1 = \varepsilon_2 = 1/10$.
 \label{sec:partial-derivatives}
 
 In this appendix, we derive the partial derivatives of the co-log-likelihood
-$\lkl(\V\theta)$ and the reduced co-log-likelihood $\lklplus(\vartheta, \V s)$
+$\lkl(\V\theta)$ and the reduced co-log-likelihood $\lklplus(\eta, \V s)$
 in the unknown parameters.
 
 \subsection{Derivatives of the co-log-likelihood}
@@ -1297,17 +1311,17 @@ Eq.~\eqref{eq:rewritten-cologlikelihood}:
   \label{eq:rewritten-cologlikelihood-appendix}
   &\quad - N\,\log g + \sum_{k,\ell} N_{k,\ell}\,\log N_{k,\ell},
 \end{align}
-with $\V\theta = (z, g, \vartheta, \V s)$ the unknown parameters, $N =
+with $\V\theta = (z, g, \eta, \V s)$ the unknown parameters, $N =
 \sum_{k,\ell} N_{k,\ell}$ the total number of calibration images, and:
 \begin{align}
   m_{k,\ell} &= c_{\ell}\,\Delta t_{k,\ell} + z,\\
-  w_{k,\ell} &= \frac{N_{k,\ell}}{c_{\ell}\,\Delta t_{k,\ell} + \vartheta},\\
+  w_{k,\ell} &= \frac{N_{k,\ell}}{c_{\ell}\,\Delta t_{k,\ell} + \eta},\\
   %c_\ell &= \V h_\ell\T⋅\V s,
   \V c &= \M H⋅\V s,
 \end{align}
 respectively given by Eqs.~\eqref{eq:assumed-expectation},
 \eqref{eq:reduced-precision-over-gain}, and \eqref{eq:sources-to-currents-model}.
-The reduced parameters are $(\vartheta, \V s)$.  Other quantities, the number of
+The reduced parameters are $(\eta, \V s)$.  Other quantities, the number of
 images $N_{k,\ell}$ per sub-data-set, the empirical mean
 $\empirical{m}_{k,\ell}$ and variance $\empirical{v}_{k,\ell}$ of the
 sub-data-sets, the exposure times $\Delta t_{k,\ell}$, and the sources to
@@ -1327,9 +1341,9 @@ rule:
       \empirical{v}_{k,\ell}
       + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
   } - \frac{N}{g},\\
-  \PDer{\lkl(\V\theta)}{\vartheta}
+  \PDer{\lkl(\V\theta)}{\eta}
   &=
-  \sum_{k,\ell}\PDer{\lkl(\V\theta)}{w_{k,\ell}}\,\PDer{w_{k,\ell}}{\vartheta}
+  \sum_{k,\ell}\PDer{\lkl(\V\theta)}{w_{k,\ell}}\,\PDer{w_{k,\ell}}{\eta}
   = - \sum_{k,\ell}\frac{w_{k,\ell}^2}{N_{k,\ell}}\,
       \PDer{\lkl(\V\theta)}{w_{k,\ell}},
   \\
@@ -1355,7 +1369,11 @@ where the following partial derivatives are needed:
   &= g\,\Paren*{
       \empirical{v}_{k,\ell}
       + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
-    } - \frac{N_{k,\ell}}{w_{k,\ell}}.
+    } - \frac{N_{k,\ell}}{w_{k,\ell}}\notag\\
+  &=g\,\Paren*{
+      \empirical{v}_{k,\ell}
+      + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
+    } - \Paren*{c_{\ell}\,\Delta t_{k,\ell} + \eta}.
 \end{align}
 
 
@@ -1363,35 +1381,35 @@ where the following partial derivatives are needed:
 \label{sec:marginal-cologlikelihood-derivatives}
 
 We now consider the reduced co-log-likelihood
-$\lklplus(\vartheta, \V s)$ defined in Eq.~\eqref{eq:marginal-cologlikelihood} as:
+$\lklplus(\eta, \V s)$ defined in Eq.~\eqref{eq:marginal-cologlikelihood} as:
 \begin{equation}
-  \lklplus(\vartheta, \V s) = \min_{z,g > 0}\lkl(\V\theta).
+  \lklplus(\eta, \V s) = \min_{z,g > 0}\lkl(\V\theta).
 \end{equation}
 To compute the partial derivatives of the reduced co-log-likelihood
-$\lklplus(\vartheta, \V s)$ with respect to any parameter, say $\alpha$, we can
-use the chain rule on the parameters $\V\theta = (z, g, \vartheta, \V s)$:
+$\lklplus(\eta, \V s)$ with respect to any parameter, say $\alpha$, we can
+use the chain rule on the parameters $\V\theta = (z, g, \eta, \V s)$:
 \begin{align}
-  \PDer{\lklplus(\vartheta, \V s)}{\alpha}
+  \PDer{\lklplus(\eta, \V s)}{\alpha}
   &= \Paren*{
     \PDer{\lkl(\V\theta)}{z}\,\PDer{z}{\alpha}
   }_{\V\theta=\V\theta^+} + \Paren*{
     \PDer{\lkl(\V\theta)}{g}\,\PDer{g}{\alpha}
   }_{\V\theta=\V\theta^+}\notag\\
   &\quad+ \Paren*{
-    \PDer{\lkl(\V\theta)}{\vartheta}\,\PDer{\vartheta}{\alpha}
+    \PDer{\lkl(\V\theta)}{\eta}\,\PDer{\eta}{\alpha}
   }_{\V\theta=\V\theta^+} +\Paren*{
     \sum\nolimits_{j}\PDer{\lkl(\V\theta)}{s_j}\,\PDer{s_j}{\alpha}
   }_{\V\theta=\V\theta^+}
 \end{align}
 where the notation $\Paren*{\ldots}_{\V\theta=\V\theta^+}$ means to evaluate the
 parenthesized expression for the parameters $\V\theta = \V\theta^+ = (z^+, g^+,
-\vartheta, \V s)$ and where:
+\eta, \V s)$ and where:
 \begin{equation}
   z^+, g^+ = \argmin_{z, g > 0} \lkl(\V\theta)
 \end{equation}
 whose expressions are given by Eqs.~\eqref{eq:marginal-bias} and
 \eqref{eq:marginal-gain} and which only depend on the reduced parameters
-$(\vartheta, \V s)$.  By definition of $z^+$ and $g^+$ (and since the constraint
+$(\eta, \V s)$.  By definition of $z^+$ and $g^+$ (and since the constraint
 $g>0$ involves strict inequality), the partial derivatives of $\lkl(\V\theta)$
 in $z$ and $g$ evaluated at $\V\theta^+$ are equal to zero:
 \begin{align}
@@ -1402,12 +1420,12 @@ in $z$ and $g$ evaluated at $\V\theta^+$ are equal to zero:
   \Paren*{\partial\lkl(\V\theta)/\partial g}_{\V\theta=\V\theta^+} = 0\\
   \end{cases}
 \end{align}
-The partial derivative of the reduced co-log-likelihood $\lklplus(\vartheta, \V
+The partial derivative of the reduced co-log-likelihood $\lklplus(\eta, \V
 s)$ then simplifies to:
 \begin{equation}
-  \PDer{\lklplus(\vartheta, \V s)}{\alpha}
+  \PDer{\lklplus(\eta, \V s)}{\alpha}
   = \Paren*{
-    \PDer{\lkl(\V\theta)}{\vartheta}\,\PDer{\vartheta}{\alpha}
+    \PDer{\lkl(\V\theta)}{\eta}\,\PDer{\eta}{\alpha}
   }_{\V\theta=\V\theta^+} + \Paren*{
     \sum\nolimits_{j}\PDer{\lkl(\V\theta)}{s_j}\,\PDer{s_j}{\alpha}
   }_{\V\theta=\V\theta^+}.
@@ -1415,12 +1433,12 @@ s)$ then simplifies to:
 \end{equation}
 According to this result, it is then sufficient to evaluate the above two
 expressions for $z=z^+$ and $g=g^+$ to have the partial derivatives of the
-reduced co-log-likelihood $\lklplus(\vartheta, \V s)$ in the reduced parameters
-$(\vartheta, \V s)$:
+reduced co-log-likelihood $\lklplus(\eta, \V s)$ in the reduced parameters
+$(\eta, \V s)$:
 \begin{align}
-  \PDer{\lklplus(\vartheta, \V s)}{\vartheta}
-  &= \Paren*{\PDer{\lkl(\V\theta)}{\vartheta}}_{\V\theta=\V\theta^+}\\
-  \PDer{\lklplus(\vartheta, \V s)}{s_j}
+  \PDer{\lklplus(\eta, \V s)}{\eta}
+  &= \Paren*{\PDer{\lkl(\V\theta)}{\eta}}_{\V\theta=\V\theta^+}\\
+  \PDer{\lklplus(\eta, \V s)}{s_j}
   &= \Paren*{\PDer{\lkl(\V\theta)}{s_j}}_{\V\theta=\V\theta^+},
 \end{align}
 using the derivatives derived in Appendix~\ref{sec:cologlikelihood-derivatives}.
