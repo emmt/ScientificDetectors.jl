@@ -1,6 +1,6 @@
 module Calibration
 
-using StatsBase, Statistics
+using StatsBase, Statistics, LinearAlgebra
 using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
@@ -543,7 +543,9 @@ Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
 Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
 
 """
-    A = CalibrationData{T}(roi::DetectorAxes)
+    A = CalibrationData{T}(roi::DetectorAxes,
+                           "cat1" => (1,0,0),
+                           "cat2" => (0,1,1), ...)
 
 builds an empty instance of `CalibrationData` to collect statistics about
 calibration data frames in the region of interest `roi` specified as a tuple of
@@ -568,7 +570,7 @@ where `x` is the kind of items produced by the iterator `itr`.  The `merge!`
 method can also be used to merge data from two `CalibrationData` instances.  As
 a short-cut, calling:
 
-    A = CalibrationData{T}(itr)
+FIXME:    A = CalibrationData{T}(itr)
 
 builds a `CalibrationData` instance collecting sufficient statistics from all
 calibration data frames produced by the iterator `itr`.  It is an error to have
@@ -593,7 +595,7 @@ struct CalibrationData{T<:AbstractFloat,N}
 
     # Mapping between (cat,Δt) pairs and indices in the vector of collected
     # statistics.
-    dict::Dict{Tuple{String,Float64},Int}
+    stat_index::Dict{Tuple{String,Float64},Int}
 
     # Vector of collected data statistics, each entry is for a given
     # (cat,Δt) pair.
@@ -602,42 +604,69 @@ struct CalibrationData{T<:AbstractFloat,N}
     # Array shared by statistics of singleton data-sets to store their 2nd
     # moment.
     null::Array{T,N}
+
+    # Source to category matrix.
+    src_to_cat::Matrix{T}
+
+    # Categories.
+    cat_index::Dict{String,Int}
 end
+
+# Type of argument to specify a category name and the corresponding
+# row of the "source-to-category" matrix.
+const CategorySpec = Pair{<:Union{AbstractString,Symbol},
+                          <:Union{Tuple{Vararg{Real}},
+                                  AbstractVector{<:Real}}}
+# @test isa("cat1" => [1,0,0], CategorySpec)
+# @test isa(:cat1  => [1,0,0], CategorySpec)
+# @test isa("cat1" => (1,0), CategorySpec)
+# @test isa(":cat1 => (1,0), CategorySpec)
 
 # Use double precision if type parameter is not specified.
-CalibrationData(I::NTuple{N,DetectorAxisTypes}) where {N} =
-    CalibrationData{Float64,N}(I)
-
-CalibrationData{T}(I::NTuple{N,DetectorAxisTypes}) where {T<:AbstractFloat,N} =
-    CalibrationData{T}(DetectorAxes(I))
-
-CalibrationData{T}(roi::DetectorAxes{N}) where {T<:AbstractFloat,N} =
-    CalibrationData{T,N}(roi, Dict{Tuple{String,Float64},Int}(),
-                         OnlineStatistics{T,N}[],
-                         zeros(T, size(roi)))
-
-CalibrationData{T,N}(I::NTuple{N,DetectorAxisTypes}) where {T<:AbstractFloat,N} =
-    CalibrationData{T}(I)
-
-CalibrationData{T,N}(roi::Tuple{Vararg{DetectorAxisTypes}}) where {T<:AbstractFloat,N} =
-    dimension_mismatch("not same number of dimensions")
-
-CalibrationData{T}(itr) where {T<:AbstractFloat} =
-    CalibrationData{T}(Iterators.Stateful(itr))
-
-CalibrationData{T,N}(itr) where {T<:AbstractFloat,N} =
-    CalibrationData{T,N}(Iterators.Stateful(itr))
-
-CalibrationData{T}(itr::Iterators.Stateful) where {T<:AbstractFloat} = begin
-    isempty(itr) && error("no calibration data")
-    x1 = popfirst!(itr)
-    merge!(push!(CalibrationData{T}(DetectorAxes(x1)), x1), itr)
+function CalibrationData{T}(roi::DetectorAxes{N},
+                            args::CategorySpec...) where {T<:AbstractFloat,N}
+    to_vector(x::AbstractVector) = x
+    to_vector(x::Tuple) = collect(x)
+    local src_to_cat::Matrix{T}
+    cat_index = Dict{String,Int}()
+    m = length(args) # number of categories
+    n = -1           # number of sources (not yet known)
+    i = 0
+    for (k,v) in args
+        i += 1
+        cat = String(k)
+        haskey(cat_index, cat) && argument_error(
+            "duplicate category name \"", cat, "\"")
+        if i == 1
+            n = length(v)
+            src_to_cat = Matrix{T}(undef, m, n)
+        else
+            length(v) == n || argument_error(
+                "not same number of sources, got ", length(v),
+                " for category \"", cat, "\", should be ", n,
+                " for all categories")
+        end
+        cat_index[cat] = i
+        src_to_cat[i,:] = to_vector(v)
+    end
+    m ≥ n || argument_error(
+        "there must be at least as many categories as sources")
+    rank(src_to_cat) ≥ n  || argument_error(
+        "source to category matrix is rank deficient")
+    return CalibrationData{T,N}(
+        roi,                               # region of interest
+        Dict{Tuple{String,Float64},Int}(), # stat_index
+        OnlineStatistics{T,N}[],           # stat
+        zeros(T, size(roi)),               # null,
+        src_to_cat,                        # src_to_cat
+        cat_index)                         # cat_index
 end
 
-CalibrationData{T,N}(itr::Iterators.Stateful) where {T<:AbstractFloat,N} = begin
-    isempty(itr) && error("no calibration data")
-    x1 = popfirst!(itr)
-    merge!(push!(CalibrationData{T,N}(DetectorAxes(x1)), x1), itr)
+CalibrationData(args...; kwds...) = CalibrationData{Float64}(args...; kwds...)
+
+function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
+                            args::CategorySpec...) where {T<:AbstractFloat,N}
+    return CalibrationData{T}(DetectorAxes(roi), args...)
 end
 
 function merge!(A::CalibrationData, itr)
@@ -665,8 +694,8 @@ function push!(A::CalibrationData{T,N},
 
     # Update statistics for given category and exposure time.
     key = (cat, Δt)
-    if haskey(A.dict, key)
-        index = A.dict[key]
+    if haskey(A.stat_index, key)
+        index = A.stat_index[key]
         stat = A.stat[index]
         if storage(stat, 2) === A.null
             # Pushing one more sample will result in non-zero 2nd moment.
@@ -680,7 +709,7 @@ function push!(A::CalibrationData{T,N},
         # singleton data-sets.
         push!(A.stat, IndependentStatistics((zeros(T, dims), A.null), 0))
         index = length(A.stat)
-        A.dict[key] = index
+        A.stat_index[key] = index
     end
     push!(A.stat[index], pxl)
     return A
@@ -692,10 +721,10 @@ end
         "`CalibrationDataFrame`.  The solution may be to extend ",
         "`Base.push!(A::CalibrationData, x::$T)` for such kind of argument.")
 
-Base.keys(A::CalibrationData) = keys(A.dict)
-Base.isempty(A::CalibrationData) = isempty(A.dict)
+Base.keys(A::CalibrationData) = keys(A.stat_index)
+Base.isempty(A::CalibrationData) = isempty(A.stat_index)
 Base.empty!(A::CalibrationData) = begin
-    empty!(A.dict)
+    empty!(A.stat_index)
     empty!(A.stat)
     return A
 end
