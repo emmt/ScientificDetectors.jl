@@ -628,7 +628,8 @@ function CalibrationData{T}(roi::DetectorAxes{N},
     local src_to_cat::Matrix{T}
     cat_index = Dict{String,Int}()
     m = length(args) # number of categories
-    n = -1           # number of sources (not yet known)
+    m ≥ 1 || argument_error("there must be some categories")
+    n = -1 # number of sources (not yet known)
     i = 0
     for (k,v) in args
         i += 1
@@ -649,7 +650,7 @@ function CalibrationData{T}(roi::DetectorAxes{N},
     end
     m ≥ n || argument_error(
         "there must be at least as many categories as sources")
-    rank(src_to_cat) ≥ n  || argument_error(
+    rank(src_to_cat) ≥ n || argument_error(
         "source to category matrix is rank deficient")
     return CalibrationData{T,N}(
         roi,                               # region of interest
