@@ -1,6 +1,7 @@
 module Calibration
 
 using StatsBase, Statistics, LinearAlgebra
+using ArrayTools
 using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
@@ -541,6 +542,63 @@ Base.ndims(A::CalibrationDataFrame) = ndims(typeof(A))
 Base.ndims(::Type{<:CalibrationDataFrame{T,N}}) where {T,N} = N
 Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
 Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
+
+
+#
+# CalibrationFrameSampler to provide samples given an array.
+#
+struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
+    data::A
+    inds::NTuple{N,Colon}
+    cat::String           # Category.
+    Δt::Float64           # Exposure time.
+    roi::DetectorAxes{N}  # Detector axes settings.
+    function CalibrationFrameSampler{T,N,Np1,A}(data::A,
+                                                cat::Category,
+                                                Δt::Real;
+                                                roi::DetectorAxes{N} = DetectorAxes(view(data, colons(N)..., 1))
+                                                ) where {T,N,Np1,A<:AbstractArray{T,Np1}}
+
+        Δt ≥ 0 || argument_error("exposure time must be nonnegative")
+        Np1 == N + 1 || error("Np1 ≠ N + 1")
+        Np1 ≥ 2 || error("insufficient number of dimensions")
+        Base.has_offset_axes(data) && error(
+            "data array has non-standard indexing")
+        samples = size(data, Np1)
+        samples ≥ 2 || error("insufficient number of samples")
+        new{T,N,Np1,A}(data, colons(N),cat,Δt,roi)
+    end
+end
+
+CalibrationFrameSampler(data::A,cat::Category,Δt::Real) where {T,N,A<:AbstractArray{T,N}} = CalibrationFrameSampler{T,N-1,N,A}(data,cat::Category,Δt::Real)
+
+StatsBase.nobs(A::CalibrationFrameSampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
+
+Base.eltype(A::CalibrationFrameSampler) = eltype(typeof(A))
+# FIXME: be more specific
+Base.eltype(::Type{<:CalibrationFrameSampler{T,N}}) where {T,N} = CalibrationDataFrame{T,N}
+
+Base.IteratorEltype(A::CalibrationFrameSampler) = Base.IteratorEltype(typeof(A))
+Base.IteratorEltype(::Type{<:CalibrationFrameSampler}) = Base.HasEltype()
+
+Base.IteratorSize(A::CalibrationFrameSampler) = Base.IteratorSize(typeof(A))
+Base.IteratorSize(::Type{<:CalibrationFrameSampler{T,N}}) where{T,N} = Base.HasShape{N}();
+
+Base.ndims(A::CalibrationFrameSampler{T,N}) where {T,N} = N
+Base.length(A::CalibrationFrameSampler) = nobs(A)
+Base.size(A::CalibrationFrameSampler) = (length(A),)
+Base.size(A::CalibrationFrameSampler{T,N}, i::Integer) where {T,N} =
+    (i < 1 ? error("out of range dimension index") :
+     i == 1 ? length(A) : 1)
+
+Base.show(io::IO, obj::CalibrationFrameSampler{T,N}) where {T,N} = begin
+    join(io, size(obj),"×")
+    print(io, " CalibrationFrameSampler{$T,$N}: samples = ", nobs(obj))
+end
+
+Base.iterate(A::CalibrationFrameSampler, i = 1) =
+    (1 ≤ i ≤ nobs(A) ? (CalibrationDataFrame(A.cat,A.Δt,view(A.data, A.inds..., i);roi=A.roi), i+1) : nothing)
+
 
 """
     A = CalibrationData{T}(roi,
