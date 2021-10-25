@@ -544,9 +544,14 @@ Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
 Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
 
 
-#
-# CalibrationFrameSampler to provide samples given an array.
-#
+"""
+    S = CalibrationFrameSampler(sampleArray,"cat",Δt);
+
+builds an iterator on `CalibrationDataFrame` from
+an array of frames `sampleArray` and corresponding category `cat` and
+exposure time (in seconds) `Δt`.
+The pixel type `T` can be specified as type parameter.
+"""
 struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
     data::A
     inds::NTuple{N,Colon}
@@ -632,6 +637,13 @@ where each `x` is an instance of `CalibrationDataFrame`.
 To push all calibration data frames produced by an iterator `itr`, just call:
 
     merge!(A, itr)
+
+In the case there is one source per category it is possible to directly build and
+fill  `CalibrationData` :
+
+    A = CalibrationData(t...)
+
+where each `t`is an instance of `CalibrationFrameSampler`
 
 Other methods applicable to a `CalibrationData` instance `A`:
 
