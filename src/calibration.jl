@@ -571,6 +571,9 @@ struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
 end
 
 CalibrationFrameSampler(data::A,cat::Category,Δt::Real) where {T,N,A<:AbstractArray{T,N}} = CalibrationFrameSampler{T,N-1,N,A}(data,cat::Category,Δt::Real)
+exposuretime(A::CalibrationFrameSampler) = A.Δt
+category(A::CalibrationFrameSampler) = A.cat
+DetectorAxes(A::CalibrationFrameSampler) = A.roi
 
 StatsBase.nobs(A::CalibrationFrameSampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
 
@@ -678,7 +681,6 @@ const CategorySpec = Pair{<:Union{AbstractString,Symbol},
 # @test isa("cat1" => (1,0), CategorySpec)
 # @test isa(":cat1 => (1,0), CategorySpec)
 
-# Use double precision if type parameter is not specified.
 function CalibrationData{T}(roi::DetectorAxes{N},
                             args::CategorySpec...) where {T<:AbstractFloat,N}
     to_vector(x::AbstractVector) = x
@@ -719,6 +721,44 @@ function CalibrationData{T}(roi::DetectorAxes{N},
         cat_index)                         # cat_index
 end
 
+
+function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:AbstractFloat}
+    to_vector(x::AbstractVector) = x
+    to_vector(x::Tuple) = collect(x)
+    local roi::DetectorAxes, N::Int
+    cat_index = Dict{String,Int}()
+    m = length(args) # number of categories
+    m ≥ 1 || argument_error("there must be some categories")
+    i = 0
+    for k in args
+        cat = category(k)
+        if !haskey(cat_index, cat)
+            i +=1;
+            cat_index[cat] = i;
+        end
+        if i == 1
+            roi = DetectorAxes(k)
+            N = length(roi)
+        end
+        roi == DetectorAxes(k) || argument_error(
+            "detector ROI settings must be identical for all calibration data")
+    end
+
+    A = CalibrationData{T,N}(
+        roi,                               # region of interest
+        Dict{Tuple{String,Float64},Int}(), # stat_index
+        OnlineStatistics{T,N}[],           # stat
+        zeros(T, size(roi)),               # null,
+        Matrix(1.0I,m,m) ,                 # FIXME: a less dense Matrix should be better
+        cat_index)                         # cat_index
+
+    for k in args
+        merge!(A,k)
+    end
+    return A
+end
+
+# Use double precision if type parameter is not specified.
 CalibrationData(args...; kwds...) = CalibrationData{Float64}(args...; kwds...)
 
 function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
