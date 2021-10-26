@@ -545,12 +545,12 @@ Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
 
 
 """
-    S = CalibrationFrameSampler(sampleArray,"cat",Δt);
+    S = CalibrationFrameSampler(arr, cat, Δt)
 
-builds an iterator on `CalibrationDataFrame` from
-an array of frames `sampleArray` and corresponding category `cat` and
-exposure time (in seconds) `Δt`.
-The pixel type `T` can be specified as type parameter.
+builds an iterator on `CalibrationDataFrame` from an array of frames `arr` and
+corresponding category `cat` and exposure time (in seconds) `Δt`.  The pixel type
+`T` can be specified as type parameter.
+
 """
 struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
     data::A
@@ -639,11 +639,11 @@ To push all calibration data frames produced by an iterator `itr`, just call:
     merge!(A, itr)
 
 In the case there is one source per category it is possible to directly build and
-fill  `CalibrationData` :
+fill  `CalibrationData`:
 
     A = CalibrationData(t...)
 
-where each `t`is an instance of `CalibrationFrameSampler`
+where each `t` is an instance of `CalibrationFrameSampler`
 
 Other methods applicable to a `CalibrationData` instance `A`:
 
@@ -733,7 +733,6 @@ function CalibrationData{T}(roi::DetectorAxes{N},
         cat_index)                         # cat_index
 end
 
-
 function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:AbstractFloat}
     to_vector(x::AbstractVector) = x
     to_vector(x::Tuple) = collect(x)
@@ -742,18 +741,19 @@ function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:Abstract
     m = length(args) # number of categories
     m ≥ 1 || argument_error("there must be some categories")
     i = 0
-    for k in args
-        cat = category(k)
+    for arg in args
+        cat = category(arg)
         if !haskey(cat_index, cat)
             i +=1;
             cat_index[cat] = i;
         end
         if i == 1
-            roi = DetectorAxes(k)
+            roi = DetectorAxes(arg)
             N = length(roi)
+        else
+            roi == DetectorAxes(arg) || argument_error(
+                "detector ROI settings must be identical for all calibration data")
         end
-        roi == DetectorAxes(k) || argument_error(
-            "detector ROI settings must be identical for all calibration data")
     end
 
     A = CalibrationData{T,N}(
@@ -764,8 +764,8 @@ function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:Abstract
         Matrix(1.0I,m,m) ,                 # FIXME: a less dense Matrix should be better
         cat_index)                         # cat_index
 
-    for k in args
-        merge!(A,k)
+    for arg in args
+        merge!(A,arg)
     end
     return A
 end
