@@ -263,7 +263,7 @@ end
 function SampleStatistics{T,N}(x1::AbstractArray{<:Real,N},
                                itr,
                                Δt::Real,
-                               roi::DetectorAxes{N} = DetectorAxes(x)
+                               roi::DetectorAxes{N} = DetectorAxes(x1)
                                ) where {T<:AbstractFloat,N}
     dims = size(roi)
     stat = OnlineStatistics{T,N}((zeros(T, dims), zeros(T, dims)), 0)
