@@ -1,6 +1,7 @@
 module Calibration
 
 using StatsBase, Statistics, LinearAlgebra
+using ArrayTools
 using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
@@ -542,6 +543,71 @@ Base.ndims(::Type{<:CalibrationDataFrame{T,N}}) where {T,N} = N
 Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
 Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
 
+
+"""
+    S = CalibrationFrameSampler(arr, cat, Δt)
+
+builds an iterator on `CalibrationDataFrame` from an array of frames `arr` and
+corresponding category `cat` and exposure time (in seconds) `Δt`.  The pixel type
+`T` can be specified as type parameter.
+
+"""
+struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
+    data::A
+    inds::NTuple{N,Colon}
+    cat::String           # Category.
+    Δt::Float64           # Exposure time.
+    roi::DetectorAxes{N}  # Detector axes settings.
+    function CalibrationFrameSampler{T,N,Np1,A}(data::A,
+                                                cat::Category,
+                                                Δt::Real;
+                                                roi::DetectorAxes{N} = DetectorAxes(view(data, colons(N)..., 1))
+                                                ) where {T,N,Np1,A<:AbstractArray{T,Np1}}
+
+        Δt ≥ 0 || argument_error("exposure time must be nonnegative")
+        Np1 == N + 1 || error("Np1 ≠ N + 1")
+        Np1 ≥ 2 || error("insufficient number of dimensions")
+        Base.has_offset_axes(data) && error(
+            "data array has non-standard indexing")
+        samples = size(data, Np1)
+        samples ≥ 2 || error("insufficient number of samples")
+        new{T,N,Np1,A}(data, colons(N),cat,Δt,roi)
+    end
+end
+
+CalibrationFrameSampler(data::A,cat::Category,Δt::Real) where {T,N,A<:AbstractArray{T,N}} = CalibrationFrameSampler{T,N-1,N,A}(data,cat::Category,Δt::Real)
+exposuretime(A::CalibrationFrameSampler) = A.Δt
+category(A::CalibrationFrameSampler) = A.cat
+DetectorAxes(A::CalibrationFrameSampler) = A.roi
+
+StatsBase.nobs(A::CalibrationFrameSampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
+
+Base.eltype(A::CalibrationFrameSampler) = eltype(typeof(A))
+# FIXME: be more specific
+Base.eltype(::Type{<:CalibrationFrameSampler{T,N}}) where {T,N} = CalibrationDataFrame{T,N}
+
+Base.IteratorEltype(A::CalibrationFrameSampler) = Base.IteratorEltype(typeof(A))
+Base.IteratorEltype(::Type{<:CalibrationFrameSampler}) = Base.HasEltype()
+
+Base.IteratorSize(A::CalibrationFrameSampler) = Base.IteratorSize(typeof(A))
+Base.IteratorSize(::Type{<:CalibrationFrameSampler{T,N}}) where{T,N} = Base.HasShape{N}();
+
+Base.ndims(A::CalibrationFrameSampler{T,N}) where {T,N} = N
+Base.length(A::CalibrationFrameSampler) = nobs(A)
+Base.size(A::CalibrationFrameSampler) = (length(A),)
+Base.size(A::CalibrationFrameSampler{T,N}, i::Integer) where {T,N} =
+    (i < 1 ? error("out of range dimension index") :
+     i == 1 ? length(A) : 1)
+
+Base.show(io::IO, obj::CalibrationFrameSampler{T,N}) where {T,N} = begin
+    join(io, size(obj),"×")
+    print(io, " CalibrationFrameSampler{$T,$N}: samples = ", nobs(obj))
+end
+
+Base.iterate(A::CalibrationFrameSampler, i = 1) =
+    (1 ≤ i ≤ nobs(A) ? (CalibrationDataFrame(A.cat,A.Δt,view(A.data, A.inds..., i);roi=A.roi), i+1) : nothing)
+
+
 """
     A = CalibrationData{T}(roi,
                            "dark"  => (1,0,0),
@@ -571,6 +637,13 @@ where each `x` is an instance of `CalibrationDataFrame`.
 To push all calibration data frames produced by an iterator `itr`, just call:
 
     merge!(A, itr)
+
+In the case there is one source per category it is possible to directly build and
+fill  `CalibrationData`:
+
+    A = CalibrationData(t...)
+
+where each `t` is an instance of `CalibrationFrameSampler`
 
 Other methods applicable to a `CalibrationData` instance `A`:
 
@@ -620,7 +693,6 @@ const CategorySpec = Pair{<:Union{AbstractString,Symbol},
 # @test isa("cat1" => (1,0), CategorySpec)
 # @test isa(":cat1 => (1,0), CategorySpec)
 
-# Use double precision if type parameter is not specified.
 function CalibrationData{T}(roi::DetectorAxes{N},
                             args::CategorySpec...) where {T<:AbstractFloat,N}
     to_vector(x::AbstractVector) = x
@@ -661,6 +733,44 @@ function CalibrationData{T}(roi::DetectorAxes{N},
         cat_index)                         # cat_index
 end
 
+function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:AbstractFloat}
+    to_vector(x::AbstractVector) = x
+    to_vector(x::Tuple) = collect(x)
+    local roi::DetectorAxes, N::Int
+    cat_index = Dict{String,Int}()
+    m = length(args) # number of categories
+    m ≥ 1 || argument_error("there must be some categories")
+    i = 0
+    for arg in args
+        cat = category(arg)
+        if !haskey(cat_index, cat)
+            i +=1;
+            cat_index[cat] = i;
+        end
+        if i == 1
+            roi = DetectorAxes(arg)
+            N = length(roi)
+        else
+            roi == DetectorAxes(arg) || argument_error(
+                "detector ROI settings must be identical for all calibration data")
+        end
+    end
+
+    A = CalibrationData{T,N}(
+        roi,                               # region of interest
+        Dict{Tuple{String,Float64},Int}(), # stat_index
+        OnlineStatistics{T,N}[],           # stat
+        zeros(T, size(roi)),               # null,
+        Matrix(1.0I,m,m) ,                 # FIXME: a less dense Matrix should be better
+        cat_index)                         # cat_index
+
+    for arg in args
+        merge!(A,arg)
+    end
+    return A
+end
+
+# Use double precision if type parameter is not specified.
 CalibrationData(args...; kwds...) = CalibrationData{Float64}(args...; kwds...)
 
 function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
