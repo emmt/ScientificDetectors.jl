@@ -1,6 +1,7 @@
 module Calibration
 
 using StatsBase, Statistics, LinearAlgebra
+using SimpleExpressions
 using ArrayTools
 using OptimPackNextGen
 using MultivariateOnlineStatistics
@@ -19,10 +20,20 @@ import ..ScientificDetectors:
     exposuretime
 import Base: push!, merge!
 
+const Category = Union{AbstractString,Symbol}
+
 const Colons{N} = NTuple{N,Colon}
 
 # Union of acceptable identifer types.
 const Identifiers = Union{AbstractString,Symbol,Integer}
+
+# Include code for types with constructors and basic method.
+include("ReducedCalibration.jl")
+include("CalibrationDataFrame.jl")
+#include("CalibrationDataFrameSampler.jl")
+include("CalibrationData.jl")
+include("CalibrationFrameSampler.jl")
+include("SimpleCalibration.jl")
 
 """
     identifier(key) -> str
@@ -38,310 +49,6 @@ identifier(key::Symbol) = String(key)
 
 @doc @doc(identifier) Identifiers
 
-"""
-
-`ReducedCalibration{T}` stores the calibration parameters with `T` the
-floating-point type for the computations.
-
-Constructor is called as:
-    ReducedCalibration([roi,] f, z, g, σ, args...; kwds...) -> cal
-
-where `roi` is an `N`-tuple of `DetectorAxis` describing the region of interest
-(automatically guessed from argument `f` if not specified), `f` is the
-co-log-likelihood, `z` is the *zero level* that is the constant bias set by the
-analog to digital converter (in ADU), `g` is the detector gain (in electrons per
-ADU) and `σ` is the standard deviation of the readout noise (in ADU/frame).
-Arguments `f`, `z`, `g` and `σ` are pixelwise.
-
-Additional arguments `args...` can be:
-
-- Key-value pairs like `"cat1" => c1`, `:cat2 => c2`, ... of category
-  identifiers and arrays corresponding to current terms like the dark current or
-  any background flux (in ADU/second).  Arguments `c1`, `c2`, ... are assumed to
-  be pixelwise.
-
-- Two arguments: `c = [c1, c2, ...]` and `cat = ["cat1", "cat2", ...]`
-  respectively a vector of current terms and of corresponding category
-  identifiers.
-
-Floating-point type, say `T`, and dimensionality, say `N`, may be specified:
-
-    ReducedCalibration{T}([roi,] f, z, g, σ, args...; kwds...) -> cal
-    ReducedCalibration{T,N}([roi,] f, z, g, σ, args...; kwds...) -> cal
-
-Basic operations on `ReducedCalibration` instance `obj`:
-
-    size(obj)       # yields dimensions of detector
-    size(obj,k)     # yields `k`-th dimension of detector
-    length(obj)     # yields number of elements of detector
-    eltype(obj)     # yields floating-point type of calibration data
-    T.(obj)         # convert contents of `obj` to floating-point type `T`
-
-Other implemented methods (must be imported or prefixed by `Calibration.`):
-
-    cologlikelihood(obj) # yields co-log-likelihood map
-    detectorbias(obj)    # yields constant detector bias (in ADU)
-    detectorgain(obj)    # yields detector gain (in e-/ADU)
-    detectornoise(obj)   # yields standard deviation of detector noise (in ADU)
-    currents(obj)        # yields all current terms
-    current(obj, k)      # yields k-th current term (in ADU/s)
-    categories(obj)      # yields names of current terms
-    category(obj, k)     # yields name of k-th current term
-
-"""
-struct ReducedCalibration{T<:AbstractFloat,N}
-    # Dimensions, offsets and binning factors of the "Region Of Interest".
-    roi::NTuple{N,DetectorAxis}
-
-    # Co-log-likelihood.
-    f::Array{T,N}
-
-    # Zero-level (constant bias in ADU):
-    z::Array{T,N}
-
-    # Detector gain (in electrons per ADU):
-    g::Array{T,N}
-
-    # Standard deviation of the readout noise (in ADU/frame):
-    σ::Array{T,N}
-
-    # Time dependent bias, e.g. dark current and background flux, (in
-    # ADU/second), may be empty or zero-filled:
-    c::Vector{Array{T,N}}
-
-    # Categories of the different sources responsible of the different
-    # time-dependent bias terms.
-    cat::Vector{String}
-
-    # Inner constructor provided to force using outer constructors.
-    function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
-                                     f::Array{T,N},
-                                     z::Array{T,N},
-                                     g::Array{T,N},
-                                     σ::Array{T,N},
-                                     c::Vector{Array{T,N}},
-                                     cat::Vector{String};
-                                     check::Bool = false
-                                     ) where {T<:AbstractFloat,N}
-        for i in 1:N
-            @assert length(roi[i]) ≥ 1
-            @assert offset(roi[i]) ≥ 0
-            @assert binning(roi[i]) ≥ 1
-        end
-        dims = size(roi)
-        @assert size(f) == dims
-        @assert size(z) == dims
-        @assert size(g) == dims
-        @assert size(σ) == dims
-        @assert length(cat) == length(c)
-        for k ∈ eachindex(c)
-            @assert size(c[k]) == dims
-        end
-        obj = new{T,N}(roi, f, z, g, σ, c, cat)
-        check && checkvalues(obj)
-        return obj
-    end
-end
-
-#
-# Simple outer constructors (mostly for conversion).  Note that a constructor
-# of an immutable structure can safely return its argument.
-#
-ReducedCalibration(obj::ReducedCalibration) = obj
-function ReducedCalibration(roi::NTuple{N,DetectorAxis},
-                            f::AbstractArray{<:Real,N},
-                            z::AbstractArray{<:Real,N},
-                            g::AbstractArray{<:Real,N},
-                            σ::AbstractArray{<:Real,N},
-                            c::AbstractVector{Array{<:Real,N}},
-                            cat::AbstractVector{String};
-                            kwds...) where {N}
-    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
-                           map(eltype, c)...))
-    ReducedCalibration{T}(roi, f, z, g, σ, c, cat; kwds...)
-end
-
-ReducedCalibration{T}(obj::ReducedCalibration{T}) where {T} = obj
-ReducedCalibration{T}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
-    ReducedCalibration{T}(obj.roi, obj.f, obj.z, obj.g, obj.σ, obj.c, obj.cat)
-function ReducedCalibration{T}(roi::NTuple{N,DetectorAxis},
-                               f::AbstractArray{<:Real,N},
-                               z::AbstractArray{<:Real,N},
-                               g::AbstractArray{<:Real,N},
-                               σ::AbstractArray{<:Real,N},
-                               c::AbstractVector{Array{<:Real,N}},
-                               cat::AbstractVector{String};
-                               kwds...) where {T<:AbstractFloat,N}
-    # Call the inner constructor with all arguments of correct type.
-    ReducedCalibration{T,N}(roi,
-                            convert(Array{T,N}, f),
-                            convert(Array{T,N}, z),
-                            convert(Array{T,N}, g),
-                            convert(Array{T,N}, σ),
-                            map(x -> convert(Array{T,N}, x), c),
-                            convert(Array{String}, cat);
-                            kwds...)
-end
-
-ReducedCalibration{T,N}(obj::ReducedCalibration{T,N}) where {T,N} = obj
-ReducedCalibration{T,N}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
-    ReducedCalibration{T}(obj)
-function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
-                                 f::AbstractArray{<:Real,N},
-                                 z::AbstractArray{<:Real,N},
-                                 g::AbstractArray{<:Real,N},
-                                 σ::AbstractArray{<:Real,N},
-                                 c::AbstractVector{Array{<:Real,N}},
-                                 cat::AbstractVector{String};
-                                 kwds...) where {T<:AbstractFloat,N}
-    ReducedCalibration{T}(roi, f, z, g, σ, c, cat; kwds...)
-end
-
-#
-# Getters.
-#
-DetectorAxes(obj::ReducedCalibration) = obj.roi
-cologlikelihood(obj::ReducedCalibration) = obj.f
-detectorbias(obj::ReducedCalibration) = obj.z
-detectorgain(obj::ReducedCalibration) = obj.g
-detectornoise(obj::ReducedCalibration) = obj.σ
-currents(obj::ReducedCalibration) = obj.c
-current(obj::ReducedCalibration, k::Integer) = getindex(currents(obj), k)
-categories(obj::ReducedCalibration) = obj.cat
-category(obj::ReducedCalibration, k::Integer) = getindex(categories(obj), k)
-
-#
-# Basic operations on ReducedCalibration structure.
-#
-Base.eltype(::ReducedCalibration{T}) where {T} = T
-Base.size(obj::ReducedCalibration) = size(DetectorAxes(obj))
-Base.size(obj::ReducedCalibration, i) = size(DetectorAxes(obj), i)
-Base.length(obj::ReducedCalibration) = prod(size(obj))
-Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
-    T(obj)
-
-Base.show(io::IO, obj::ReducedCalibration{T,N}) where {T,N} = begin
-    join(io, size(obj),"×")
-    print(io, " ReducedCalibration{$T,$N}:")
-    for i in 1:length(categories(obj))
-        print(io, "\n - cat", i, ": \"", identifier(category(obj,i)), "\"")
-    end
-end
-
-# Allow for `T.(obj)` to work with `T` a floating-point type.
-Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration) where {T<:AbstractFloat} =
-    ReducedCalibration{T}(obj)
-
-#
-# More complex outer constructors for ReducedCalibration structure.
-#
-
-# Provide a ROI if not specified and parse current terms.
-function ReducedCalibration(f::AbstractArray, z::AbstractArray,
-                            g::AbstractArray, σ::AbstractArray,
-                            args...; kwds...)
-    ReducedCalibration(map(DetectorAxis, size(f)), f, z, g, σ,
-                       _getcurrents(args...)...; kwds...)
-end
-
-function ReducedCalibration{T}(f::AbstractArray, z::AbstractArray,
-                               g::AbstractArray, σ::AbstractArray,
-                               args...; kwds...) where {T}
-    ReducedCalibration{T}(map(DetectorAxis, size(f)), f, z, g, σ,
-                          _getcurrents(args...)...; kwds...)
-end
-
-function ReducedCalibration{T,N}(f::AbstractArray, z::AbstractArray,
-                                 g::AbstractArray, σ::AbstractArray,
-                                 args...; kwds...) where {T,N}
-    ReducedCalibration{T,N}(map(DetectorAxis, size(f)), f, z, g, σ,
-                            _getcurrents(args...)...; kwds...)
-end
-
-# Parse current terms.
-function ReducedCalibration(roi::Tuple{Vararg{DetectorAxis}},
-                            f::AbstractArray, z::AbstractArray,
-                            g::AbstractArray, σ::AbstractArray,
-                            args...; kwds...)
-    ReducedCalibration(roi, f, z, g, σ, _getcurrents(args...)...; kwds...)
-end
-
-function ReducedCalibration{T}(roi::Tuple{Vararg{DetectorAxis}},
-                               f::AbstractArray, z::AbstractArray,
-                               g::AbstractArray, σ::AbstractArray,
-                               args...; kwds...) where {T}
-    ReducedCalibration{T}(roi, f, z, g, σ, _getcurrents(args...)...; kwds...)
-end
-
-function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
-                                 f::AbstractArray, z::AbstractArray,
-                                 g::AbstractArray, σ::AbstractArray,
-                                 args...; kwds...) where {T,N}
-    ReducedCalibration{T,N}(roi, f, z, g, σ, _getcurrents(args...)...; kwds...)
-end
-
-function ReducedCalibration(roi::NTuple{N,DetectorAxis},
-                            f::AbstractArray,
-                            z::AbstractArray,
-                            g::AbstractArray,
-                            σ::AbstractArray,
-                            c::AbstractVector{<:AbstractArray},
-                            cat::AbstractVector{<:Identifiers};
-                            kwds...) where {N}
-    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
-                           _promote_eltype(c)))
-    ReducedCalibration{T,N}(roi, f, z, g, σ, c, cat; kwds...)
-end
-
-function ReducedCalibration{T}(roi::NTuple{N,DetectorAxis},
-                               f::AbstractArray,
-                               z::AbstractArray,
-                               g::AbstractArray,
-                               σ::AbstractArray,
-                               c::AbstractVector{<:AbstractArray},
-                               cat::AbstractVector{<:Identifiers};
-                               kwds...) where {T,N}
-    ReducedCalibration{T,N}(roi, f, z, g, σ, c, cat; kwds...)
-end
-
-function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
-                                 f::AbstractArray,
-                                 z::AbstractArray,
-                                 g::AbstractArray,
-                                 σ::AbstractArray,
-                                 c::AbstractVector{<:AbstractArray},
-                                 cat::AbstractVector{<:Identifiers};
-                                 kwds...) where {T,N}
-    T <: AbstractFloat || error("parameter `T` must be a floating-point type")
-    length(roi) == N || error("ROI has incompatible number of dimensions")
-    length(cat) == length(c) || error("incompatible number of categories")
-    dims = size(roi)
-
-    function fixarray(A::AbstractArray)
-        Base.has_offset_axes(A) && error("array has non-standard indexing")
-        eltype(A) <: Real || error("array has incompatible element type")
-        ndims(A) == N || error("array has incompatible number of dimensions")
-        size(A) == dims ||
-            dimension_mismatch("array has incompatible dimensions")
-        return convert(Array{T,N}, A)
-    end
-    ReducedCalibration{T,N}(roi,
-                            fixarray(f),
-                            fixarray(z),
-                            fixarray(g),
-                            fixarray(σ),
-                            map(fixarray, c),
-                            map(identifier, cat); kwds...)
-end
-
-# Convert pairs like "key1"=>arr1, :key2=>arr2, ... in a list of
-# arrays and a list of identifiers.
-_getcurrents(args::Pair{<:Union{AbstractString,Symbol},<:AbstractArray}...) =
-    (collect(map(x -> x[2], args)),
-     collect(map(x -> identifier(x[1]), args)))
-_getcurrents() = Int8[], String[]
-_getcurrents(c::AbstractVector{<:AbstractArray}, cat::AbstractVector) =
-    (c, cat)
 
 """
     find(obj, key) -> j
@@ -368,33 +75,6 @@ end
 
 find(obj::ReducedCalibration, j::Integer) =
     (1 ≤ j ≤ length(categories(obj)) ? Int(j) : 0)
-
-"""
-    checkvalues(obj)
-
-throws an error if some values in the reduced calibration object `obj` are
-invalid.
-
-"""
-function checkvalues(cal::ReducedCalibration)
-    f, z, g, σ, c = cal.f, cal.z, cal.g, cal.σ, cal.c
-    dims = size(cal)
-    @assert size(f) == dims
-    @assert size(z) == dims
-    @assert size(g) == dims
-    @assert size(σ) == dims
-    for k ∈ eachindex(c)
-        @assert size(c[k]) == dims
-        all(x -> isfinite(x) && x ≥ 0, c[k]) ||
-            error("some invalid values in time-dependent bias")
-    end
-    all(x -> isfinite(x), z) ||
-        error("some invalid values in constant bias")
-    all(x -> isfinite(x) && x ≥ 0, g) ||
-        error("some invalid values in detector gain")
-    all(x -> isfinite(x) && x ≥ 0, σ) ||
-        error("some invalid values in readout noise")
-end
 
 # Same as ArrayTools.promote_eltype but for a vector of arrays.  Using a
 # recursion is the fastest method.
@@ -450,412 +130,12 @@ mutable struct FitResult{T}
     z::T         # bias
     g::T         # gain
     u::T         # variance of readout-noise divided by gain
-    c::Vector{T} # contributions of the different sources
+    s::Vector{T} # contributions of the different sources
 end
 
-const Category = Union{AbstractString,Symbol}
 
-"""
-    A = CalibrationDataFrame(cat, Δt, pxl; roi=DetectorAxes(pxl))
-
-builds an instance of a calibration data frame with `cat` the category of the
-calibration, `Δt` the exposure time (in seconds), and `pxl` the array of pixel
-values.  Keyword `roi` may be used to specify a region of interest (that is the
-geometric settings of the detector) other than the default.
-
-The pixel type `T` and number `N` of dimensions can be specified as type
-parameters:
-
-    A = CalibrationDataFrame{T}(cat, Δt, pxl; kwds...)
-
-or
-
-    A = CalibrationDataFrame{T}(cat, Δt, pxl; kwds...)
-
-"""
-struct CalibrationDataFrame{T<:Real,N,A<:AbstractArray{T,N}}
-    cat::String           # Category.
-    Δt::Float64           # Exposure time.
-    pxl::A                # Detector pixels.
-    roi::DetectorAxes{N}  # Detector axes settings.
-
-    # The inner constructor checks arguments and, for maximum flexibility, is
-    # able to provide a default ROI and to convert most arguments (pxl, cat and
-    # Δt).
-    function CalibrationDataFrame{T,N,A}(cat::Category,
-                                         Δt::Real,
-                                         pxl::AbstractArray{<:Real,N};
-                                         roi::DetectorAxes{N} = DetectorAxes(pxl)
-                                         ) where {T<:Real,N,A<:AbstractArray{T,N}}
-        Δt ≥ 0 || argument_error("exposure time must be nonnegative")
-        size(pxl) == size(roi) || dimension_mismatch(
-            "array of pixels and region of interest have different sizes")
-        obj = new{T,N,A}(cat, Δt, pxl, roi)
-        # Check indexing and pixel type *after* possible conversions.
-        eltype(obj.pxl) === T || argument_error(
-            "invalid pixel type (expecting `$T`, got `$(eltype(obj.pxl))`)")
-        Base.has_offset_axes(obj.pxl) && argument_error(
-            "array of pixels must have 1-based indices")
-        return obj
-    end
-end
-
-function CalibrationDataFrame(cat::Category,
-                              Δt::Real,
-                              pxl::AbstractArray{T,N};
-                              kwds...) where {T<:Real,N}
-    CalibrationDataFrame{T,N,typeof(pxl)}(cat, Δt, pxl; kwds...)
-end
-
-function CalibrationDataFrame{T}(cat::Category,
-                                 Δt::Real,
-                                 pxl::AbstractArray{<:Real,N};
-                                 kwds...) where {T<:Real,N}
-    # Do convert pixel type.
-    CalibrationDataFrame{T,N,Array{T,N}}(cat, Δt, pxl; kwds...)
-end
-
-function CalibrationDataFrame{T}(cat::Category,
-                                 Δt::Real,
-                                 pxl::AbstractArray{T,N};
-                                 kwds...) where {T<:Real,N}
-    # No needs to convert pixel type.
-    CalibrationDataFrame{T,N,typeof(pxl)}(cat, Δt, pxl; kwds...)
-end
-
-function CalibrationDataFrame{T,N}(cat::Category,
-                                   Δt::Real,
-                                   pxl::AbstractArray{<:Real,N};
-                                   kwds...) where {T<:Real,N}
-    # Numbers of dimensions match.  Call a simpler constructor.
-    CalibrationDataFrame{T}(cat, Δt, pxl; kwds...)
-end
-
-# FIXME: make CalibrationDataFrame a sub-type of AbstractArray?
-
-pixels(A::CalibrationDataFrame) = A.pxl
-exposuretime(A::CalibrationDataFrame) = A.Δt
-category(A::CalibrationDataFrame) = A.cat
-DetectorAxes(A::CalibrationDataFrame) = A.roi
-Base.size(A::CalibrationDataFrame) = size(pixels(A))
-Base.ndims(A::CalibrationDataFrame) = ndims(typeof(A))
-Base.ndims(::Type{<:CalibrationDataFrame{T,N}}) where {T,N} = N
-Base.eltype(A::CalibrationDataFrame) = eltype(typeof(A))
-Base.eltype(::Type{<:CalibrationDataFrame{T}}) where {T} = T
-
-
-"""
-    S = CalibrationFrameSampler(arr, cat, Δt)
-
-builds an iterator on `CalibrationDataFrame` from an array of frames `arr` and
-corresponding category `cat` and exposure time (in seconds) `Δt`.  The pixel type
-`T` can be specified as type parameter.
-
-"""
-struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
-    data::A
-    inds::NTuple{N,Colon}
-    cat::String           # Category.
-    Δt::Float64           # Exposure time.
-    roi::DetectorAxes{N}  # Detector axes settings.
-    function CalibrationFrameSampler{T,N,Np1,A}(data::A,
-                                                cat::Category,
-                                                Δt::Real;
-                                                roi::DetectorAxes{N} = DetectorAxes(view(data, colons(N)..., 1))
-                                                ) where {T,N,Np1,A<:AbstractArray{T,Np1}}
-
-        Δt ≥ 0 || argument_error("exposure time must be nonnegative")
-        Np1 == N + 1 || error("Np1 ≠ N + 1")
-        Np1 ≥ 2 || error("insufficient number of dimensions")
-        Base.has_offset_axes(data) && error(
-            "data array has non-standard indexing")
-        samples = size(data, Np1)
-        samples ≥ 2 || error("insufficient number of samples")
-        new{T,N,Np1,A}(data, colons(N),cat,Δt,roi)
-    end
-end
-
-CalibrationFrameSampler(data::A,cat::Category,Δt::Real) where {T,N,A<:AbstractArray{T,N}} = CalibrationFrameSampler{T,N-1,N,A}(data,cat::Category,Δt::Real)
-exposuretime(A::CalibrationFrameSampler) = A.Δt
-category(A::CalibrationFrameSampler) = A.cat
-DetectorAxes(A::CalibrationFrameSampler) = A.roi
-
-StatsBase.nobs(A::CalibrationFrameSampler{T,N,Np1}) where {T,N,Np1} = size(A.data, Np1)
-
-Base.eltype(A::CalibrationFrameSampler) = eltype(typeof(A))
-# FIXME: be more specific
-Base.eltype(::Type{<:CalibrationFrameSampler{T,N}}) where {T,N} = CalibrationDataFrame{T,N}
-
-Base.IteratorEltype(A::CalibrationFrameSampler) = Base.IteratorEltype(typeof(A))
-Base.IteratorEltype(::Type{<:CalibrationFrameSampler}) = Base.HasEltype()
-
-Base.IteratorSize(A::CalibrationFrameSampler) = Base.IteratorSize(typeof(A))
-Base.IteratorSize(::Type{<:CalibrationFrameSampler{T,N}}) where{T,N} = Base.HasShape{N}();
-
-Base.ndims(A::CalibrationFrameSampler{T,N}) where {T,N} = N
-Base.length(A::CalibrationFrameSampler) = nobs(A)
-Base.size(A::CalibrationFrameSampler) = (length(A),)
-Base.size(A::CalibrationFrameSampler{T,N}, i::Integer) where {T,N} =
-    (i < 1 ? error("out of range dimension index") :
-     i == 1 ? length(A) : 1)
-
-Base.show(io::IO, obj::CalibrationFrameSampler{T,N}) where {T,N} = begin
-    join(io, size(obj),"×")
-    print(io, " CalibrationFrameSampler{$T,$N}: samples = ", nobs(obj))
-end
-
-Base.iterate(A::CalibrationFrameSampler, i = 1) =
-    (1 ≤ i ≤ nobs(A) ? (CalibrationDataFrame(A.cat,A.Δt,view(A.data, A.inds..., i);roi=A.roi), i+1) : nothing)
-
-
-"""
-    A = CalibrationData{T}(roi,
-                           "dark"  => (1,0,0),
-                           "lamp1" => (1,1,0),
-                           "lamp2" => (1,0,1), ...)
-
-builds an empty instance of `CalibrationData` to collect statistics about
-calibration data frames in the region of interest `roi` and for calibration
-categories paired with the corresponding coefficients of linear combination of
-the sources.  In the above example, the first category is named `"dark"` and is
-given by `1×src[1] + 0×src[2] + 0×src[3]`, the second category `"dark"` is
-given by `1×src[1] + 1×src[2] + 0×src[3]`, and the thrid category `"dark"` is
-given by `1×src[1] + 0×src[2] + 1×src[3]`.
-
-The region of interest `roi` is an `N`-tuple of detector dimensions or
-instances of `DetectorAxis`.
-
-The type parameter `T` is the floating-point type for computations.  If
-unspecified, `Float64` is assumed.
-
-To add some calibration data frame(s) to `A`, call:
-
-    push!(A, x...)
-
-where each `x` is an instance of `CalibrationDataFrame`.
-
-To push all calibration data frames produced by an iterator `itr`, just call:
-
-    merge!(A, itr)
-
-In the case there is one source per category it is possible to directly build and
-fill  `CalibrationData`:
-
-    A = CalibrationData(t...)
-
-where each `t` is an instance of `CalibrationFrameSampler`
-
-Other methods applicable to a `CalibrationData` instance `A`:
-
-- `isempty(A)` yields whether any calibration data has been collected;
-
-- `empty!(A)` discards all calibration data collected so far and returns `A`;
-
-- `nobs(A)` yields the total number of collected data frames;
-
-- `keys(A)` yields an iterable over the 2-tuples `(cat,Δt)` of categories and
-  exposure times in collected data frames;
-
-- `DetectorAxes(A)` yields the ROI.
-
-"""
-struct CalibrationData{T<:AbstractFloat,N}
-    # All calibration data must have the same detector axes settings.
-    roi::DetectorAxes{N}
-
-    # Mapping between (cat,Δt) pairs and indices in the vector of collected
-    # statistics.
-    stat_index::Dict{Tuple{String,T},Int}
-
-    # Vector of collected data statistics, each entry is for a given
-    # (cat,Δt) pair.
-    stat::Vector{OnlineStatistics{T,N}}
-
-    # Array shared by statistics of singleton data-sets to store their 2nd
-    # moment.
-    null::Array{T,N}
-
-    # Source to category matrix.
-    src_to_cat::Matrix{T}
-
-    # Categories.
-    cat_index::Dict{String,Int}
-end
-
-# Type of argument to specify a category name and the corresponding
-# row of the "source-to-category" matrix.
-const CategorySpec = Pair{<:Union{AbstractString,Symbol},
-                          <:Union{Tuple{Vararg{Real}},
-                                  AbstractVector{<:Real}}}
-
-# @test isa("cat1" => [1,0,0], CategorySpec)
-# @test isa(:cat1  => [1,0,0], CategorySpec)
-# @test isa("cat1" => (1,0), CategorySpec)
-# @test isa(":cat1 => (1,0), CategorySpec)
-
-function CalibrationData{T}(roi::DetectorAxes{N},
-                            args::CategorySpec...) where {T<:AbstractFloat,N}
-    to_vector(x::AbstractVector) = x
-    to_vector(x::Tuple) = collect(x)
-    local src_to_cat::Matrix{T}
-    cat_index = Dict{String,Int}()
-    m = length(args) # number of categories
-    m ≥ 1 || argument_error("there must be some categories")
-    n = -1 # number of sources (not yet known)
-    i = 0
-    for (k,v) in args
-        i += 1
-        cat = String(k)
-        haskey(cat_index, cat) && argument_error(
-            "duplicate category name \"", cat, "\"")
-        if i == 1
-            n = length(v)
-            src_to_cat = Matrix{T}(undef, m, n)
-        else
-            length(v) == n || argument_error(
-                "not same number of sources, got ", length(v),
-                " for category \"", cat, "\", should be ", n,
-                " for all categories")
-        end
-        cat_index[cat] = i
-        src_to_cat[i,:] = to_vector(v)
-    end
-    m ≥ n || argument_error(
-        "there must be at least as many categories as sources")
-    rank(src_to_cat) ≥ n || argument_error(
-        "source to category matrix is rank deficient")
-    return CalibrationData{T,N}(
-        roi,                               # region of interest
-        Dict{Tuple{String,Float64},Int}(), # stat_index
-        OnlineStatistics{T,N}[],           # stat
-        zeros(T, size(roi)),               # null,
-        src_to_cat,                        # src_to_cat
-        cat_index)                         # cat_index
-end
-
-function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:AbstractFloat}
-    to_vector(x::AbstractVector) = x
-    to_vector(x::Tuple) = collect(x)
-    local roi::DetectorAxes, N::Int
-    cat_index = Dict{String,Int}()
-    m = length(args) # number of categories
-    m ≥ 1 || argument_error("there must be some categories")
-    i = 0
-    for arg in args
-        cat = category(arg)
-        if !haskey(cat_index, cat)
-            i +=1;
-            cat_index[cat] = i;
-        end
-        if i == 1
-            roi = DetectorAxes(arg)
-            N = length(roi)
-        else
-            roi == DetectorAxes(arg) || argument_error(
-                "detector ROI settings must be identical for all calibration data")
-        end
-    end
-
-    A = CalibrationData{T,N}(
-        roi,                               # region of interest
-        Dict{Tuple{String,Float64},Int}(), # stat_index
-        OnlineStatistics{T,N}[],           # stat
-        zeros(T, size(roi)),               # null,
-        Matrix(1.0I,m,m) ,                 # FIXME: a less dense Matrix should be better
-        cat_index)                         # cat_index
-
-    for arg in args
-        merge!(A,arg)
-    end
-    return A
-end
-
-# Use double precision if type parameter is not specified.
-CalibrationData(args...; kwds...) = CalibrationData{Float64}(args...; kwds...)
-
-function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
-                            args::CategorySpec...) where {T<:AbstractFloat,N}
-    return CalibrationData{T}(DetectorAxes(roi), args...)
-end
-
-function merge!(A::CalibrationData, itr)
-    for x in itr
-        push!(A, x)
-    end
-    return A
-end
-
-function push!(A::CalibrationData, args...)
-    for x in args
-        push!(A, x)
-    end
-    return A
-end
-
-function push!(A::CalibrationData{T,N},
-               x::CalibrationDataFrame{<:Real,N}) where {T<:AbstractFloat,N}
-    # Extract and check fields.
-    cat = category(x)
-    haskey(A.cat_index, cat) || argument_error(
-        "category\"", cat, "\" does not exists in calibration data")
-    Δt = exposuretime(x)
-    pxl = pixels(x)
-    roi = DetectorAxes(x)
-    Δt ≥ 0 || argument_error("exposure time must be nonnegative")
-    Base.has_offset_axes(pxl) && argument_error(
-        "array of pixels must have 1-based indices")
-    dims = size(pxl)
-    dims == size(roi) || dimension_mismatch(
-        "array of pixels and region of interest have different sizes")
-    roi == A.roi || argument_error(
-        "detector ROI settings must be identical for all calibration data")
-
-    # Update statistics for given category and exposure time.
-    key = (cat, Δt)
-    if haskey(A.stat_index, key)
-        index = A.stat_index[key]
-        stat = A.stat[index]
-        if storage(stat, 2) === A.null
-            # Pushing one more sample will result in non-zero 2nd moment.
-            # Allocate one for this sub-dataset.
-            @assert nobs(stat) == 1
-            A.stat[index] = IndependentStatistics(
-                (storage(stat, 1), zeros(T, dims)), nobs(stat))
-        end
-    else
-        # Create new instance of statistics sharing its 2nd moment with other
-        # singleton data-sets.
-        push!(A.stat, IndependentStatistics((zeros(T, dims), A.null), 0))
-        index = length(A.stat)
-        A.stat_index[key] = index
-    end
-    push!(A.stat[index], pxl)
-    return A
-end
-
-@noinline push!(A::CalibrationData, x::T) where {T} =
-    argument_error(
-        "Cannot convert argument(s) of type `$T` to calibration data frame of type ",
-        "`CalibrationDataFrame`.  The solution may be to extend ",
-        "`Base.push!(A::CalibrationData, x::$T)` for such kind of argument.")
-
-Base.keys(A::CalibrationData) = keys(A.stat_index)
-Base.isempty(A::CalibrationData) = isempty(A.stat_index)
-Base.empty!(A::CalibrationData) = begin
-    empty!(A.stat_index)
-    empty!(A.stat)
-    return A
-end
-
-StatsBase.nobs(A::CalibrationData) = begin
-    n = 0
-    for x in A.stat
-        n += nobs(x)
-    end
-    return n
-end
-
-DetectorAxes(A::CalibrationData) = A.roi
+# FIXME: rename as CalibrationDataFrameSampler
+# FIXME: move inner constructor outside?
 
 """
     ReducedCalibration(cal) -> redcal
@@ -983,7 +263,7 @@ function fit!(res::FitResult{T}, d::Vector{T},
     r = Array{T}(undef, nframes)
 
     # Define the objective function as a closure to share workspaces and data.
-    function fg!(x::Vector{T}, gx::Vector{T})
+    function fg!(x::Vector{T}, gx::Vector{T}) where {T<:AbstractFloat}
         # Extract parameters.
         @assert length(x) == length(gx) == ntypes + 1
         @inbounds for l in 1:ntypes
@@ -1013,7 +293,7 @@ function fit!(res::FitResult{T}, d::Vector{T},
             res.z = z
             res.g = g
             res.u = u
-            copyto!(res.c, c)
+            copyto!(res.s, s)
         end
 
         # Compute the gradient of the objective function with respect to c.
@@ -1041,6 +321,501 @@ function fit!(res::FitResult{T}, d::Vector{T},
     # FIXME: stopping criterion
     vmlmb!(fg!, x, mem=5, lower=xmin)
 end
+
+struct FitWorkspace{T<:AbstractFloat}
+    H::Matrix{T}   # sources to currents matrix
+    c::Vector{T}   # temporary workspace for current terms
+    ∂c::Vector{T}  # temporary workspace for gradients w.r.t. current terms
+    Δt::Vector{T}  # exposure times
+    l::Vector{Int} # indices of categories
+    n::Vector{Int} # number of samples in subset
+    avg::Vector{T} # empirical subset mean
+    var::Vector{T} # empirical (biased) subset variance
+end
+
+"""
+    wrk = FitWorkspace{T=float(eltype(H))}(H, nsub)
+
+yields a workspace for fitting the parameters of the model of a detector pixel
+for sources to currents matrix `H` and `nsub` data subsets.  All entries of `H`
+must be nonnegative (this is checked).  The same workspace can be re-used for
+another pixel provided the matrix `H` remains the same.
+
+"""
+FitWorkspace(H::AbstractMatrix{<:Real}, nobs::Integer) =
+    FitWorkspace{float(eltype(H))}(H, nsub)
+
+function FitWorkspace{T}(H::AbstractMatrix{<:Real},
+                         nobs::Integer) where {T<:AbstractFloat}
+    isnonnegative(H) || error(
+        "entries of sources to currents matrix must be nonnegative")
+    ncat, nsrc = size(H)
+    return FitWorkspace{T}(
+        H,
+        Vector{T}(  undef, ncat), # c
+        Vector{T}(  undef, ncat), # ∂c
+        Vector{T}(  undef, nobs), # Δt
+        Vector{Int}(undef, nobs), # l
+        Vector{Int}(undef, nobs), # n
+        Vector{T}(  undef, nobs), # avg
+        Vector{T}(  undef, nobs)) # var
+end
+
+"""
+    wrk = FitWorkspace{T=eltype(cal)}(cal)
+
+yields a workspace for fitting the parameters of the model of a detector pixel
+in calibration data `cal`.  Parameter `T` is the floating-point type for
+computations.
+
+"""
+FitWorkspace(cal::CalibrationData) = FitWorkspace{eltype(cal)}(cal)
+FitWorkspace{T}(cal::CalibrationData) where {T<:AbstractFloat} =
+    FitWorkspace{T}(cal.src_to_cat, length(cal.stat))
+
+# Return the number of sufficient data in fit workspace.
+function checked_length(wrk::FitWorkspace; checkindices::Bool=false)
+    ncat, nsrc = size(wrk.H)
+    lenght(wrk.c) == ncat || error("invalid number of current terms")
+    lenght(wrk.∂c) == ncat || error("invalid number of gradients w.r.t. current terms")
+    if checkindices
+        flag = true
+        @inbounds @simd for i in eachindex(wrk.l)
+            flag &= ((wrk.l[i] - 1)%UInt < ncat)
+        end
+    flag || error("out of bound category index")
+    end
+    nobs = length(wrk.l)
+    length(wrk.Δt) == nobs || error("bad number of exposure times")
+    length(wrk.avg) == nobs || error("bad number of empirical means")
+    length(wrk.var) == nobs || error("bad number of empirical variances")
+    length(wrk.n) == nobs || error("bad number of subset sizes")
+    return nobs
+end
+
+"""
+    extract!(wrk, cal, k) -> wrk
+
+extracts into workspace `wrk` the data for `k`-th pixel in calibration data `cal`.
+
+"""
+function extract!(wrk::FitWorkspace,
+                  cal::CalibrationData{T,N},
+                  k::Integer) where {T,N}
+    avg = cal.stat
+    ncat, nsrc = size(cal.src_to_cat)
+    nsub = length(cal.stat)
+    nsub == checked_length(wrk) || error(
+        "fit workspace assumes a different number of subsets")
+    for (key, i) ∈ cal.stat_index
+        # Extract (Δt,ℓ) for the subset of calibration data.
+        cat       = key[1]             # category name
+        wrk.Δt[i] = key[2]             # exposure time
+        wrk.l[i]  = cal.cat_index[cat] # category index
+
+        # Extract statistics of k-th pixel in subset of calibration data
+        # samples.
+        stat       = cal.stat[i]
+        wrk.n[i]   = nobs(stat)
+        wrk.avg[i] = mean(stat, k)
+        wrk.var[i] = var(stat, k; corrected=false)
+    end
+    return wrk
+end
+
+struct NormalEquations{T<:AbstractFloat,
+                       LHS<:AbstractMatrix{T},
+                       RHS<:AbstractVector{T}}
+    A::LHS
+    b::RHS
+    function NormalEquations{T}(A::LHS, b::RHS) where {T<:AbstractFloat,
+                                                       LHS<:AbstractMatrix{T},
+                                                       RHS<:AbstractVector{T}}
+        I, J = axes(A)
+        I == J || argument_error(
+            "expecting a square LHS matrix")
+        axes(b) == (I,) || argument_error(
+            "LHS matrix and RHS vector have incompatible indices")
+        return new{T,LHS,RHS}(A, b)
+    end
+end
+
+lhs(E::NormalEquations) = getfield(E, :A)
+rhs(E::NormalEquations) = getfield(E, :b)
+
+function NormalEquations(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real})
+    T = float(eltype(A), eltype(b))
+    return NormalEquations{T}(A, b)
+end
+
+function NormalEquations{T}(A::AbstractMatrix{<:Real},
+                            b::AbstractVector{<:Real}) where {T<:AbstractFloat}
+    return NormalEquations{T}(convert(AbstractMatrix{T}, A),
+                              convert(AbstractVector{T}, b))
+end
+
+# Objective function and its gradient:
+#   f(x) = (1/2) x'⋅A⋅x - b⋅x
+#   ∇f(x) = A⋅x - b
+#   =>  f(x) = (1/2) x'⋅(∇f(x) - b)
+function (E::NormalEquations)(x::AbstractVector{T}) where {T<:AbstractFloat}
+    A, b = lhs(E), rhs(E)
+    I = axes(b)
+    axes(A) == (I,I) || error(
+        "LHS matrix and RHS vector have incompatible indices")
+    axes(x) == (I,) || error(
+        "input variables have incompatible indices")
+    f = zero(T)
+    @inbounds for i in I
+        # Compute A⋅x = A'⋅x (A is symmetric)
+        Ax = zero(T)
+        @simd for j in I
+            Ax += A[j,i]*x[j]
+        end
+        f += (Ax - 2b[i])*x[i]
+    end
+    return f/2
+end
+
+function (E::NormalEquations)(x::AbstractVector{T},
+                              g::AbstractVector{T}) where {T<:AbstractFloat}
+    A, b = lhs(E), rhs(E)
+    I = axes(b)
+    axes(A) == (I,I) || error(
+        "LHS matrix and RHS vector have incompatible indices")
+    axes(x) == (I,) || error(
+        "input variables have incompatible indices")
+    axes(g) == (I,) || error(
+        "output gradient has incompatible indices")
+    f = zero(T)
+    @inbounds for i in I
+        # Compute A⋅x = A'⋅x (A is symmetric)
+        Ax = zero(T)
+        @simd for j in I
+            Ax += A[j,i]*x[j]
+        end
+        bi = b[i]
+        gi = Ax - bi
+        g[i] = gi
+        f += (gi - bi)*x[i]
+    end
+    return f/2
+end
+
+"""
+    fit_linear_terms!(wrk, x; eta=Inf, kwds...)
+
+fits the linear terms of the pixel detector model (the bias `z` and the source
+terms).
+
+Other keywords are passed to `vmlmb!`.
+
+"""
+function fit_linear_terms!(wrk::FitWorkspace{T},
+                           x::Vector{T};
+                           # FIXME: add option to re-weight
+                           eta::Real = Inf,
+                           mem::Integer = 5,
+                           kwds...) where {T<:AbstractFloat}
+    # Do a weighted least squares fit on all the linear parameters with the
+    # positivity constraint on the source terms.
+    H = wrk.H
+    ncat, nsrc = size(H)
+    nsub = checked_length(wrk; checkindices=true)
+
+    # Integrate W1, W2, and W3 over the categories.
+    w1 = fill!(Vector{T}(undef, ncat), zero(T)) # FIXME: make is part of wrk
+    w2 = fill!(Vector{T}(undef, ncat), zero(T)) # FIXME: make is part of wrk
+    w3 = fill!(Vector{T}(undef, ncat), zero(T)) # FIXME: make is part of wrk
+    Ann = zero(T)
+    bn = zero(T)
+    if eta == Inf
+        for i in 1:nsub
+            Δt = wrk.Δt[i]
+            l = wrk.l[i]
+            w = T(wrk.n[i])
+            d = wrk.avg[i]
+            wΔt = w*Δt
+            w1[l] += wΔt
+            w2[l] += wΔt*Δt
+            w3[l] += wΔt*d
+            Ann += w
+            bn += w*d
+        end
+    else
+        eta > 0 || argument_error("value of keyword `eta` must be positive")
+        c = mvmult!(wrk.c, H, view(x, 1:nsrc))
+        η = to_type(T, eta)
+        for i in 1:nsub
+            Δt = wrk.Δt[i]
+            l = wrk.l[i]
+            cΔt = c[l]*Δt
+            w = wrk.n[i]/(cΔt + η)
+            d = wrk.avg[i]
+            wΔt = w*Δt
+            w1[l] += wΔt
+            w2[l] += wΔt*Δt
+            w3[l] += wΔt*d
+            Ann += w
+            bn += w*d
+        end
+    end
+
+    # Compute A the LHS matrix of the normal equations.
+    m, n = ncat, nsrc + 1
+    A = Matrix{T}(undef, n, n) # FIXME: make is part of wrk
+    u = Vector{T}(undef, m) # FIXME: make is part of wrk
+    for j ∈ 1:n-1
+        # First (n-1)×(n-1) block.
+        for l ∈ 1:m
+            u[l] = H[l,j]*w2[l]
+        end
+        for jp ∈ 1:n-1
+            s = zero(T)
+            for l ∈ 1:m
+                s += u[l]*H[l,jp]
+            end
+            A[j,jp] = s
+            if jp == j
+                break
+            end
+            A[jp,j] = s
+        end
+        # Last column and last row of A.
+        s = zero(T)
+        for l ∈ 1:m
+            s += H[j,l]*w1[l]
+        end
+        A[j,n] = s
+        A[n,j] = s
+    end
+    A[n,n] = Ann
+
+    # Compute b the RHS vector of the normal equations.
+    b = Vector{T}(undef, n) # FIXME: make is part of wrk
+    for j ∈ 1:n-1
+        s = zero(T)
+        for l ∈ 1:m
+            s += H[j,l]*w3[l]
+        end
+        b[j] = s
+    end
+    b[n] = bn
+
+    # Solve the normal equations under the constraints that the source terms
+    # are nonnegative.
+    E = NormalEquations{T}(A, b)
+    x = Vector{T}(undef, n)
+    xmin = Vector{T}(undef, n)
+    @inbounds for i in 1:n-1
+        xmin[i] = 0 # source terms are nonnegative
+    end
+    xmin[n] = -Inf # z is unbounded
+    fill!(x, 0)
+    vmlmb!(E, x; mem=mem, lower=xmin, kwds...)
+    return x
+
+    #x = Vector{T}(undef, nsrc + 1)
+    #xmin = Vector{T}(undef, nsrc + 1)
+    #xmin[1] = -Inf # z is unbounded
+    #@inbounds for i in 2:nsrc+1
+    #    xmin[i] = 0
+    #end
+    #fill!(x, 0)
+    #function fg!(x::Vector{T}, gx::Vector{T}) where {T<:AbstractFloat}
+    #    n = length(x)
+    #    z = x[1]
+    #    c = mvmult!(wrk.c, wrk.H, view(x, 2:n))
+    #    ∂c = fill!(wrk.∂c, zero(T))
+    #    ∂z = zero(T)
+    #    f = zero(T)
+    #    for i in 1:nsub
+    #        Δt = wrk.Δt[i]
+    #        l = wrk.l[i]
+    #        w = T(wrk.n[i])
+    #        r = (c[l]*Δt + z) - wrk.avg[i]
+    #        wr = w*r
+    #        f += wr*r
+    #        ∂c[l] += wr*Δt
+    #        ∂z += wr
+    #    end
+    #    # convert gradient and return objective function
+    #    gx[1] = ∂z
+    #    mvmult!(view(gx, 2:n), wrk.H', ∂c)
+    #    return f/2
+    #end
+end
+
+
+"""
+    f = objfunc(wrk, z, g, η, s)
+
+yields the value of the objective function associated with workspace `wrk` and
+for model parameters `x = (z, g, η, s...)` with `z` the zero level, `g` the
+gain, `η` the variance of the readout noise times the gain and the source terms
+`s`.
+
+"""
+function objfunc(wrk::FitWorkspace{T}, z::Real, g::Real, η::Real,
+                 s::AbstractVector{T}) where {T<:AbstractFloat}
+    return objfunc(wrk, to_type(T, z), to_type(T, g), to_type(T, η), s)
+end
+
+function objfunc(wrk::FitWorkspace{T}, z::T, g::T, η::T,
+                 s::AbstractVector{T}) where {T<:AbstractFloat}
+    g > 0 || throw_argument_error("gain `g` must be positive")
+    η > 0 || throw_argument_error("readout variance `η` must be positive")
+    isnonnegative(s) || throw_argument_error("source terms `s` must be nonnegative")
+    c = mvmult!(wrk.c, wrk.H, s)
+    N = 0 # to count total number of data
+    χ² = zero(T) # to sum χ²/g terms
+    sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
+    @inbounds for i ∈ 1:checked_length(wrk; checkindices=true)
+        Δt = wrk.Δt[i]  # exposure time
+        l = wrk.l[i]    # category index
+        n = T(wrk.n[i]) # number of samples in subset
+        cΔt = c[l]*Δt   # contribution of sources
+        r = (cΔt + z) - wrk.avg[i] # residuals: model - sample mean
+        w = n/(cΔt + η) # weight
+        χ² += w*(wrk.var[i] + r^2)
+        sum_n_logw_n += n*log(w/n)
+        N += n
+    end
+    return g*χ² - sum_n_logw_n - N*log(g)
+end
+
+"""
+    f = objfunc!(wrk, z, g, η, s, grd)
+
+yields the value of the objective function `f(x)` associated with workspace
+`wrk` and overwrites `grd` with the gradient `∇f(x)` for model parameters `x =
+(z, g, η, s...)` with `z` the zero level, `g` the gain, `η` the variance of the
+readout noise times the gain and the source terms `s`.
+
+"""
+function objfunc!(wrk::FitWorkspace{T},
+                  z::Real, g::Real, η::Real, s::AbstractVector{T},
+                  grd::AbstractVector) where {T<:AbstractFloat}
+    return objfunc!(wrk, to_type(T, z)::T, to_type(T, g)::T, to_type(T, η)::T,
+                    s, grd)
+end
+
+function objfunc!(wrk::FitWorkspace{T},
+                  z::T, g::T, η::T, s::AbstractVector{T},
+                  grd::AbstractVector) where {T<:AbstractFloat}
+    g > 0 || throw_argument_error("gain `g` must be positive")
+    η > 0 || throw_argument_error("readout variance `η` must be positive")
+    isnonnegative(s) ≥ 0 || throw_argument_error("source terms `s` must be nonnegative")
+    c = mvmult!(wrk.c, wrk.H, s) # compute current terms
+    N = 0 # to count total number of data
+    χ² = zero(T) # to sum χ²/g terms
+    sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
+    ∂c = fill!(wrk.∂c, 0) # to compute ∂L/∂c
+    ∂z = zero(T) # to compute ∂L/∂z
+    ∂η = zero(T) # to compute ∂L/∂η
+    @inbounds for i ∈ 1:checked_length(wrk; checkindices=true)
+        Δt = wrk.Δt[i]  # exposure time
+        l = wrk.l[i]    # category index
+        n = T(wrk.n[i]) # number of samples in subset
+        cΔt = c[l]*Δt   # contribution of sources
+        r = (cΔt + z) - wrk.avg[i] # residuals: model - sample mean
+        q = cΔt + η
+        w = n/(cΔt + η) # weight
+        v = wrk.var[i] + r^2
+        χ² += w*v
+        w_n = w/n
+        sum_n_logw_n += n*log(w_n)
+        N += n
+        ∂m = 2*g*w*r # ∂L/∂m
+        ∂w = g*v - q # ∂L/∂w
+        ρ = w*w_n*∂w # (w²/n)⋅(∂L/∂w)
+        ∂z += ∂m
+        ∂η -= ρ
+        ∂c[l] += (∂m - ρ)*Δt
+    end
+    ∂g = χ² - N/g # ∂L/∂g
+    # Store/convert gradients.
+    grd[1] = ∂z
+    grd[2] = ∂g
+    grd[3] = ∂η
+    mvmult!(view(grd, 4:length(grd)), wrk.H', ∂c)
+    # Return total objective function.
+    return g*χ² - sum_n_logw_n - N*log(g)
+end
+
+"""
+    mvmult!(y, A, x) -> y
+
+overwrites destination vector `y` with the matrix-vector product `A⋅x` and
+returns `y`.  This method is similar to `LinearAlgebra.lmul!` but does not call
+any BLAS subroutine.
+
+"""
+function mvmult!(y::AbstractVector,
+                 A::AbstractMatrix{Ta},
+                 x::AbstractVector) where {Ta}
+    I, J = axes(A)
+    axes(y) == (I,) || throw_dimension_mismatch(
+        "incompatible indices of destination vector")
+    axes(x) == (J,) || throw_dimension_mismatch(
+        "incompatible indices of source vector")
+    T = promote_type(Ta, eltype(x))
+    @inbounds for i ∈ I
+        s = zero(T)
+        @simd for j ∈ J
+            s += A[i,j]*x[j]
+        end
+        y[i] = s
+    end
+    return y
+end
+
+function mvmult!(y::AbstractVector,
+                 A′::Adjoint{Ta,<:AbstractMatrix{Ta}},
+                 x::AbstractVector) where {Ta}
+    A = parent(A′)
+    I, J = axes(A)
+    axes(y) == (J,) || throw_dimension_mismatch(
+        "incompatible indices of destination vector")
+    axes(x) == (I,) || throw_dimension_mismatch(
+        "incompatible indices of source vector")
+    T = promote_type(Ta, eltype(x))
+    @inbounds for j ∈ J
+        s = zero(T)
+        @simd for i ∈ I
+            s += conj(A[i,j])*x[i]
+        end
+        y[j] = s
+    end
+    return y
+end
+
+"""
+    isnonnegative(A)
+
+yields whether `A` is nonnegative.
+
+"""
+isnonnegative(x::Real) = (x ≥ zero(x))
+function isnonnegative(A::AbstractArray{<:Real})
+    # Purposely use non-branching expression as we are mostly interested in
+    # cases for which the result is true and thus all entries have to be
+    # checked so short-circuit is not an advantage.
+    flag = true
+    @inbounds @simd for i in eachindex(A)
+        flag &= isnonnegative(A[i])
+    end
+    return flag
+end
+
+"""
+    to_type(T, x)
+
+yields `x` converted to type `T`, the result is asserted to be of type `T`.
+
+"""
+to_type(::Type{T}, x::T) where {T} = x
+to_type(::Type{T}, x::Any) where {T} = convert(T, x)::T
 
 """
     checkindices(I, len)
@@ -1210,331 +985,6 @@ function leastpositive(A::AbstractArray{T}) where {T}
         end
     end
     return res
-end
-
-
-#------------------------------------------------------------------------------
-# SIMPLE CALIBRATION BASED ON AVERAGED IMAGES
-
-struct SimpleCalibration{T<:AbstractFloat,N}
-    # Dimensions, offsets and binning factors of the "Region Of Interest".
-    roi::NTuple{N,DetectorAxis}
-
-    # Exposure time (in seconds).
-    Δt::Float64
-
-    # Co-log-likelihood.
-    f::Array{T,N}
-
-    # Amplitude correction factor (in flux units per ADU):
-    a::Array{T,N}
-
-    # Bias correction (in ADU):
-    b::Array{T,N}
-
-    # Detector gain (in electrons per ADU):
-    g::Array{T,N}
-
-    # Standard deviation of the readout noise plus background (in ADU/frame):
-    σ::Array{T,N}
-
-    # Inner constructor provided to force using outer constructors.
-    function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis},
-                                    Δt::Real,
-                                    f::Array{T,N},
-                                    a::Array{T,N},
-                                    b::Array{T,N},
-                                    g::Array{T,N},
-                                    σ::Array{T,N}) where {T<:AbstractFloat,N}
-        @assert isfinite(Δt) && Δt ≥ 0
-        for i in 1:N
-            @assert length(roi[i]) ≥ 1
-            @assert offset(roi[i]) ≥ 0
-            @assert binning(roi[i]) ≥ 1
-        end
-        dims = size(roi)
-        @assert size(f) == dims
-        @assert size(a) == dims
-        @assert size(b) == dims
-        @assert size(g) == dims
-        @assert size(σ) == dims
-        return new{T,N}(roi, Δt, f, a, b, g, σ)
-    end
-end
-
-#
-# Simple outer constructors for conversion.
-#
-SimpleCalibration(obj::SimpleCalibration) = obj
-function SimpleCalibration(roi::NTuple{N,DetectorAxis},
-                           Δt::Real,
-                           f::AbstractArray{<:Real,N},
-                           a::AbstractArray{<:Real,N},
-                           b::AbstractArray{<:Real,N},
-                           g::AbstractArray{<:Real,N},
-                           σ::AbstractArray{<:Real,N}) where {N}
-    T = float(promote_type(eltype(f), eltype(a), eltype(b), eltype(g), eltype(σ)))
-    SimpleCalibration{T}(roi, Δt, f, a, b, g, σ)
-end
-
-SimpleCalibration{T}(obj::SimpleCalibration{T}) where {T} = obj
-SimpleCalibration{T}(obj::SimpleCalibration{<:Any,N}) where {T<:AbstractFloat,N} =
-    SimpleCalibration{T}(obj.roi, obj.Δt, obj.f, obj.a, obj.b, obj.g, obj.σ)
-function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis},
-                              Δt::Real,
-                              f::AbstractArray{<:Real,N},
-                              a::AbstractArray{<:Real,N},
-                              b::AbstractArray{<:Real,N},
-                              g::AbstractArray{<:Real,N},
-                              σ::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
-    # Call the inner constructor with all arguments of correct type.
-    SimpleCalibration{T,N}(roi, Δt,
-                           convert(Array{T,N}, f),
-                           convert(Array{T,N}, a),
-                           convert(Array{T,N}, b),
-                           convert(Array{T,N}, g),
-                           convert(Array{T,N}, σ))
-end
-
-SimpleCalibration{T,N}(obj::SimpleCalibration{T,N}) where {T,N} = obj
-SimpleCalibration{T,N}(obj::SimpleCalibration{<:Any,N}) where {T,N} =
-    SimpleCalibration{T}(obj)
-function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis},
-                                Δt::Real,
-                                f::AbstractArray{<:Real,N},
-                                a::AbstractArray{<:Real,N},
-                                b::AbstractArray{<:Real,N},
-                                g::AbstractArray{<:Real,N},
-                                σ::AbstractArray{<:Real,N}) where {T<:AbstractFloat,N}
-    SimpleCalibration{T}(roi, Δt, f, a, b, g, σ)
-end
-
-#
-# Getters.
-#
-DetectorAxes(obj::SimpleCalibration) = obj.roi
-exposuretime(obj::SimpleCalibration) = obj.Δt
-
-
-#
-# Basic operations on SimpleCalibration structure.
-#
-Base.eltype(::SimpleCalibration{T}) where {T} = T
-Base.size(obj::SimpleCalibration) = size(DetectorAxes(obj))
-Base.size(obj::SimpleCalibration, i) = size(DetectorAxes(obj), i)
-Base.length(obj::SimpleCalibration) = prod(size(obj))
-Base.convert(::Type{T}, obj::SimpleCalibration) where {T<:SimpleCalibration} =
-    T(obj)
-
-function Base.show(io::IO, obj::SimpleCalibration{T,N}) where {T,N}
-    print(io, "SimpleCalibration{$T,$N}: size = ")
-    join(io, size(obj),"×")
-    print(io, ", Δt = ", exposuretime(obj), " s")
-end
-
-# Allow for `T.(obj)` to work with `T` a floating-point type.
-Broadcast.broadcasted(::Type{T}, obj::SimpleCalibration) where {T<:AbstractFloat} =
-    SimpleCalibration{T}(obj)
-
-"""
-    SimpleCalibration{T}(ROI, Δt,
-                         NumDark, AvgDark, VarDark,
-                         NumLamp, AvgLamp, VarLamp,
-                         AvgFlat)
-
-yields reduced calibration data given sample means and variances of 3 kinds of
-images: "dark" (or "bias") images, "lamp" images with a stable illumination
-(although not necessarily uniform) and "flat" images with a uniform
-illumination.  Arguments are as follows:
-
-- `ROI` is a `N`-tuple of `DetectorAxis` describing the region of interest;
-- `Δt` is the exposure time (in seconds);
-- `NumDark` is the number of averaged "dark" images;
-- `AvgDark` is the sample mean of the "dark" images;
-- `VarDark` is the sample variance of the "dark" images;
-- `NumLamp` is the number of averaged "lamp" images;
-- `AvgLamp` is the sample mean of the "lamp" images;
-- `VarLamp` is the sample variance of the "lamp" images;
-- `AvgFlat` is the sample mean of the "flat" images;
-
-The sample variances are the maximum likelihood (i.e. biased) estimator of the
-variances.  The sample mean and variance are computed as follows:
-
-    avg = (1/N)*(x1 + x2 + ... + xN)
-    var = (1/N)*((x1 - avg)^2 + (x2 - avg)^2 + ... + (xN - avg)^2)
-
-Set keyword `unbiased` to `true` if the unbiased variances are provided, that
-is computed as:
-
-    var = (1/(N - 1))*((x1 - avg)^2 + (x2 - avg)^2 + ... + (xN - avg)^2)
-
-See also [`ReducedCalibration`](@ref).
-
-"""
-function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis},
-                              Δt::Real,
-                              NumDark::Integer,
-                              AvgDark::AbstractArray{<:Real,N},
-                              VarDark::AbstractArray{<:Real,N},
-                              NumLamp::Integer,
-                              AvgLamp::AbstractArray{<:Real,N},
-                              VarLamp::AbstractArray{<:Real,N},
-                              AvgFlat::AbstractArray{<:Real,N};
-                              optimal::Bool = false,
-                              unbiased::Bool=false,
-                              umin::Real=1e-20) where {T<:AbstractFloat,N}
-    # Check arguments.
-    @assert isfinite(Δt) && Δt > 0
-    @assert isfinite(umin) && umin > 0
-    dims = size(roi)
-    @assert !Base.has_offset_axes(AvgDark, VarDark, AvgLamp, VarLamp, AvgFlat)
-    @assert NumDark > 1
-    @assert size(AvgDark) == dims
-    @assert size(VarDark) == dims
-    @assert NumLamp > 1
-    @assert size(AvgLamp) == dims
-    @assert size(VarLamp) == dims
-    @assert size(AvgFlat) == dims
-
-    # Local variables fopr computations.
-    Ndark = Float64(NumDark)
-    Nlamp = Float64(NumLamp)
-    local Mdark::Float64, Vdark::Float64
-    local Mlamp::Float64, Vlamp::Float64
-    local Mflat::Float64
-
-    # Allocate arrays for the result.
-    f = Array{T}(undef, dims)
-    a = Array{T}(undef, dims)
-    b = Array{T}(undef, dims)
-    g = Array{T}(undef, dims)
-    σ = Array{T}(undef, dims)
-    obj = SimpleCalibration{T,N}(roi, Δt, f, a, b, g, σ)
-
-    # Perform a first pass to check the values and initialize parameters to
-    # their sub-optimal estimators.
-    checkvalues(Mdark, Vdark, Mlamp, Vlamp, Mflat) =
-        ((isfinite(Mdark) & isfinite(Vdark) &
-          isfinite(Mlamp) & isfinite(Vlamp) &
-          isfinite(Mflat)) && 0 < Vdark < Vlamp &&
-         Mdark < min(Mlamp, Mflat))
-
-    # Variance correction factors for unbiased estimators.
-    γdark = (unbiased ? one(Float64) : Ndark/(Ndark - 1))
-    γlamp = (unbiased ? one(Float64) : Nlamp/(Nlamp - 1))
-
-    for j in eachindex(f, a, b, g, σ, AvgDark, VarDark, AvgLamp, VarLamp)
-        Mdark = Float64(AvgDark[j])
-        Vdark = Float64(VarDark[j])*γdark
-        Mlamp = Float64(AvgLamp[j])
-        Vlamp = Float64(VarLamp[j])*γlamp
-        Mflat = Float64(AvgFlat[j])
-        if checkvalues(Mdark, Vdark, Mlamp, Vlamp, Mflat)
-            f[j] = (Ndark*(1 + log(Vdark)) - 1) + (Nlamp*(1 + log(Vlamp)) - 1)
-            a[j] = 1/(Mflat - Mdark)
-            b[j] = Mdark
-            g[j] = (Mlamp - Mdark)/(Vlamp - Vdark)
-            σ[j] = sqrt(Vdark)
-        else
-            f[j] = Inf
-            a[j] = 0
-            b[j] = 0
-            g[j] = 0
-            σ[j] = Inf
-        end
-    end
-
-    # Unless sub-optimal estimators have been requested, perform a second pass
-    # to obtain optimal estimators.
-    if optimal == false
-        return obj
-    end
-
-    # Allocate workspace.  Computations are done in double precision.
-    var = Vector{Float64}(undef, 2)
-    #grd = Vector{Float64}(undef, 2)
-    lim = Vector{Float64}(undef, 2)
-
-    # Workspace to store the best solution so far.
-    best = Vector{Float64}(undef, 5)
-
-    # Objective function to minimize (as a closure).
-    function fg!(var::Vector{Float64}, grd::Vector{Float64})
-        local f, b, g, x, y
-        # Extract parameters.
-        @assert length(var) == length(grd) == 2
-        x = var[1]
-        y = var[2]
-
-        # Weights.
-        Wdark = Ndark/x
-        Wlamp = Nlamp/(x + y)
-
-        # Best bias.
-        b = (Wdark*Mdark + Wlamp*(Mlamp - y))/(Wdark + Wlamp)
-
-        # Residuals.
-        Rdark = Mdark - b
-        Rlamp = Mlamp - (b + y)
-
-        # Best gain.
-        g = (Ndark + Nlamp)/(Wdark*(Vdark + Rdark^2) + Wlamp*(Vlamp + Rlamp^2))
-
-        # Gradient.
-        gtemp = Wlamp*(1  - g*(Vlamp + Rlamp^2)/(x + y))
-        grd[1] = gtemp + Wdark*(1  - g*(Vdark + Rdark^2)/x)
-        grd[2] = gtemp - 2*Wlamp*g*Rlamp
-
-        # Objective function.
-        f = Ndark*(1 + log(x/g)) + Nlamp*(1 + log((x + y)/g))
-        if f < best[1]
-            best[1] = f
-            best[2] = b
-            best[3] = g
-            best[4] = x
-            best[5] = y
-        end
-        return f
-    end
-
-    # Variance correction factors for max. likelihood estimators.
-    γdark = (unbiased ? (Ndark - 1)/Ndark : one(Float64))
-    γlamp = (unbiased ? (Nlamp - 1)/Nlamp : one(Float64))
-
-    for j in eachindex(f, a, b, g, σ, AvgDark, VarDark, AvgLamp, VarLamp)
-        Mdark = Float64(AvgDark[j])
-        Vdark = Float64(VarDark[j])*γdark
-        Mlamp = Float64(AvgLamp[j])
-        Vlamp = Float64(VarLamp[j])*γlamp
-        Mflat = Float64(AvgFlat[j])
-        if a[j] > 0
-            best[1] = Inf
-            best[2] = NaN
-            best[3] = NaN
-            best[4] = NaN
-            best[5] = NaN
-            # Initial solution:
-            #     b  = Mdark
-            #     g  = (Mlamp - Mdark)/(Vlamp - Vdark)
-            #     x  = g*Vdark
-            #     y  = Mlamp - Mdark
-            var[1] = (Mlamp - Mdark)/(Vlamp/Vdark - 1) # initial x
-            var[2] = Mlamp - Mdark                     # initial y
-            lim[1] = var[1]/100
-            lim[2] = 0
-
-            vmlmb!(fg!, var, mem=2, lower=lim)
-            if Mflat > best[2]
-                f[j] = best[1]
-                a[j] = 1/(Mflat - best[2])
-                b[j] = best[2]
-                g[j] = best[3]
-                σ[j] = sqrt(best[4]/g[j])
-            end
-        end
-    end
-
-    return obj
 end
 
 end # module
