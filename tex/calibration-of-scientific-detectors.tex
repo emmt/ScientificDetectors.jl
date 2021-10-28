@@ -1320,13 +1320,13 @@ with $\V\theta = (z, g, \eta, \V s)$ the unknown parameters, $N =
   \V c &= \M H⋅\V s,
 \end{align}
 respectively given by Eqs.~\eqref{eq:assumed-expectation},
-\eqref{eq:reduced-precision-over-gain}, and \eqref{eq:sources-to-currents-model}.
-The reduced parameters are $(\eta, \V s)$.  Other quantities, the number of
-images $N_{k,\ell}$ per sub-data-set, the empirical mean
-$\empirical{m}_{k,\ell}$ and variance $\empirical{v}_{k,\ell}$ of the
-sub-data-sets, the exposure times $\Delta t_{k,\ell}$, and the sources to
-currents vector $\V h_\ell$, are assumed known or do not depend on the sought
-parameters.
+\eqref{eq:reduced-precision-over-gain}, and
+\eqref{eq:sources-to-currents-model}.  The reduced parameters are $(\eta, \V
+s)$.  Other quantities, the number of images $N_{k,\ell}$ per sub-data-set, the
+empirical mean $\empirical{m}_{k,\ell}$ and variance $\empirical{v}_{k,\ell}$
+of the sub-data-sets, the exposure times $\Delta t_{k,\ell}$, and the sources
+to currents vector $\V h_\ell$, are assumed known or do not depend on the
+sought parameters.
 
 From the expression of $\lkl(\V\theta)$ in
 Eq.~\eqref{eq:rewritten-cologlikelihood-appendix}, the partial derivatives of
@@ -1335,28 +1335,20 @@ rule:
 \begin{align}
   \PDer{\lkl(\V\theta)}{z}
   &= \sum_{k,\ell}\PDer{\lkl(\V\theta)}{m_{k,\ell}}\,\PDer{m_{k,\ell}}{z}
-  = \sum_{k,\ell}\PDer{\lkl(\V\theta)}{m_{k,\ell}},\\
+  = \sum_{k,\ell}\PDer{\lkl(\V\theta)}{m_{k,\ell}},
+  \\
   \PDer{\lkl(\V\theta)}{g}
   &= \sum_{k,\ell} w_{k,\ell}\,\Paren*{
       \empirical{v}_{k,\ell}
       + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
-  } - \frac{N}{g},\\
+  } - \frac{N}{g},
+  \\
   \PDer{\lkl(\V\theta)}{\eta}
   &=
   \sum_{k,\ell}\PDer{\lkl(\V\theta)}{w_{k,\ell}}\,\PDer{w_{k,\ell}}{\eta}
   = - \sum_{k,\ell}\frac{w_{k,\ell}^2}{N_{k,\ell}}\,
       \PDer{\lkl(\V\theta)}{w_{k,\ell}},
   \\
-  \PDer{\lkl(\V\theta)}{c_\ell}
-  &=
-  \sum_{k}\Paren*{
-    \PDer{\lkl(\V\theta)}{m_{k,\ell}}\,\PDer{m_{k,\ell}}{c_\ell}
-    + \PDer{\lkl(\V\theta)}{w_{k,\ell}}\,\PDer{w_{k,\ell}}{c_\ell}
-  }\notag\\
-  &= \sum_k \Paren*{
-      \PDer{\lkl(\V\theta)}{m_{k,\ell}}
-      - \frac{w_{k,\ell}^2}{N_{k,\ell}}\,\PDer{\lkl(\V\theta)}{w_{k,\ell}}
-    }\,\Delta t_{k,\ell},\\
   \PDer{\lkl(\V\theta)}{s_j}
   &= \sum_{\ell}\PDer{\lkl(\V\theta)}{c_\ell}\,\PDer{c_\ell}{s_j}
    = \sum_\ell H_{j,\ell}\,\PDer{\lkl(\V\theta)}{c_\ell},
@@ -1364,7 +1356,8 @@ rule:
 where the following partial derivatives are needed:
 \begin{align}
   \PDer{\lkl(\V\theta)}{m_{k,\ell}}
-  &= -2\,g\,w_{k,\ell}\,\Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}},\\
+  &= 2\,g\,w_{k,\ell}\,\Paren*{m_{k,\ell} - \empirical{m}_{k,\ell}},
+  \\
   \PDer{\lkl(\V\theta)}{w_{k,\ell}}
   &= g\,\Paren*{
       \empirical{v}_{k,\ell}
@@ -1373,7 +1366,16 @@ where the following partial derivatives are needed:
   &=g\,\Paren*{
       \empirical{v}_{k,\ell}
       + \Paren*{\empirical{m}_{k,\ell} - m_{k,\ell}}^2
-    } - \Paren*{c_{\ell}\,\Delta t_{k,\ell} + \eta}.
+  } - \Paren*{c_{\ell}\,\Delta t_{k,\ell} + \eta},\\
+  \PDer{\lkl(\V\theta)}{c_\ell}
+  &= \sum_{k}\Paren*{
+    \PDer{\lkl(\V\theta)}{m_{k,\ell}}\,\PDer{m_{k,\ell}}{c_\ell}
+    + \PDer{\lkl(\V\theta)}{w_{k,\ell}}\,\PDer{w_{k,\ell}}{c_\ell}
+  }\notag\\
+  &= \sum_k \Paren*{
+      \PDer{\lkl(\V\theta)}{m_{k,\ell}}
+      - \frac{w_{k,\ell}^2}{N_{k,\ell}}\,\PDer{\lkl(\V\theta)}{w_{k,\ell}}
+  }\,\Delta t_{k,\ell}.
 \end{align}
 
 
