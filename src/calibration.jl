@@ -376,8 +376,8 @@ FitWorkspace{T}(cal::CalibrationData) where {T<:AbstractFloat} =
 # Return the number of sufficient data in fit workspace.
 function checked_length(wrk::FitWorkspace; checkindices::Bool=false)
     ncat, nsrc = size(wrk.H)
-    lenght(wrk.c) == ncat || error("invalid number of current terms")
-    lenght(wrk.∂c) == ncat || error("invalid number of gradients w.r.t. current terms")
+    length(wrk.c) == ncat || error("invalid number of current terms")
+    length(wrk.∂c) == ncat || error("invalid number of gradients w.r.t. current terms")
     if checkindices
         flag = true
         @inbounds @simd for i in eachindex(wrk.l)
@@ -444,7 +444,7 @@ lhs(E::NormalEquations) = getfield(E, :A)
 rhs(E::NormalEquations) = getfield(E, :b)
 
 function NormalEquations(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real})
-    T = float(eltype(A), eltype(b))
+    T = float(promote_type(eltype(A), eltype(b)))
     return NormalEquations{T}(A, b)
 end
 
@@ -460,8 +460,8 @@ end
 #   =>  f(x) = (1/2) x'⋅(∇f(x) - b)
 function (E::NormalEquations)(x::AbstractVector{T}) where {T<:AbstractFloat}
     A, b = lhs(E), rhs(E)
-    I = axes(b)
-    axes(A) == (I,I) || error(
+    I = axes(b, 1)
+    axes(A) == (I, I) || error(
         "LHS matrix and RHS vector have incompatible indices")
     axes(x) == (I,) || error(
         "input variables have incompatible indices")
@@ -480,8 +480,8 @@ end
 function (E::NormalEquations)(x::AbstractVector{T},
                               g::AbstractVector{T}) where {T<:AbstractFloat}
     A, b = lhs(E), rhs(E)
-    I = axes(b)
-    axes(A) == (I,I) || error(
+    I = axes(b, 1)
+    axes(A) == (I, I) || error(
         "LHS matrix and RHS vector have incompatible indices")
     axes(x) == (I,) || error(
         "input variables have incompatible indices")
