@@ -55,13 +55,6 @@ To push all calibration data frames produced by an iterator `itr`, just call:
 
     merge!(A, itr)
 
-In the case there is one source per category it is possible to directly build
-and fill `CalibrationData`:
-
-    A = CalibrationData(t...)
-
-where each `t` is an instance of `CalibrationFrameSampler`
-
 Other methods applicable to a `CalibrationData` instance `A`:
 
 - `isempty(A)` yields whether any calibration data has been collected;
@@ -105,17 +98,32 @@ end
 DetectorAxes{N}(cal::CalibrationData{T,N}) where {T,N} = DetectorAxes(cal)
 DetectorAxes(cal::CalibrationData) = getfield(cal, :roi)
 
+"""
+    CalibrationCategory(catname, expr)
+
+yields an object defining a calibration category whose name is `catname` and
+which combine calibration sources as specified by `expr` which is a simple
+linear combination of sources.  If argument `expr` is missing, a single source
+with the same symbolic name as the calibration category is assumed.
+
+Examples:
+
+    CalibrationCategory("DARK", :(dark))
+    CalibrationCategory("LAMP", :(dark + lamp1))
+    CalibrationCategory("BACKGROUND", :(dark + background))
+    CalibrationCategory("SKY", :(dark + background + sky))
+
+"""
 struct CalibrationCategory
-    name::String           # name of category
-    expr::SimpleExpression # linear combination of sources
+    name::String            # name of category
+    expr::LinearCombination # linear combination of sources
 end
 
-# FIXME: SimpleExpression{K,V<:Number}
-# FIXME: extend convert for SimpleExpression
+# FIXME: LinearCombination{K,V<:Number}
 CalibrationCategory(name::AbstractString, ex::Expr) =
-    CalibrationCategory(name, SimpleExpression(ex))
+    CalibrationCategory(name, LinearCombination(ex))
 CalibrationCategory(name::AbstractString, ex::ScaledVariable) =
-    CalibrationCategory(name, SimpleExpression(ex))
+    CalibrationCategory(name, LinearCombination(ex))
 CalibrationCategory(name::AbstractString) =
     CalibrationCategory(name, ScaledVariable(name))
 
@@ -234,18 +242,18 @@ function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
 end
 
 """
-    compile(E::SimpleExpression, S::AbstractVector{Symbol}) -> A
+    compile(E::LinearCombination, S::AbstractVector{Symbol}) -> A
 
 yields a list of multipliers for the symbolic names in `S` corresponding to the
 linear combination of variables specified by `E`.  All variables specified in
 `E` must be part of `S`.
 
 """
-compile(E::SimpleExpression, S::AbstractVector{Symbol}) =
+compile(E::LinearCombination, S::AbstractVector{Symbol}) =
     compile!(Vector{Float64}(undef, length(S)), A, S)
 
 """
-    compile!(A::AbstractVector{<:Number}, E::SimpleExpression,
+    compile!(A::AbstractVector{<:Number}, E::LinearCombination,
              S::AbstractVector{Symbol}) -> A
 
 stores in `A` the multipliers for the symbolic names in `S` corresponding to
@@ -254,7 +262,7 @@ in `E` must be part of `S`.  The destination `A` is returned.
 
 """
 function compile!(A::AbstractVector{<:Number},
-                  E::SimpleExpression,
+                  E::LinearCombination,
                   S::AbstractVector{Symbol})
 
     I = axes(A, 1)
@@ -353,8 +361,8 @@ end
 
 @noinline Base.push!(A::CalibrationData, x::T) where {T} =
     argument_error(
-        "Cannot convert argument(s) of type `$T` to calibration data frame of type ",
-        "`CalibrationDataFrame`.  The solution may be to extend ",
+        "Cannot convert argument(s) of type `$T` to calibration data frame ",
+        "of type `CalibrationDataFrame`.  The solution may be to extend ",
         "`Base.push!(A::CalibrationData, x::$T)` for such kind of argument.")
 
 Base.keys(A::CalibrationData) = keys(A.stat_index)
