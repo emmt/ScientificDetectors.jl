@@ -15,6 +15,7 @@
 module ScientificDetectors
 
 export
+    CalibrationCategory,
     CalibrationData,
     CalibrationDataFrame,
     CalibrationFrameSampler,
@@ -55,6 +56,7 @@ import .DetectorStatistics: SampleStatistics
 
 include("calibration.jl")
 import .Calibration:
+    CalibrationCategory,
     CalibrationData,
     CalibrationDataFrame,
     CalibrationFrameSampler,

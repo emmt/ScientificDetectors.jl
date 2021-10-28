@@ -1,5 +1,7 @@
 # List of wishes
 
+- Move everything depending on `FITS` and `EasyFITS` to package
+  `AstronomicalDetectors`.
 - Calibration procedures can be multi-threaded.
 - Add progress bar in `ReducedCalibration`.
 - The affine correction performed in the preprocessing writes

@@ -11,23 +11,22 @@ Assuming `dir` is the path to the directory where are stored FITS files with
 calibration data, reduced calibration data can be obtained as follows:
 
 ```julia
-using ScientificDetectors, Glob
-include("test/SphereData.jl")
-lst = SphereData.listcalibrations(glob("SPHER.2015-12-2*", dir))
-dat = SphereData.readcalibrations(Float32, lst, (401:600, 401:60))
-cal = ReducedCalibration(dat)
+using ScientificDetectors, AstronomicalDetectors, Glob
+list = scan_calibrations(glob("SPHER.2015-12-2*", dir))
+data = read(CalibrationData{Float64}, list; part=(501:580,601:650))
+calib = ReducedCalibration(data)
 ```
 
 Then reduced calibration data can be saved into a FITS file for further use:
 
 ```julia
-write("calib.fits", cal)
+write("calib.fits", calib)
 ```
 
 In order to read the reduced calibration data, call:
 
 ```julia
-cal = read(ReducedCalibration, "calib.fits.gz");
+calib = read(ReducedCalibration, "calib.fits.gz");
 ```
 
 ### Using reduced calibration
@@ -36,25 +35,25 @@ To read the reduced calibration data:
 
 ```julia
 using ScientificDetectors
-cal = read(ReducedCalibration, "calib.fits.gz")
+calib = read(ReducedCalibration, "calib.fits.gz")
 ```
 
 Convert reduced calibration into pre-processing parameters for 3 seconds
 exposure time:
 
 ```julia
-prm = PreprocessingParameters(cal; flat="FLAT_FIELD_RAW_2",
+prm = PreprocessingParameters(calib; flat="FLAT_FIELD_RAW_2",
                               bg="DARK_RAW", Δt=3);
 ```
 
 Idem but explicitly specifying the floating-point type:
 
 ```julia
-prm = PreprocessingParameters{Float32}(cal; flat="FLAT_FIELD_RAW_2",
+prm = PreprocessingParameters{Float32}(calib; flat="FLAT_FIELD_RAW_2",
                                        bg="DARK_RAW", Δt=3);
 ```
 
-Note that a second argument (after `cal`) may be specified to indicate the
+Note that a second argument (after `calib`) may be specified to indicate the
 location of defective pixels.  This optional argument is an array of booleans
 of same size as the data frames and with true values where pixels should be
 considered as defective.  In addition to this bad pixel map, pixels for which
@@ -76,6 +75,16 @@ method can be called:
 ```julia
 process!(wgt, dat, prm, raw[:,:,7]);
 ```
+
+## Structures Hierarchy
+
+- `SampleStatistics` delete?
+
+- create `CalibrationData` with ROI and calibration categories with source to categories
+  matrix;
+- entry point: collect. `CalibrationDataFrame` for different Δt and categories
+  in `CalibrationData`;
+- fit detetctor parameters -> `ReducedCalibration`
 
 ## Installation
 
