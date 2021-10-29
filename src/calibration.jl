@@ -124,213 +124,21 @@ function uniquecategories(A::AbstractVector{K}) where {K<:Identifiers}
     return cat, uid
 end
 
-# Structure used to store the parameters of a single pixel.
-mutable struct FitResult{T}
-    f::T         # figure of merit
-    z::T         # bias
-    g::T         # gain
-    u::T         # variance of readout-noise divided by gain
-    s::Vector{T} # contributions of the different sources
-end
-
-
-# FIXME: rename as CalibrationDataFrameSampler
-# FIXME: move inner constructor outside?
-
-"""
-    ReducedCalibration(cal) -> redcal
-
-fit the detector parameters in calibration data `cal`.
-
-"""
-function ReducedCalibration(cal::CalibrationData{T,N}) where {T,N}
-    nframes = numberofdataframes(cal)
-    ntypes = numberofcategories(cal)
-    dat = dataframes(cal)
-    cat = categories(cal)
-    Δt = exposuretimes(cal)
-    uid = uniqueidentifiers(cal)
-    dims = size(cal)
-    @assert length(uid) == ntypes
-    @assert length(Δt) == nframes
-    @assert length(dat) == nframes
-    @assert length(cat) == nframes
-
-    # Check exposure times.
-    flag = false
-    for i in 1:nframes
-        if !isfinite(Δt[i]) || Δt[i] < 0
-            error("invalid exposure time(s)")
-        end
-        if Δt[i] > 0
-            flag = true
-        end
-    end
-    if !flag
-        error("no non-zero exposure times!")
-    end
-
-    # Allocate output and workspaces.
-    out = ReducedCalibration(
-        Array{T,N}(undef, dims), # f
-        Array{T,N}(undef, dims), # z
-        Array{T,N}(undef, dims), # g
-        Array{T,N}(undef, dims), # σ
-        [Array{T,N}(undef, dims) for k in 1:ntypes], # c
-        uid)
-    d = Array{T,1}(undef, nframes)
-    res = FitResult{T}(Inf,NaN,NaN,NaN,
-                       fill!(Array{T}(undef, ntypes), NaN));
-
-    # Fit every pixel.
-    len = prod(dims)
-    for j in 1:len
-        # Collect the pixel data.
-        for i in 1:nframes
-            d[i] = cal.data[i][j]
-        end
-
-        # Fit the detector parameters and save them.
-        fit!(res, d, cat, Δt)
-        for l in 1:ntypes
-            out.c[l][j] = res.c[l]
-        end
-        out.f[j] = res.f
-        out.z[j] = res.z
-        out.g[j] = res.g
-        out.σ[j] = sqrt(res.u/res.g)
-    end
-
-    # Return reduced calibration data.
-    return out
-end
-
-function fit!(res::FitResult{T}, d::Vector{T},
-              cat::Vector{Int}, Δt::Vector{T};
-              umin::Real = 1e-20) where {T<:AbstractFloat}
-    ntypes = length(res.c)
-    nframes = length(d)
-    @assert length(cat) == nframes
-    @assert length(Δt) == nframes
-
-    # Initial weights are 1/(Δt + τ) with τ a small value.
-    τ = leastpositive(Δt)/10
-    τ > 0 || error("no non-zero exposure times")
-    w = Array{T}(undef, nframes)
-    update_w!(w, Δt, τ)
-
-    # Initial bias.
-    z = minimum(d)
-
-    # Initial current terms are given by a simple constrained linear
-    # least-squares fit.
-    a = fill!(Array{T,1}(undef, ntypes), 0)
-    b = fill!(Array{T,1}(undef, ntypes), 0)
-    @inbounds for i in 1:nframes
-        l = cat[i]
-        a[l] += w[i]*Δt[i]^2
-        b[l] += w[i]*Δt[i]*(d[i] - z)
-    end
-    c = Array{T,1}(undef, ntypes)
-    @inbounds for l in 1:ntypes
-        c[l] = (b[l] > 0 ? b[l]/a[l] : zero(T))
-    end
-
-    # Initial value of u ≡ g⋅σ² is a strictly positive value which is small
-    # compared to c⋅Δt.
-    cΔt = Array{T}(undef, nframes)
-    update_cΔt!(cΔt, c, Δt, cat)
-    u = leastpositive(cΔt)/10
-
-    # Initialize initial variables and bounds.
-    x = Array{T}(undef, ntypes+1)
-    xmin = Array{T}(undef, ntypes+1)
-    @inbounds for l in 1:ntypes
-        x[l] = c[l]
-        xmin[l] = zero(T)
-    end
-    x[end] = u
-    xmin[end] = umin
-
-    # Initialize result so as to store best solution so far.
-    res.f = Inf
-    res.z = NaN
-    res.g = NaN
-    res.u = NaN
-    fill!(res.c, NaN)
-
-    # Allocate workspaces r for the residuals.
-    r = Array{T}(undef, nframes)
-
-    # Define the objective function as a closure to share workspaces and data.
-    function fg!(x::Vector{T}, gx::Vector{T}) where {T<:AbstractFloat}
-        # Extract parameters.
-        @assert length(x) == length(gx) == ntypes + 1
-        @inbounds for l in 1:ntypes
-            c[l] = x[l]
-        end
-        u = x[end]
-
-        # Compute the contributions c⋅Δt, the weights w, the best bias z, the
-        # residuals r and the best gain g.
-        update_cΔt!(cΔt, c, Δt, cat, true)
-        update_w!(w, cΔt, u)
-        z = best_bias(w, d, cΔt)
-        update_r!(r, d, cΔt, z)
-        g = best_gain(w, r)
-
-        # Compute the objective function.
-        fx = zero(T)
-        @inbounds @simd for i in 1:nframes
-            # (5 ops + 1 log)/frames ~ 28 ops/frames
-            fx += g*w[i]*r[i]^2 - log(w[i])
-        end
-        fx -= nframes*log(g)
-
-        # Maybe update the best solution so far.
-        if fx < res.f
-            res.f = fx
-            res.z = z
-            res.g = g
-            res.u = u
-            copyto!(res.s, s)
-        end
-
-        # Compute the gradient of the objective function with respect to c.
-        @inbounds for l in 1:ntypes
-            gx[l] = zero(T)
-        end
-        @inbounds for i in 1:nframes
-            # 8 ops/frames
-            l = cat[i]
-            gx[l] += w[i]*(1 - g*r[i]*(2 + w[i]*r[i]))*Δt[i]
-        end
-
-        # Compute the gradient of the objective function with respect to u.
-        gu = zero(T)
-        @inbounds @simd for i in 1:nframes
-            # 6 ops/frames
-            gu += w[i]*(1 - g*w[i]*r[i]^2)
-        end
-        gx[end] = gu
-
-        # Return the objective function.
-        return fx
-    end
-
-    # FIXME: stopping criterion
-    vmlmb!(fg!, x, mem=5, lower=xmin)
-end
-
 struct FitWorkspace{T<:AbstractFloat}
     H::Matrix{T}   # sources to currents matrix
-    c::Vector{T}   # temporary workspace for current terms
+    c::Vector{T}   # temporary workspace for category terms
     ∂c::Vector{T}  # temporary workspace for gradients w.r.t. current terms
     Δt::Vector{T}  # exposure times
     l::Vector{Int} # indices of categories
     n::Vector{Int} # number of samples in subset
     avg::Vector{T} # empirical subset mean
     var::Vector{T} # empirical (biased) subset variance
+    w1::Vector{T}  # 1st temporary vector of same length as `c`
+    w2::Vector{T}  # 2nd temporary vector of same length as `c`
+    w3::Vector{T}  # 3rd temporary vector of same length as `c`
+    w4::Vector{T}  # 4th temporary vector of same length as `c`
+    A::Matrix{T}   # LHS matrix of the normal equations
+    b::Vector{T}   # RHS vector of the normal equations
 end
 
 """
@@ -342,23 +150,30 @@ must be nonnegative (this is checked).  The same workspace can be re-used for
 another pixel provided the matrix `H` remains the same.
 
 """
-FitWorkspace(H::AbstractMatrix{<:Real}, nobs::Integer) =
+FitWorkspace(H::AbstractMatrix{<:Real}, nsub::Integer) =
     FitWorkspace{float(eltype(H))}(H, nsub)
 
 function FitWorkspace{T}(H::AbstractMatrix{<:Real},
-                         nobs::Integer) where {T<:AbstractFloat}
+                         nsub::Integer) where {T<:AbstractFloat}
     isnonnegative(H) || error(
         "entries of sources to currents matrix must be nonnegative")
-    ncat, nsrc = size(H)
+    nrows, ncols = size(H)
+    n = ncols + 1
     return FitWorkspace{T}(
         H,
-        Vector{T}(  undef, ncat), # c
-        Vector{T}(  undef, ncat), # ∂c
-        Vector{T}(  undef, nobs), # Δt
-        Vector{Int}(undef, nobs), # l
-        Vector{Int}(undef, nobs), # n
-        Vector{T}(  undef, nobs), # avg
-        Vector{T}(  undef, nobs)) # var
+        Vector{T}(  undef, nrows), # c
+        Vector{T}(  undef, nrows), # ∂c
+        Vector{T}(  undef, nsub),  # Δt
+        Vector{Int}(undef, nsub),  # l
+        Vector{Int}(undef, nsub),  # n
+        Vector{T}(  undef, nsub),  # avg
+        Vector{T}(  undef, nsub),  # var
+        Vector{T}(  undef, nrows), # workspace w1
+        Vector{T}(  undef, nrows), # workspace w2
+        Vector{T}(  undef, nrows), # workspace w3
+        Vector{T}(  undef, nrows), # workspace w4
+        Matrix{T}(  undef, n, n),  # LHS matrix A
+        Vector{T}(  undef, n))     # RHS vector b
 end
 
 """
@@ -373,41 +188,52 @@ FitWorkspace(cal::CalibrationData) = FitWorkspace{eltype(cal)}(cal)
 FitWorkspace{T}(cal::CalibrationData) where {T<:AbstractFloat} =
     FitWorkspace{T}(cal.src_to_cat, length(cal.stat))
 
-# Return the number of sufficient data in fit workspace.
-function checked_length(wrk::FitWorkspace; checkindices::Bool=false)
-    ncat, nsrc = size(wrk.H)
-    length(wrk.c) == ncat || error("invalid number of current terms")
-    length(wrk.∂c) == ncat || error("invalid number of gradients w.r.t. current terms")
-    if checkindices
-        flag = true
-        @inbounds @simd for i in eachindex(wrk.l)
-            flag &= ((wrk.l[i] - 1)%UInt < ncat)
+# Return the number of data subsets in fit workspace.
+function Base.length(wrk::FitWorkspace;
+                     checksizes::Bool=false,
+                     checkindices::Bool=false)
+    nsub = length(wrk.l) # number of subsets
+    if checksizes || checkindices
+        nrows, ncols = size(wrk.H)
+        n = ncols + 1
+        length(wrk.c)   == nrows || error("bad number of categories")
+        length(wrk.∂c)  == nrows || error("bad number of category gradients")
+        length(wrk.Δt)  == nsub  || error("bad number of exposure times")
+        length(wrk.avg) == nsub  || error("bad number of empirical means")
+        length(wrk.var) == nsub  || error("bad number of empirical variances")
+        length(wrk.n)   == nsub  || error("bad number of subset sizes")
+        length(wrk.w1)  == nrows || error("bad size for workspace W1")
+        length(wrk.w2)  == nrows || error("bad size for workspace W2")
+        length(wrk.w3)  == nrows || error("bad size for workspace W3")
+        length(wrk.w4)  == nrows || error("bad size for workspace W4")
+        size(wrk.A)     == (n,n) || error("bad size for LHS matrix A")
+        length(wrk.b)   == n     || error("bad size for RHS vector b")
+        if checkindices
+            flag = true
+            @inbounds @simd for i in eachindex(wrk.l)
+                flag &= ((wrk.l[i] - 1)%UInt < nrows)
+            end
+            flag || error("out of bound category index")
         end
-    flag || error("out of bound category index")
     end
-    nobs = length(wrk.l)
-    length(wrk.Δt) == nobs || error("bad number of exposure times")
-    length(wrk.avg) == nobs || error("bad number of empirical means")
-    length(wrk.var) == nobs || error("bad number of empirical variances")
-    length(wrk.n) == nobs || error("bad number of subset sizes")
-    return nobs
+    return nsub
 end
 
 """
     extract!(wrk, cal, k) -> wrk
 
-extracts into workspace `wrk` the data for `k`-th pixel in calibration data `cal`.
+extracts into workspace `wrk` the data for `k`-th pixel in calibration data
+`cal`.
 
 """
 function extract!(wrk::FitWorkspace,
                   cal::CalibrationData{T,N},
                   k::Integer) where {T,N}
-    avg = cal.stat
-    ncat, nsrc = size(cal.src_to_cat)
-    nsub = length(cal.stat)
-    nsub == checked_length(wrk) || error(
+    nrows, ncols = size(cal.src_to_cat)
+    nsub = length(wrk; checksizes=true)
+    length(cal.stat) == nsub || error(
         "fit workspace assumes a different number of subsets")
-    for (key, i) ∈ cal.stat_index
+    @inbounds for (key, i) ∈ cal.stat_index
         # Extract (Δt,ℓ) for the subset of calibration data.
         cat       = key[1]             # category name
         wrk.Δt[i] = key[2]             # exposure time
@@ -440,8 +266,10 @@ struct NormalEquations{T<:AbstractFloat,
     end
 end
 
-lhs(E::NormalEquations) = getfield(E, :A)
-rhs(E::NormalEquations) = getfield(E, :b)
+lhs(eq::NormalEquations) = getfield(eq, :A)
+rhs(eq::NormalEquations) = getfield(eq, :b)
+
+Base.copy(eq::NormalEquations) = NormalEquations(copy(lhs(eq)), copy(rhs(eq)))
 
 function NormalEquations(A::AbstractMatrix{<:Real}, b::AbstractVector{<:Real})
     T = float(promote_type(eltype(A), eltype(b)))
@@ -458,8 +286,8 @@ end
 #   f(x) = (1/2) x'⋅A⋅x - b⋅x
 #   ∇f(x) = A⋅x - b
 #   =>  f(x) = (1/2) x'⋅(∇f(x) - b)
-function (E::NormalEquations)(x::AbstractVector{T}) where {T<:AbstractFloat}
-    A, b = lhs(E), rhs(E)
+function (eq::NormalEquations)(x::AbstractVector{T}) where {T<:AbstractFloat}
+    A, b = lhs(eq), rhs(eq)
     I = axes(b, 1)
     axes(A) == (I, I) || error(
         "LHS matrix and RHS vector have incompatible indices")
@@ -477,9 +305,9 @@ function (E::NormalEquations)(x::AbstractVector{T}) where {T<:AbstractFloat}
     return f/2
 end
 
-function (E::NormalEquations)(x::AbstractVector{T},
-                              g::AbstractVector{T}) where {T<:AbstractFloat}
-    A, b = lhs(E), rhs(E)
+function (eq::NormalEquations)(x::AbstractVector{T},
+                               g::AbstractVector{T}) where {T<:AbstractFloat}
+    A, b = lhs(eq), rhs(eq)
     I = axes(b, 1)
     axes(A) == (I, I) || error(
         "LHS matrix and RHS vector have incompatible indices")
@@ -512,140 +340,179 @@ Other keywords are passed to `vmlmb!`.
 
 """
 function fit_linear_terms!(wrk::FitWorkspace{T},
-                           x::Vector{T};
-                           # FIXME: add option to re-weight
+                           x::Vector{T} = zeros(T, size(wrk.H,2) + 1);
+                           reset::Bool = false,
+                           nonnegative::Bool = true,
                            eta::Real = Inf,
                            mem::Integer = 5,
                            kwds...) where {T<:AbstractFloat}
     # Do a weighted least squares fit on all the linear parameters with the
     # positivity constraint on the source terms.
-    H = wrk.H
-    ncat, nsrc = size(H)
-    nsub = checked_length(wrk; checkindices=true)
-
-    # Integrate W1, W2, and W3 over the categories.
-    w1 = fill!(Vector{T}(undef, ncat), zero(T)) # FIXME: make is part of wrk
-    w2 = fill!(Vector{T}(undef, ncat), zero(T)) # FIXME: make is part of wrk
-    w3 = fill!(Vector{T}(undef, ncat), zero(T)) # FIXME: make is part of wrk
-    Ann = zero(T)
-    bn = zero(T)
-    if eta == Inf
-        for i in 1:nsub
-            Δt = wrk.Δt[i]
-            l = wrk.l[i]
-            w = T(wrk.n[i])
-            d = wrk.avg[i]
-            wΔt = w*Δt
-            w1[l] += wΔt
-            w2[l] += wΔt*Δt
-            w3[l] += wΔt*d
-            Ann += w
-            bn += w*d
+    eq = form_normal_equations!(wrk, x, to_type(T, eta))
+    reset && fill!(x, 0) # FIXME:
+    if nonnegative
+        # Solve the normal equations under the constraints that the source
+        # terms are nonnegative.
+        n = length(x)
+        xmin = Vector{T}(undef, n) # FIXME: make is part of wrk
+        @inbounds for i in 1:n-1
+            xmin[i] = 0 # source terms are nonnegative
         end
+        xmin[n] = -Inf # z is unbounded
+        vmlmb!(eq, x; mem=mem, lower=xmin, autodiff=false, kwds...)
     else
-        eta > 0 || argument_error("value of keyword `eta` must be positive")
-        c = mvmult!(wrk.c, H, view(x, 1:nsrc))
-        η = to_type(T, eta)
-        for i in 1:nsub
-            Δt = wrk.Δt[i]
-            l = wrk.l[i]
-            cΔt = c[l]*Δt
-            w = wrk.n[i]/(cΔt + η)
-            d = wrk.avg[i]
-            wΔt = w*Δt
-            w1[l] += wΔt
-            w2[l] += wΔt*Δt
-            w3[l] += wΔt*d
-            Ann += w
-            bn += w*d
-        end
+        x .= eq.A\eq.b # FIXME: use in-place operations
     end
-
-    # Compute A the LHS matrix of the normal equations.
-    m, n = ncat, nsrc + 1
-    A = Matrix{T}(undef, n, n) # FIXME: make is part of wrk
-    u = Vector{T}(undef, m) # FIXME: make is part of wrk
-    for j ∈ 1:n-1
-        # First (n-1)×(n-1) block.
-        for l ∈ 1:m
-            u[l] = H[l,j]*w2[l]
-        end
-        for jp ∈ 1:n-1
-            s = zero(T)
-            for l ∈ 1:m
-                s += u[l]*H[l,jp]
-            end
-            A[j,jp] = s
-            if jp == j
-                break
-            end
-            A[jp,j] = s
-        end
-        # Last column and last row of A.
-        s = zero(T)
-        for l ∈ 1:m
-            s += H[j,l]*w1[l]
-        end
-        A[j,n] = s
-        A[n,j] = s
-    end
-    A[n,n] = Ann
-
-    # Compute b the RHS vector of the normal equations.
-    b = Vector{T}(undef, n) # FIXME: make is part of wrk
-    for j ∈ 1:n-1
-        s = zero(T)
-        for l ∈ 1:m
-            s += H[j,l]*w3[l]
-        end
-        b[j] = s
-    end
-    b[n] = bn
-
-    # Solve the normal equations under the constraints that the source terms
-    # are nonnegative.
-    E = NormalEquations{T}(A, b)
-    x = Vector{T}(undef, n)
-    xmin = Vector{T}(undef, n)
-    @inbounds for i in 1:n-1
-        xmin[i] = 0 # source terms are nonnegative
-    end
-    xmin[n] = -Inf # z is unbounded
-    fill!(x, 0)
-    vmlmb!(E, x; mem=mem, lower=xmin, kwds...)
     return x
-
-    #x = Vector{T}(undef, nsrc + 1)
-    #xmin = Vector{T}(undef, nsrc + 1)
-    #xmin[1] = -Inf # z is unbounded
-    #@inbounds for i in 2:nsrc+1
-    #    xmin[i] = 0
-    #end
-    #fill!(x, 0)
-    #function fg!(x::Vector{T}, gx::Vector{T}) where {T<:AbstractFloat}
-    #    n = length(x)
-    #    z = x[1]
-    #    c = mvmult!(wrk.c, wrk.H, view(x, 2:n))
-    #    ∂c = fill!(wrk.∂c, zero(T))
-    #    ∂z = zero(T)
-    #    f = zero(T)
-    #    for i in 1:nsub
-    #        Δt = wrk.Δt[i]
-    #        l = wrk.l[i]
-    #        w = T(wrk.n[i])
-    #        r = (c[l]*Δt + z) - wrk.avg[i]
-    #        wr = w*r
-    #        f += wr*r
-    #        ∂c[l] += wr*Δt
-    #        ∂z += wr
-    #    end
-    #    # convert gradient and return objective function
-    #    gx[1] = ∂z
-    #    mvmult!(view(gx, 2:n), wrk.H', ∂c)
-    #    return f/2
-    #end
 end
 
+"""
+    form_normal_equations!(wrk, x, η=Inf) -> eq
+
+forms the normal equations for fitting the flux terms (the sources and the
+zero-level).  Argument `η = g⋅σ² > 0` is the gain time the variance of the
+read-out noise.  The weights are computed as:
+
+    w[k,l] = n[k,l]/(c[l]⋅Δt[k,l] + η)
+
+where `c = H*x[1:end-1]` is the flux per category of calibration with `H =
+wrk.H` the sources to categories matrix, `x[1:end-1]` the fluxes of the
+sources, and `x[end]` the zero-level `z` (not used here).
+
+If `η = Inf`, then `x` is not used and the weights are assumed to be given by
+the number of samples: ` w[k,l] = n[k,l]`.
+
+"""
+function form_normal_equations!(wrk::FitWorkspace{T},
+                                x::AbstractVector{T},
+                                η::Real = Inf) where {T<:AbstractFloat}
+    return form_normal_equations!(wrk, x, to_type(T, η))
+end
+
+function form_normal_equations!(wrk::FitWorkspace{T},
+                                x::AbstractVector{T},
+                                η::T) where {T<:AbstractFloat}
+    # Extract parameters from workspace.
+    nsub = length(wrk; checksizes=true, checkindices=true)
+    H = wrk.H
+    nrows, ncols = size(H)
+    n = ncols + 1
+    length(x) == n || error("variables must have ", n, " elements")
+    J = Base.OneTo(ncols)
+    L = Base.OneTo(nrows)
+
+    # Determine whether flux dependent weights are to be computed.
+    reweighted = false
+    if η != Inf
+        η > 0 || argument_error("value of `η = g⋅σ²` must be positive")
+        @inbounds for j in J
+            if x[j] != 0
+                reweighted = true
+                ((x[j] > 0) & isfinite(x[j])) || argument_error(
+                    "sources `x[1:end-1]` must be finite and nonnegative")
+            end
+        end
+    end
+
+    # Integrate temporaries for all categories `l`:
+    #
+    #     w1[l] = sum_k w[k,l]*Δt[k,l]
+    #     w2[l] = sum_k w[k,l]*Δt[k,l]^2
+    #     w3[l] = sum_k w[k,l]*Δt[k,l]*d[k,l]
+    #     Ann = A[n,n] = sum_{k,l} w[k,l]
+    #     bn = b[n] = sum_{k,l} w[k,l]*d[k,l]
+    #
+    # with:
+    #
+    #    d[k,l] = wrk.avg[k,l]
+    #    w[k,l] = n[k,l]/(c[l]*Δt[k,l] + η)
+    #
+    # the "data" and the weights.  The sum is over index `i ~ (k,l)` such that
+    # category index is given by `l = wrk.l[i]`.
+    #
+    w1 = fill!(wrk.w1, zero(T))
+    w2 = fill!(wrk.w2, zero(T))
+    w3 = fill!(wrk.w3, zero(T))
+    Ann = zero(T)
+    bn = zero(T)
+    if reweighted
+        # Compute fluxes in calibration categories and flux-dependent weights.
+        c = mvmult!(wrk.c, H, view(x, 1:ncols))
+        @inbounds for i in 1:nsub
+            Δt  = wrk.Δt[i]
+            l   = wrk.l[i]
+            cΔt = c[l]*Δt
+            w   = T(wrk.n[i])/(cΔt + η)
+            d   = wrk.avg[i]
+            wΔt = w*Δt
+            w1[l] += wΔt
+            w2[l] += wΔt*Δt
+            w3[l] += wΔt*d
+            Ann   += w
+            bn    += w*d
+        end
+    else
+        # Compute flux-independent weights.
+        @inbounds for i in 1:nsub
+            Δt  = wrk.Δt[i]
+            l   = wrk.l[i]
+            w   = T(wrk.n[i])
+            d   = wrk.avg[i]
+            wΔt = w*Δt
+            w1[l] += wΔt
+            w2[l] += wΔt*Δt
+            w3[l] += wΔt*d
+            Ann   += w
+            bn    += w*d
+        end
+    end
+
+    @inbounds begin
+        # Compute the LHS matrix A of the normal equations.
+        A = wrk.A
+        w4 = wrk.w4 # FIXME: wrk.c could be used as a temporary workspace here
+        for j ∈ J
+            # Leading (n-1)×(n-1) block.
+            for l ∈ L
+                w4[l] = H[l,j]*w2[l]
+            end
+            for jp ∈ J
+                s = zero(T)
+                for l ∈ L
+                    s += w4[l]*H[l,jp]
+                end
+                A[j,jp] = s
+                if jp == j
+                    break
+                end
+                A[jp,j] = s
+            end
+            # Trailing column and row of A.
+            let s = zero(T)
+                for l ∈ L
+                    s += H[l,j]*w1[l]
+                end
+                A[j,n] = s
+                A[n,j] = s
+            end
+        end
+        A[n,n] = Ann
+
+        # Compute the RHS vector b of the normal equations.
+        b = wrk.b
+        for j ∈ J
+            s = zero(T)
+            for l ∈ L
+                s += H[l,j]*w3[l]
+            end
+            b[j] = s
+        end
+        b[n] = bn
+    end # @inbounds
+
+    # Return the normal equations.
+    return NormalEquations{T}(A, b)
+end
 
 """
     f = objfunc(wrk, z, g, η, s)
@@ -663,25 +530,32 @@ end
 
 function objfunc(wrk::FitWorkspace{T}, z::T, g::T, η::T,
                  s::AbstractVector{T}) where {T<:AbstractFloat}
-    g > 0 || throw_argument_error("gain `g` must be positive")
-    η > 0 || throw_argument_error("readout variance `η` must be positive")
-    isnonnegative(s) || throw_argument_error("source terms `s` must be nonnegative")
-    c = mvmult!(wrk.c, wrk.H, s)
+    check_objfunc_args(g, η, s)
+    c = mvmult!(wrk.c, wrk.H, s) # compute fluxes in calibration categories
     N = 0 # to count total number of data
     χ² = zero(T) # to sum χ²/g terms
     sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
-    @inbounds for i ∈ 1:checked_length(wrk; checkindices=true)
-        Δt = wrk.Δt[i]  # exposure time
-        l = wrk.l[i]    # category index
-        n = T(wrk.n[i]) # number of samples in subset
-        cΔt = c[l]*Δt   # contribution of sources
-        r = (cΔt + z) - wrk.avg[i] # residuals: model - sample mean
-        w = n/(cΔt + η) # weight
+    nsub = length(wrk; checksizes=true, checkindices=true)
+    @inbounds @simd for i ∈ 1:nsub
+        Δt  = wrk.Δt[i]     # exposure time
+        l   = wrk.l[i]      # category index
+        n   = T(wrk.n[i])   # number of samples in subset
+        cΔt = c[l]*Δt       # contribution of sources
+        d   = wrk.avg[i]    # data = sample mean
+        r   = (cΔt + z) - d # residuals: model - data
+        w   = n/(cΔt + η)   # weight
         χ² += w*(wrk.var[i] + r^2)
         sum_n_logw_n += n*log(w/n)
         N += n
     end
     return g*χ² - sum_n_logw_n - N*log(g)
+end
+
+function check_objfunc_args(g::Real, η::Real, s::AbstractVector{<:Real})
+    g > 0 || throw_argument_error("gain `g` must be positive")
+    η > 0 || throw_argument_error("readout variance `η` must be positive")
+    isnonnegative(s) || throw_argument_error(
+        "source terms `s` must be nonnegative")
 end
 
 """
@@ -703,25 +577,26 @@ end
 function objfunc!(wrk::FitWorkspace{T},
                   z::T, g::T, η::T, s::AbstractVector{T},
                   grd::AbstractVector) where {T<:AbstractFloat}
-    g > 0 || throw_argument_error("gain `g` must be positive")
-    η > 0 || throw_argument_error("readout variance `η` must be positive")
-    isnonnegative(s) ≥ 0 || throw_argument_error("source terms `s` must be nonnegative")
-    c = mvmult!(wrk.c, wrk.H, s) # compute current terms
+    check_objfunc_args(g, η, s)
+    length(grd) == 3 + length(s) || error("bad gradient size")
+    c = mvmult!(wrk.c, wrk.H, s) # compute fluxes in calibration categories
     N = 0 # to count total number of data
     χ² = zero(T) # to sum χ²/g terms
     sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
     ∂c = fill!(wrk.∂c, 0) # to compute ∂L/∂c
     ∂z = zero(T) # to compute ∂L/∂z
     ∂η = zero(T) # to compute ∂L/∂η
-    @inbounds for i ∈ 1:checked_length(wrk; checkindices=true)
-        Δt = wrk.Δt[i]  # exposure time
-        l = wrk.l[i]    # category index
-        n = T(wrk.n[i]) # number of samples in subset
-        cΔt = c[l]*Δt   # contribution of sources
-        r = (cΔt + z) - wrk.avg[i] # residuals: model - sample mean
-        q = cΔt + η
-        w = n/(cΔt + η) # weight
-        v = wrk.var[i] + r^2
+    nsub = length(wrk; checksizes=true, checkindices=true)
+    @inbounds @simd for i ∈ 1:nsub
+        Δt  = wrk.Δt[i]     # exposure time
+        l   = wrk.l[i]      # category index
+        n   = T(wrk.n[i])   # number of samples in subset
+        cΔt = c[l]*Δt       # contribution of sources
+        d   = wrk.avg[i]    # data = sample mean
+        r   = (cΔt + z) - d # residuals: model - data
+        q   = cΔt + η       # model variance times gain
+        w   = n/q           # weight
+        v   = wrk.var[i] + r^2
         χ² += w*v
         w_n = w/n
         sum_n_logw_n += n*log(w_n)
@@ -735,9 +610,9 @@ function objfunc!(wrk::FitWorkspace{T},
     end
     ∂g = χ² - N/g # ∂L/∂g
     # Store/convert gradients.
-    grd[1] = ∂z
-    grd[2] = ∂g
-    grd[3] = ∂η
+    @inbounds grd[1] = ∂z
+    @inbounds grd[2] = ∂g
+    @inbounds grd[3] = ∂η
     mvmult!(view(grd, 4:length(grd)), wrk.H', ∂c)
     # Return total objective function.
     return g*χ² - sum_n_logw_n - N*log(g)
