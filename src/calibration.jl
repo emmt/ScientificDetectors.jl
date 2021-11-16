@@ -523,12 +523,14 @@ gain, `η` the variance of the readout noise times the gain and the source terms
 `s`.
 
 """
-function objfunc(wrk::FitWorkspace{T}, z::Real, g::Real, η::Real,
+function objfunc(wrk::FitWorkspace{T},
+                 z::Real, g::Real, η::Real,
                  s::AbstractVector{T}) where {T<:AbstractFloat}
     return objfunc(wrk, to_type(T, z), to_type(T, g), to_type(T, η), s)
 end
 
-function objfunc(wrk::FitWorkspace{T}, z::T, g::T, η::T,
+function objfunc(wrk::FitWorkspace{T},
+                 z::T, g::T, η::T,
                  s::AbstractVector{T}) where {T<:AbstractFloat}
     check_objfunc_args(g, η, s)
     c = mvmult!(wrk.c, wrk.H, s) # compute fluxes in calibration categories
@@ -568,15 +570,17 @@ readout noise times the gain and the source terms `s`.
 
 """
 function objfunc!(wrk::FitWorkspace{T},
-                  z::Real, g::Real, η::Real, s::AbstractVector{T},
-                  grd::AbstractVector) where {T<:AbstractFloat}
+                  z::Real, g::Real, η::Real,
+                  s::AbstractVector{T},
+                  grd::AbstractVector{T}) where {T<:AbstractFloat}
     return objfunc!(wrk, to_type(T, z)::T, to_type(T, g)::T, to_type(T, η)::T,
                     s, grd)
 end
 
 function objfunc!(wrk::FitWorkspace{T},
-                  z::T, g::T, η::T, s::AbstractVector{T},
-                  grd::AbstractVector) where {T<:AbstractFloat}
+                  z::T, g::T, η::T,
+                  s::AbstractVector{T},
+                  grd::AbstractVector{T}) where {T<:AbstractFloat}
     check_objfunc_args(g, η, s)
     length(grd) == 3 + length(s) || error("bad gradient size")
     c = mvmult!(wrk.c, wrk.H, s) # compute fluxes in calibration categories
@@ -616,6 +620,99 @@ function objfunc!(wrk::FitWorkspace{T},
     mvmult!(view(grd, 4:length(grd)), wrk.H', ∂c)
     # Return total objective function.
     return g*χ² - sum_n_logw_n - N*log(g)
+end
+
+"""
+
+    x[1]     = z # bias or zero-level (ADU)
+    x[2]     = g # gain (e-/ADU)
+    x[3]     = σ # standard deviation of read-out noise (ADU)
+    x[4:end] = s # source terms (ADU/s)
+
+    fg!(x, g) = ScientificDetectors.Calibration.objfunc!(wrk, x, g)
+    pmin = zeros(T, length(x))
+    pmin[1] = -Inf       # min. for z
+    pmin[2] = 1.0        # min. for g
+    pmin[3] = sqrt(1/12) # min. for σ
+    vmlmb(fg!, copy(p); lower=pmin, verb=1, mem=length(x), maxiter=1000,
+          maxeval=5000, ftol=(0,0), xtol=(0,0), gtol=(1e-5,0), autodiff=false)
+
+"""
+function objfunc!(wrk::FitWorkspace{T},
+                  x::Vector{T},
+                  grd::Vector{T}) where {T<:AbstractFloat}
+    nsub = length(wrk; checksizes=true, checkindices=true)
+    inds = axes(x)
+    axes(grd) == inds || error(
+        "variables and gradients have different indices")
+    first(inds[1]) == 1 || error(
+        "variables have non-standard indexing")
+    xlen, ncols = length(x), size(wrk.H, 2)
+    xlen == ncols + 3 ||  error(
+        "variables must have ", ncols + 3, " elements, got ", xlen)
+    @inbounds begin
+        # Unpack parameters.
+        z = x[1]
+        g = x[2]
+        σ = x[3]
+        I = 4:xlen # index range of source terms
+        (isfinite(g) && g > 0) || argument_error(
+            "gain must be finite and strictly positive")
+        (isfinite(σ) && σ > 0) || argument_error(
+            "standard deviation of read-out ",
+            "noise must be finite and strictly positive")
+        ρ = 1/g
+        σ² = σ
+
+        # Compute fluxes in calibration categories.
+        c = mvmult!(wrk.c, wrk.H, view(x, I))
+
+        # Loop to integrate objective function and its gradient.
+        f      = zero(T)          # to compute f
+        ∂f_∂z  = zero(T)          # to compute ∂f/∂z
+        ∂f_∂ρ  = zero(T)          # to compute ∂f/∂ρ
+        ∂f_∂σ² = zero(T)          # to compute ∂f/∂σ²
+        ∂f_∂c  = fill!(wrk.∂c, 0) # to compute ∂f/∂c
+        @simd for i ∈ 1:nsub
+            # Objective function for this subset.
+            Δt  = wrk.Δt[i]        # exposure time
+            l   = wrk.l[i]         # category index
+            n   = T(wrk.n[i])      # number of samples in subset
+            cΔt = c[l]*Δt          # contribution of sources
+            m   = cΔt + z          # model of data
+            r   = m - wrk.avg[i]   # residuals = model - sample mean
+            q   = r^2 + wrk.var[i] # quadratic error
+            v   = ρ*cΔt + σ²       # model of variance
+            w   = 1/v              # weight
+            f  += n*(w*q - log(w)) # objective function
+
+            # Partial derivatives of `f` w.r.t. `m` and `w`:
+            ∂f_∂w = n*(q - v)   # ∂f/∂w = n⋅(q - 1/w)
+            ∂f_∂m = 2n*w*r      # ∂f/∂m = 2n⋅w⋅r
+
+            # ∂(m,w)/∂z = (1, 0)
+            ∂f_∂z += ∂f_∂m
+
+            # ∂(m,w)/∂ρ = (0, -w²⋅c⋅Δt)
+            w² = w^2
+            ∂f_∂ρ -= w²*cΔt*∂f_∂w
+
+            # ∂(m,w)/∂σ² = (0, -w²)
+            ∂f_∂σ² -= w²*∂f_∂w
+
+            # ∂(m,w)/∂c = (1, -w²⋅ρ)⋅Δt
+            ∂f_∂c[l] += (∂f_∂m - w²*ρ*∂f_∂w)*Δt
+        end
+
+        # Store/convert gradients and return objective function.
+        ∂f_∂g = -ρ^2*∂f_∂ρ
+        ∂f_∂σ = 2σ*∂f_∂σ²
+        grd[1] = ∂f_∂z
+        grd[2] = ∂f_∂g
+        grd[3] = ∂f_∂σ
+        mvmult!(view(grd, I), wrk.H', ∂f_∂c)
+        return f
+    end # @inbounds
 end
 
 """
