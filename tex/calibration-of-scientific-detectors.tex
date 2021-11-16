@@ -187,8 +187,8 @@ citecolor=Purple4]{hyperref}
 \newcommand*{\V}[1]{\boldsymbol{#1}}   % a vector
 \newcommand*{\M}[1]{\mathbf{#1}}       % an operator (a matrix)
 
-%\newcommand*{\TransposeLetter}{\top}
-\newcommand*{\TransposeLetter}{\mathrm{t}}
+\newcommand*{\TransposeLetter}{\top}
+%\newcommand*{\TransposeLetter}{\mathrm{t}}
 \newcommand*{\T}{^{\TransposeLetter}}
 \newcommand*{\mT}{^{-\TransposeLetter}}
 
@@ -823,13 +823,14 @@ where $\M H$ is a known matrix whose rows are the $\V h_\ell$ vectors.
 
 \subsection{Maximum likelihood calibration}
 
-As may be clear from the preceding section, although there are only 3 parameter
-(per pixel) to characterize the detector, calibrating these parameters from
-empirical data introduces additional unknowns: the source terms $\V s$.  The
-processing of calibration turns out to require to estimate all these unknowns,
-say $\V\theta=\Brace{z,g,\sigma,\V s}$, for each pixel.  Maximum likelihood
-estimators are well known for their good properties \oops{[ref?]} and our
-objective is to design a numerical method to find the maximum likelihood
+As may be clear from the preceding section, although there are only 3 parameters
+per pixel (the zero-level $z$, the gain $g$ and the standard deviation of the
+readout noise $\sigma$) to characterize the detector, calibrating these
+parameters from empirical data introduces additional unknowns: the source terms
+$\V s$. The calibration process turns out to require to estimate all these
+unknowns, say $\V\theta=\Paren{z,g,\sigma,\V s}$, for each pixel.  Maximum
+likelihood estimators are well known for their good properties \oops{[ref?]} and
+our objective is to design a numerical method to find the maximum likelihood
 estimator of our unknowns $\V\theta$ which is defined by:
 \begin{equation}
   \label{eq:maximum-likelihood-parameters}
@@ -891,9 +892,9 @@ Hence the empirical mean $\empirical{m}_{k,\ell}$ and variance
 $\empirical{v}_{k,\ell}$ provide \emph{sufficient statistics} for the considered
 pixel in the $N_{k,\ell}$ data frames acquired with the same exposure time and
 illumination.  Using this sufficient statistics and the pixel co-log-likelihood
-$\lkl(\V\theta)$ defined in Eq.~\eqref{eq:factorized-cologlikelihood} can
-significantly reduce the computational burden and the memory requirements for
-minimizing $\lkl(\V\theta)$ in the parameters $\V\theta$.
+$\lkl(\V\theta)$ in Eq.~\eqref{eq:factorized-cologlikelihood} can significantly
+reduce the computational burden and the memory requirements for minimizing
+$\lkl(\V\theta)$ in the parameters $\V\theta$.
 
 Note that the empirical variance $\empirical{v}_{k,\ell}$ defined by
 Eq.~\eqref{eq:sample-variance} is a biased estimator of the
@@ -906,21 +907,24 @@ has no other incidences on the method proposed to fit the parameters.
 The standard deviation $\sigma$ accounts for all other noises than the shot
 noise.  In particular, $\sigma$ accounts for the digitization errors.  Hence
 assuming rounding to the nearest ADU implies that $\sigma ≥ \sigma_\Tag{min} =
-1/\sqrt{12}$. Other constraints are that the incident light level and the dark
-current are necessarily nonnegative and that the gain is strictly positive.
-Hence the set of acceptable parameters is:
+1/\sqrt{12}$. Other constraints are that the source terms (the enlightenment
+fluxes and the dark current) are necessarily nonnegative and that the gain is
+strictly positive\footnote{in practice, the gain should not be less than one
+electron per ADU}. Hence the set of acceptable parameters is:
 \begin{equation}
   \label{eq:feasible-set}
-  \Omega = \Brace*{\V\theta \SuchThat \sigma ≥ \sigma_\Tag{min},\ s_{j} ≥ 0
-    \ (\forall j),\ g > 0}.
+  \Omega = \Brace*{
+    \V\theta = \Paren{z,g,\sigma,\V s} \SuchThat
+    \sigma ≥ \sigma_\Tag{min},\ s_{j} ≥ 0\ (\forall j),\ g > 0
+  }.
 \end{equation}
 
 In spite of the fact that it is separable in pixels, the co-log-likelihood
 $\lkl(\V\theta)$ is not trivial to jointly minimize in all the parameters
-accounting for the constraints implemented by $\Omega$.  We propose in the
+accounting for the constraints implemented by $\Omega$.  \oops{We propose in the
 following a strategy to solve the problem by means of hierarchical optimization
 and first show how to eliminate the bias and the gain of the problem thanks to
-a simple change of variables.
+a simple change of variables.}
 
 
 \subsection{Estimation of the zero level and of the gain}
