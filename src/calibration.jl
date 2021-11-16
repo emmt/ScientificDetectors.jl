@@ -25,21 +25,23 @@ const Category = Union{AbstractString,Symbol}
 const Colons{N} = NTuple{N,Colon}
 
 # Union of acceptable identifer types.
+# FIXME: Only needed by ReducedCalibration.
 const Identifiers = Union{AbstractString,Symbol,Integer}
 
 # Include code for types with constructors and basic method.
 include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
-#include("CalibrationDataFrameSampler.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 
+#------------------------------------------------------------------------------
+# FIXME: Only needed by ReducedCalibration.
 """
     identifier(key) -> str
 
-converts `key` into a string identifier.  Argument `key` can be of any type part
-of the union `Identifiers` (a string, a symbol or an integer).
+converts `key` into a string identifier.  Argument `key` can be of any type
+part of the union `Identifiers` (a string, a symbol or an integer).
 
 """
 identifier(key::String) = key
@@ -49,12 +51,12 @@ identifier(key::Symbol) = String(key)
 
 @doc @doc(identifier) Identifiers
 
-
+# FIXME: Only needed by ReducedCalibration.
 """
     find(obj, key) -> j
 
-yields the index `j` of the current term in reduced calibration data which match `key`
-or `0` if not found.
+yields the index `j` of the current term in reduced calibration data which
+match `key` or `0` if not found.
 
 """
 find(obj::ReducedCalibration, key::Nothing) = 0
@@ -77,7 +79,7 @@ find(obj::ReducedCalibration, j::Integer) =
     (1 ≤ j ≤ length(categories(obj)) ? Int(j) : 0)
 
 # Same as ArrayTools.promote_eltype but for a vector of arrays.  Using a
-# recursion is the fastest method.
+# recursion is the fastest method.  FIXME: Only needed by ReducedCalibration.
 function _promote_eltype(x::AbstractVector{<:AbstractArray})
     n = length(x)
     @assert n ≥ 1
@@ -88,41 +90,6 @@ _promote_eltype(T::Type, x::AbstractVector{<:AbstractArray}, n::Int) =
      _promote_eltype(promote_type(T, (@inbounds eltype(x[n]))), x, n - 1))
 
 #------------------------------------------------------------------------------
-
-"""
-    uniquecategories(A) -> cat, uid
-
-given a vector `A` of identifiers or keys, yields the corresponding category
-indices `cat` and unique identifers `uid` such that `uid[cat[i]]` is the unique
-identifier corresponding to `A[i]`.  The elements of `A` can be of any type
-belonging to the union `Identifiers` (strings, symbols or integers).
-
-"""
-function uniquecategories(A::AbstractVector{K}) where {K<:Identifiers}
-    # Use a dictionary to collect a unique list of keys and then to store the
-    # corresponding unique type number.
-    dict = Dict{K,Int}()
-    for key in A
-        dict[key] = 1
-    end
-    l = 0
-    for key in sort(collect(keys(dict)))
-        l += 1
-        dict[key] = l
-    end
-
-    cat = Vector{Int}(undef, length(A))
-    uid = Vector{String}(undef, length(dict))
-    i = 0
-    for key in A
-        i += 1
-        cat[i] = dict[key]
-    end
-    for key in keys(dict)
-        uid[dict[key]] = identifier(key)
-    end
-    return cat, uid
-end
 
 struct FitWorkspace{T<:AbstractFloat}
     H::Matrix{T}   # sources to currents matrix
@@ -223,12 +190,28 @@ end
     extract!(wrk, cal, k) -> wrk
 
 extracts into workspace `wrk` the data for `k`-th pixel in calibration data
-`cal`.
+`cal`.  Argument `k` may be a tuple of Cartesian indices or an instance of
+`CartesianIndex`.
 
 """
 function extract!(wrk::FitWorkspace,
                   cal::CalibrationData{T,N},
+                  k::NTuple{N,Integer}) where {T,N}
+    return extract!(wrk, cal, CartesianIndex(k))
+end
+function extract!(wrk::FitWorkspace,
+                  cal::CalibrationData{T,N},
+                  k::CartesianIndex{N}) where {T,N}
+    return extract!(wrk, cal,LinearIndices(size(cal.roi))[k])
+end
+function extract!(wrk::FitWorkspace,
+                  cal::CalibrationData{T,N},
                   k::Integer) where {T,N}
+    return extract!(wrk, cal, to_type(Int, k))
+end
+function extract!(wrk::FitWorkspace,
+                  cal::CalibrationData{T,N},
+                  k::Int) where {T,N}
     nrows, ncols = size(cal.src_to_cat)
     nsub = length(wrk; checksizes=true)
     length(cal.stat) == nsub || error(
@@ -314,7 +297,7 @@ function (eq::NormalEquations)(x::AbstractVector{T},
     axes(x) == (I,) || error(
         "input variables have incompatible indices")
     axes(g) == (I,) || error(
-        "output gradient has incompatible indices")
+        "output gradients have incompatible indices")
     f = zero(T)
     @inbounds for i in I
         # Compute A⋅x = A'⋅x (A is symmetric)
@@ -379,8 +362,8 @@ where `c = H*x[1:end-1]` is the flux per category of calibration with `H =
 wrk.H` the sources to categories matrix, `x[1:end-1]` the fluxes of the
 sources, and `x[end]` the zero-level `z` (not used here).
 
-If `η = Inf`, then `x` is not used and the weights are assumed to be given by
-the number of samples: ` w[k,l] = n[k,l]`.
+If `η = Inf`, then the entries of `x` are not used at all and the weights are
+assumed to be given by the number of samples: ` w[k,l] = n[k,l]`.
 
 """
 function form_normal_equations!(wrk::FitWorkspace{T},
@@ -573,8 +556,7 @@ function objfunc!(wrk::FitWorkspace{T},
                   z::Real, g::Real, η::Real,
                   s::AbstractVector{T},
                   grd::AbstractVector{T}) where {T<:AbstractFloat}
-    return objfunc!(wrk, to_type(T, z)::T, to_type(T, g)::T, to_type(T, η)::T,
-                    s, grd)
+    return objfunc!(wrk, to_type(T, z), to_type(T, g), to_type(T, η), s, grd)
 end
 
 function objfunc!(wrk::FitWorkspace{T},
@@ -623,18 +605,26 @@ function objfunc!(wrk::FitWorkspace{T},
 end
 
 """
+    f = objfunc!(wrk, x, grd)
+
+yields the value of the objective function `f(x)` associated with workspace
+`wrk` and overwrites `grd` with the gradient `∇f(x)` for model parameters `x =
+(z, g, σ, s...)` with `z` the zero level, `g` the gain, `σ` the standard
+deviation of the readout noise and the source terms `s`:
 
     x[1]     = z # bias or zero-level (ADU)
     x[2]     = g # gain (e-/ADU)
     x[3]     = σ # standard deviation of read-out noise (ADU)
     x[4:end] = s # source terms (ADU/s)
 
+Usage example:
+
     fg!(x, g) = ScientificDetectors.Calibration.objfunc!(wrk, x, g)
-    pmin = zeros(T, length(x))
-    pmin[1] = -Inf       # min. for z
-    pmin[2] = 1.0        # min. for g
-    pmin[3] = sqrt(1/12) # min. for σ
-    vmlmb(fg!, copy(p); lower=pmin, verb=1, mem=length(x), maxiter=1000,
+    xmin = zeros(T, length(x))
+    xmin[1] = -Inf       # min. for z
+    xmin[2] = 1.0        # min. for g
+    xmin[3] = sqrt(1/12) # min. for σ
+    vmlmb(fg!, copy(x); lower=xmin, verb=1, mem=length(x), maxiter=1000,
           maxeval=5000, ftol=(0,0), xtol=(0,0), gtol=(1e-5,0), autodiff=false)
 
 """
@@ -788,175 +778,5 @@ yields `x` converted to type `T`, the result is asserted to be of type `T`.
 """
 to_type(::Type{T}, x::T) where {T} = x
 to_type(::Type{T}, x::Any) where {T} = convert(T, x)::T
-
-"""
-    checkindices(I, len)
-
-checks that all indices in `I` are in the range `1:len`.  An error is thrown
-if `len ≤ 0` of if any values in `I` is outside the range `1:len`.
-
-"""
-function checkindices(I::AbstractArray{U}, len::Integer) where {U<:Unsigned}
-    len > 0 || error("invalid length")
-    if len < typemax(U)
-        lim = U(len)
-        @inbounds for i in I
-            i - one(U) < lim || error("out of bound type index")
-        end
-    end
-end
-
-function checkindices(I::AbstractArray{S}, len::Integer) where {S<:Signed}
-    len > 0 || error("invalid length")
-    if len < typemax(S)
-        U = unsigned(S)
-        lim = U(len)
-        @inbounds for i in I
-            (i % U) - one(U) < lim || error("out of bound type index")
-        end
-    else
-        # Just check for sign.
-        @inbounds for i in I
-            i > zero(U) || error("out of bound type index")
-        end
-    end
-end
-
-"""
-    update_w!(w, cΔt, u) -> w
-
-overwrites `w` with `1/(c⋅Δt + u)`, that is do `∀i: w[i] = 1/(cΔt[i] + u)`, and
-returns `w`.
-
-See also [`update_cΔt!`](@ref).
-
-"""
-function update_w!(w::Vector{T}, cΔt::Vector{T}, u::T) where {T<:AbstractFloat}
-    u′ = T(u)
-    @inbounds @simd for i ∈ eachindex(w, cΔt)
-       w[i] = one(T)/(cΔt[i] + u′)
-    end
-    return w
-end
-
-"""
-    update_cΔt!(cΔt, c, Δt, cat, nochecks=false) -> cΔt
-
-overwrites `cΔt` with `c⋅Δt`, that is do `∀i: cΔt[i] = c[cat[i]]*Δt[i]`, and
-returns `cΔt`.  Set optional argument `nochecks` to `true` to skip testing
-the indices in `cat`.
-
-See also  [`update_w!`](@ref), [`checkindices`](@ref).
-
-"""
-function update_cΔt!(cΔt::Vector{T}, c::Vector{T},
-                     Δt::Vector{T}, cat::Vector{Int},
-                     nochecks::Bool = false) where {T<:AbstractFloat}
-    nframes = length(cΔt)
-    @assert length(Δt) == nframes
-    @assert length(cat) == nframes
-    nochecks || checkindices(cat, length(c))
-    @inbounds for i ∈ 1:nframes
-        cΔt[i] = c[cat[i]]*Δt[i]
-    end
-    return cΔt
-end
-
-
-"""
-    update_r!(r, d, cΔt, z) -> r
-
-overwrites array `r` with the residuals given the data `d`, the contribution
-`cΔt` of the different sources and the bias `z`. The destination `r` is
-returned.  The residuals are computed as:
-
-    ∀i: r[i] = d[i] - cΔt[i] - z
-
-See also [`update_cΔt!`](@ref), [`best_bias`](@ref).
-
-"""
-function update_r!(r::AbstractVector{T},
-                   d::AbstractVector{T},
-                   cΔt::AbstractVector{T},
-                   z::Real) where {T<:AbstractFloat}
-    z′ = T(z)
-    @inbounds @simd for i ∈ eachindex(r, d, cΔt)
-        r[i] = d[i] - (cΔt[i] + z′)
-    end
-    return r
-end
-
-"""
-    best_bias(w, d, cΔt) -> z
-
-yields the best bias given the weights `w`, the data `d` and the contribution
-`cΔt` of the different sources.
-
-See also [`update_w!`](@ref), [`update_cΔt!`](@ref), [`best_gain`](@ref).
-
-"""
-function best_bias(w::AbstractVector{T},
-                   d::AbstractVector{T},
-                   cΔt::AbstractVector{T}) where {T<:AbstractFloat}
-    a, b = zero(T), zero(T)
-    @inbounds @simd for i ∈ eachindex(w, d, cΔt)
-        a += w[i]
-        b += w[i]*(d[i] - cΔt[i])
-    end
-    return b/a
-end
-
-"""
-    best_gain(w, d, cΔt, z) -> g
-
-yields the best gain given the weights `w`, the data `d`, the contribution `cΔt`
-of the different sources and the bias `z`.
-
-Alternatively, if the residuals `r = d - cΔt - z` have been computed, just
-call:
-
-    best_gain(w, r) -> g
-
-See also [`update_w!`](@ref), [`update_cΔt!`](@ref), [`update_r!`](@ref),
-[`best_bias`](@ref).
-
-"""
-function best_gain(w::AbstractVector{T},
-                   d::AbstractVector{T},
-                   cΔt::AbstractVector{T},
-                   z::Real) where {T<:AbstractFloat}
-    z′ = T(z)
-    s = zero(T)
-    @inbounds @simd for i ∈ eachindex(w, d, cΔt)
-        s += w[i]*(cΔt[i] + z′ - d[i])^2
-    end
-    return length(w)/s
-end
-
-function best_gain(w::AbstractVector{T},
-                   r::AbstractVector{T}) where {T<:AbstractFloat}
-    s = zero(T)
-    @inbounds @simd for i ∈ eachindex(w, r)
-        s += w[i]*r[i]^2
-    end
-    return length(w)/s
-end
-
-"""
-    leastpositive(A)
-
-yields the least strictly positive value of array `A` or zero if all values of
-`A` are nonpositive.
-
-"""
-function leastpositive(A::AbstractArray{T}) where {T}
-    res = zero(T)
-    @inbounds for val in A
-        if val > zero(T) && (res > val || res == zero(T))
-            res = val
-        end
-    end
-    return res
-end
 
 end # module
