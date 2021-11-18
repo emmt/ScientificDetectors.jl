@@ -124,23 +124,23 @@ function FitWorkspace{T}(H::AbstractMatrix{<:Real},
                          nsub::Integer) where {T<:AbstractFloat}
     isnonnegative(H) || error(
         "entries of sources to currents matrix must be nonnegative")
-    nrows, ncols = size(H)
-    n = ncols + 1
+    ncat, nsrc = size(H)
+    n = nsrc + 1 # number of linear parameters
     return FitWorkspace{T}(
         H,
-        Vector{T}(  undef, nrows), # c
-        Vector{T}(  undef, nrows), # ∂c
-        Vector{T}(  undef, nsub),  # Δt
-        Vector{Int}(undef, nsub),  # l
-        Vector{Int}(undef, nsub),  # n
-        Vector{T}(  undef, nsub),  # avg
-        Vector{T}(  undef, nsub),  # var
-        Vector{T}(  undef, nrows), # workspace w1
-        Vector{T}(  undef, nrows), # workspace w2
-        Vector{T}(  undef, nrows), # workspace w3
-        Vector{T}(  undef, nrows), # workspace w4
-        Matrix{T}(  undef, n, n),  # LHS matrix A
-        Vector{T}(  undef, n))     # RHS vector b
+        Vector{T}(  undef, ncat), # c
+        Vector{T}(  undef, ncat), # ∂c
+        Vector{T}(  undef, nsub), # Δt
+        Vector{Int}(undef, nsub), # l
+        Vector{Int}(undef, nsub), # n
+        Vector{T}(  undef, nsub), # avg
+        Vector{T}(  undef, nsub), # var
+        Vector{T}(  undef, ncat), # workspace w1
+        Vector{T}(  undef, ncat), # workspace w2
+        Vector{T}(  undef, ncat), # workspace w3
+        Vector{T}(  undef, ncat), # workspace w4
+        Matrix{T}(  undef, n, n), # LHS matrix A
+        Vector{T}(  undef, n))    # RHS vector b
 end
 
 """
@@ -155,35 +155,51 @@ FitWorkspace(cal::CalibrationData) = FitWorkspace{eltype(cal)}(cal)
 FitWorkspace{T}(cal::CalibrationData) where {T<:AbstractFloat} =
     FitWorkspace{T}(cal.src_to_cat, length(cal.stat))
 
-# Return the number of data subsets in fit workspace.
-function Base.length(wrk::FitWorkspace;
-                     checksizes::Bool=false,
-                     checkindices::Bool=false)
+"""
+    size(wrk[, chk]) -> (nsub, ncat, nsrc)
+
+yields numbers of subsets, of categories, and of sources in calibration data
+`wrk`.  By default, no cheks are performed but optional argument `chk`, can be
+specified to request that the contents of `wrk` be checked: if `chk` is
+`:checksizes` or `Val(:checksizes)`, the sizes of internal buffers are checked;
+if `chk` is `:checkindices` or `Val(:checkindices)`, the sizes of internal
+buffers and the category indices are checked.
+
+"""
+function Base.size(wrk::FitWorkspace)
     nsub = length(wrk.l) # number of subsets
-    if checksizes || checkindices
-        nrows, ncols = size(wrk.H)
-        n = ncols + 1
-        length(wrk.c)   == nrows || error("bad number of categories")
-        length(wrk.∂c)  == nrows || error("bad number of category gradients")
-        length(wrk.Δt)  == nsub  || error("bad number of exposure times")
-        length(wrk.avg) == nsub  || error("bad number of empirical means")
-        length(wrk.var) == nsub  || error("bad number of empirical variances")
-        length(wrk.n)   == nsub  || error("bad number of subset sizes")
-        length(wrk.w1)  == nrows || error("bad size for workspace W1")
-        length(wrk.w2)  == nrows || error("bad size for workspace W2")
-        length(wrk.w3)  == nrows || error("bad size for workspace W3")
-        length(wrk.w4)  == nrows || error("bad size for workspace W4")
-        size(wrk.A)     == (n,n) || error("bad size for LHS matrix A")
-        length(wrk.b)   == n     || error("bad size for RHS vector b")
-        if checkindices
-            flag = true
-            @inbounds @simd for i in eachindex(wrk.l)
-                flag &= ((wrk.l[i] - 1)%UInt < nrows)
-            end
-            flag || error("out of bound category index")
-        end
+    ncat, nsrc = size(wrk.H)
+    return (nsub, ncat, nsrc)
+end
+
+@inline Base.size(wrk::FitWorkspace, sym::Symbol) = size(wrk, Val(sym))
+
+function Base.size(wrk::FitWorkspace, ::Val{:checksizes})
+    nsub, ncat, nsrc = size(wrk)
+    n = nsrc + 1
+    length(wrk.c)   == ncat  || error("bad number of categories")
+    length(wrk.∂c)  == ncat  || error("bad number of category gradients")
+    length(wrk.Δt)  == nsub  || error("bad number of exposure times")
+    length(wrk.avg) == nsub  || error("bad number of empirical means")
+    length(wrk.var) == nsub  || error("bad number of empirical variances")
+    length(wrk.n)   == nsub  || error("bad number of subset sizes")
+    length(wrk.w1)  == ncat  || error("bad size for workspace W1")
+    length(wrk.w2)  == ncat  || error("bad size for workspace W2")
+    length(wrk.w3)  == ncat  || error("bad size for workspace W3")
+    length(wrk.w4)  == ncat  || error("bad size for workspace W4")
+    size(wrk.A)     == (n,n) || error("bad size for LHS matrix A")
+    length(wrk.b)   == n     || error("bad size for RHS vector b")
+    return (nsub, ncat, nsrc)
+end
+
+function Base.size(wrk::FitWorkspace, ::Val{:checkindices})
+    nsub, ncat, nsrc = size(wrk, :checksizes)
+    flag = true
+    @inbounds @simd for i in eachindex(wrk.l)
+        flag &= ((wrk.l[i] - 1)%UInt < ncat)
     end
-    return nsub
+    flag || error("out of bound category index")
+    return (nsub, ncat, nsrc)
 end
 
 """
@@ -212,8 +228,7 @@ end
 function extract!(wrk::FitWorkspace,
                   cal::CalibrationData{T,N},
                   k::Int) where {T,N}
-    nrows, ncols = size(cal.src_to_cat)
-    nsub = length(wrk; checksizes=true)
+    nsub, ncat, nsrc = size(wrk, :checksizes)
     length(cal.stat) == nsub || error(
         "fit workspace assumes a different number of subsets")
     @inbounds for (key, i) ∈ cal.stat_index
@@ -376,13 +391,12 @@ function form_normal_equations!(wrk::FitWorkspace{T},
                                 x::AbstractVector{T},
                                 η::T) where {T<:AbstractFloat}
     # Extract parameters from workspace.
-    nsub = length(wrk; checksizes=true, checkindices=true)
-    H = wrk.H
-    nrows, ncols = size(H)
-    n = ncols + 1
+    nsub, ncat, nsrc = size(wrk, :checkindices)
+    n = nsrc + 1
     length(x) == n || error("variables must have ", n, " elements")
-    J = Base.OneTo(ncols)
-    L = Base.OneTo(nrows)
+    J = Base.OneTo(nsrc)
+    L = Base.OneTo(ncat)
+    H = wrk.H
 
     # Determine whether flux dependent weights are to be computed.
     reweighted = false
@@ -420,7 +434,7 @@ function form_normal_equations!(wrk::FitWorkspace{T},
     bn = zero(T)
     if reweighted
         # Compute fluxes in calibration categories and flux-dependent weights.
-        c = mvmult!(wrk.c, H, view(x, 1:ncols))
+        c = mvmult!(wrk.c, H, view(x, 1:nsrc))
         @inbounds for i in 1:nsub
             Δt  = wrk.Δt[i]
             l   = wrk.l[i]
@@ -497,6 +511,66 @@ function form_normal_equations!(wrk::FitWorkspace{T},
     return NormalEquations{T}(A, b)
 end
 
+function max_readout_variance(wrk::FitWorkspace{T}) where {T}
+    nsub, ncat, nsrc = size(wrk, :checkindices)
+    N = 0 # to count total number of data
+    s = zero(T) # to compute sum of data
+    @inbounds @simd for i ∈ 1:nsub
+        n  = wrk.n[i]   # number of samples in subset
+        d  = wrk.avg[i] # data = sample mean
+        s += n*d
+        N += n
+    end
+    z = s/N
+    s = zero(T) # to compute sum
+    @inbounds @simd for i ∈ 1:nsub
+        n   = wrk.n[i]   # number of samples in subset
+        d   = wrk.avg[i] # data = sample mean
+        v   = wrk.var[i] # sample variance
+        r   = z - d      # residuals: model - data
+        s  += n*(v + r^2)
+    end
+    return s/N
+end
+
+function max_readout_variance(wrk::FitWorkspace{T},
+                              x::AbstractVector{T}) where {T}
+    n = length(x)
+    if n == 0
+        return  max_readout_variance(wrk)
+    end
+    nsub, ncat, nsrc = size(wrk, :checkindices)
+    if n == nsrc + 1
+        # Get zero-kevel and compute fluxes in calibration categories.
+        z = x[n]
+        c = mvmult!(wrk.c, wrk.H, view(x, 1:n-1))
+    elseif  n == nsrc + 3
+        # Get zero-kevel and compute fluxes in calibration categories.
+        z = x[1]
+        c = mvmult!(wrk.c, wrk.H, view(x, 4:n))
+    elseif n == 1
+        z = x[1]
+        c = fill!(wrk.c, 0)
+    else
+        error("invalid length for vector of parameters")
+    end
+
+    N = 0 # to count total number of data
+    s = zero(T) # to compute sum
+    @inbounds @simd for i ∈ 1:nsub
+        Δt  = wrk.Δt[i]     # exposure time
+        l   = wrk.l[i]      # category index
+        n   = wrk.n[i]      # number of samples in subset
+        cΔt = c[l]*Δt       # contribution of sources
+        d   = wrk.avg[i]    # data = sample mean
+        v   = wrk.var[i]    # sample variance
+        r   = (cΔt + z) - d # residuals: model - data
+        s  += n*(v + r^2)
+        N  += n
+    end
+    return s/N
+end
+
 """
     f = objfunc(wrk, z, g, η, s)
 
@@ -520,17 +594,18 @@ function objfunc(wrk::FitWorkspace{T},
     N = 0 # to count total number of data
     χ² = zero(T) # to sum χ²/g terms
     sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
-    nsub = length(wrk; checksizes=true, checkindices=true)
+    nsub, ncat, nsrc = size(wrk, :checkindices)
     @inbounds @simd for i ∈ 1:nsub
         Δt  = wrk.Δt[i]     # exposure time
         l   = wrk.l[i]      # category index
-        n   = T(wrk.n[i])   # number of samples in subset
+        n   = wrk.n[i]      # number of samples in subset
+        n_  = T(n)
         cΔt = c[l]*Δt       # contribution of sources
         d   = wrk.avg[i]    # data = sample mean
         r   = (cΔt + z) - d # residuals: model - data
-        w   = n/(cΔt + η)   # weight
+        w   = n_/(cΔt + η)  # weight
         χ² += w*(wrk.var[i] + r^2)
-        sum_n_logw_n += n*log(w/n)
+        sum_n_logw_n += n_*log(w/n_)
         N += n
     end
     return g*χ² - sum_n_logw_n - N*log(g)
@@ -572,7 +647,7 @@ function objfunc!(wrk::FitWorkspace{T},
     ∂c = fill!(wrk.∂c, 0) # to compute ∂L/∂c
     ∂z = zero(T) # to compute ∂L/∂z
     ∂η = zero(T) # to compute ∂L/∂η
-    nsub = length(wrk; checksizes=true, checkindices=true)
+    nsub, ncat, nsrc = size(wrk, :checkindices)
     @inbounds @simd for i ∈ 1:nsub
         Δt  = wrk.Δt[i]     # exposure time
         l   = wrk.l[i]      # category index
@@ -631,15 +706,15 @@ Usage example:
 function objfunc!(wrk::FitWorkspace{T},
                   x::Vector{T},
                   grd::Vector{T}) where {T<:AbstractFloat}
-    nsub = length(wrk; checksizes=true, checkindices=true)
+    nsub, ncat, nsrc = size(wrk, :checkindices)
     inds = axes(x)
     axes(grd) == inds || error(
         "variables and gradients have different indices")
     first(inds[1]) == 1 || error(
         "variables have non-standard indexing")
-    xlen, ncols = length(x), size(wrk.H, 2)
-    xlen == ncols + 3 ||  error(
-        "variables must have ", ncols + 3, " elements, got ", xlen)
+    xlen = length(x)
+    xlen == nsrc + 3 ||  error(
+        "variables must have ", nsrc + 3, " elements, got ", xlen)
     @inbounds begin
         # Unpack parameters.
         z = x[1]
