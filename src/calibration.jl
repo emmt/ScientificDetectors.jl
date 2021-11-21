@@ -92,20 +92,27 @@ _promote_eltype(T::Type, x::AbstractVector{<:AbstractArray}, n::Int) =
 #------------------------------------------------------------------------------
 
 struct ObjectiveFunction{S,T<:AbstractFloat}
+    # Buffers needed for the data and the model (only modified by the
+    # `extract!` method).
     H::Matrix{T}   # sources to currents matrix
-    c::Vector{T}   # temporary workspace for category terms
-    ∂c::Vector{T}  # temporary workspace for gradients w.r.t. current terms
     Δt::Vector{T}  # exposure times
     l::Vector{Int} # indices of categories
     n::Vector{Int} # number of samples in subset
     avg::Vector{T} # empirical subset mean
     var::Vector{T} # empirical (biased) subset variance
-    w1::Vector{T}  # 1st temporary vector of same length as `c`
-    w2::Vector{T}  # 2nd temporary vector of same length as `c`
-    w3::Vector{T}  # 3rd temporary vector of same length as `c`
-    w4::Vector{T}  # 4th temporary vector of same length as `c`
-    A::Matrix{T}   # LHS matrix of the normal equations
-    b::Vector{T}   # RHS vector of the normal equations
+
+    # Workspaces of length `ncat`.
+    wcat1::Vector{T} # used to compute `c` and `∂f/∂c`
+    wcat2::Vector{T}
+    wcat3::Vector{T}
+    wcat4::Vector{T}
+
+    # Workspaces of length `nsub`.
+    wsub1::Vector{T} # used to compute `c⋅Δt`
+
+    # Workspaces for the normal equations.
+    A::Matrix{T} # LHS matrix of the normal equations
+    b::Vector{T} # RHS vector of the normal equations
 end
 
 """
@@ -144,17 +151,16 @@ function ObjectiveFunction{S,T}(H::AbstractMatrix{<:Real},
     n = nsrc + 1 # number of linear parameters
     return ObjectiveFunction{S,T}(
         H,
-        Vector{T}(  undef, ncat), # c
-        Vector{T}(  undef, ncat), # ∂c
         Vector{T}(  undef, nsub), # Δt
         Vector{Int}(undef, nsub), # l
         Vector{Int}(undef, nsub), # n
         Vector{T}(  undef, nsub), # avg
         Vector{T}(  undef, nsub), # var
-        Vector{T}(  undef, ncat), # workspace w1
-        Vector{T}(  undef, ncat), # workspace w2
-        Vector{T}(  undef, ncat), # workspace w3
-        Vector{T}(  undef, ncat), # workspace w4
+        Vector{T}(  undef, ncat), # workspace wcat1
+        Vector{T}(  undef, ncat), # workspace wcat2
+        Vector{T}(  undef, ncat), # workspace wcat3
+        Vector{T}(  undef, ncat), # workspace wcat4
+        Vector{T}(  undef, nsub), # workspace wsub1
         Matrix{T}(  undef, n, n), # LHS matrix A
         Vector{T}(  undef, n))    # RHS vector b
 end
@@ -173,6 +179,51 @@ ObjectiveFunction{S}(cal::CalibrationData) where {S} =
 ObjectiveFunction{S,T}(cal::CalibrationData) where {S,T<:AbstractFloat} =
     ObjectiveFunction{S,T}(cal.src_to_cat, length(cal.stat))
 
+# Conversion constructors.  The same object is returned if possible, call
+# `copy(obj)` to make a distinctive copy.
+ObjectiveFunction(obj::ObjectiveFunction) = obj
+ObjectiveFunction{S}(obj::ObjectiveFunction{S}) where {S} = obj
+ObjectiveFunction{S}(obj::ObjectiveFunction{<:Any,T}) where {S,T} =
+    ObjectiveFunction{S,T}(obj)
+ObjectiveFunction{S,T}(obj::ObjectiveFunction{S,T}) where {S,T} = obj
+function ObjectiveFunction{S,T}(obj::ObjectiveFunction{<:Any,T}) where {S,T}
+    isa(S, Symbol) || argument_error("type parameter S must be a symbol")
+    return ObjectiveFunction{S,T}(
+        obj.H,
+        obj.Δt,
+        obj.l,
+        obj.n,
+        obj.avg,
+        obj.var,
+        obj.wcat1,
+        obj.wcat2,
+        obj.wcat3,
+        obj.wcat4,
+        obj.wsub1,
+        obj.A,
+        obj.b)
+end
+
+Base.convert(::Type{T}, obj::ObjectiveFunction) where {T<:ObjectiveFunction} =
+    T(obj)
+
+# Copy constructor.
+Base.copy(obj::ObjectiveFunction{S,T}) where {S,T} =
+    ObjectiveFunction{S,T}(
+        copy(obj.H),
+        copy(obj.Δt),
+        copy(obj.l),
+        copy(obj.n),
+        copy(obj.avg),
+        copy(obj.var),
+        copy(obj.wcat1),
+        copy(obj.wcat2),
+        copy(obj.wcat3),
+        copy(obj.wcat4),
+        copy(obj.wsub1),
+        copy(obj.A),
+        copy(obj.b))
+
 """
     size(obj[, chk]) -> (nsub, ncat, nsrc)
 
@@ -185,7 +236,7 @@ buffers and the category indices are checked.
 
 """
 function Base.size(obj::ObjectiveFunction)
-    nsub = length(obj.l) # number of subsets
+    nsub = length(obj.Δt) # number of subsets
     ncat, nsrc = size(obj.H)
     return (nsub, ncat, nsrc)
 end
@@ -195,18 +246,22 @@ end
 function Base.size(obj::ObjectiveFunction, ::Val{:checksizes})
     nsub, ncat, nsrc = size(obj)
     n = nsrc + 1
-    length(obj.c)   == ncat  || error("bad number of categories")
-    length(obj.∂c)  == ncat  || error("bad number of category gradients")
+    #=
+    size(obj.H) == (ncat, nsrc) || error(
+        "bad size of sources to categories matrix")
     length(obj.Δt)  == nsub  || error("bad number of exposure times")
-    length(obj.avg) == nsub  || error("bad number of empirical means")
-    length(obj.var) == nsub  || error("bad number of empirical variances")
-    length(obj.n)   == nsub  || error("bad number of subset sizes")
-    length(obj.w1)  == ncat  || error("bad size for workspace W1")
-    length(obj.w2)  == ncat  || error("bad size for workspace W2")
-    length(obj.w3)  == ncat  || error("bad size for workspace W3")
-    length(obj.w4)  == ncat  || error("bad size for workspace W4")
-    size(obj.A)     == (n,n) || error("bad size for LHS matrix A")
-    length(obj.b)   == n     || error("bad size for RHS vector b")
+    =#
+    length(obj.l)     == nsub  || error("bad number of category indices")
+    length(obj.n)     == nsub  || error("bad number of subset sizes")
+    length(obj.avg)   == nsub  || error("bad number of empirical means")
+    length(obj.var)   == nsub  || error("bad number of empirical variances")
+    length(obj.wcat1) == ncat  || error("bad size for workspace WCAT1")
+    length(obj.wcat2) == ncat  || error("bad size for workspace WCAT2")
+    length(obj.wcat3) == ncat  || error("bad size for workspace WCAT3")
+    length(obj.wcat4) == ncat  || error("bad size for workspace WCAT4")
+    length(obj.wsub1) == nsub  || error("bad size for workspace WSUB1")
+    size(obj.A)       == (n,n) || error("bad size for LHS matrix A")
+    length(obj.b)     == n     || error("bad size for RHS vector b")
     return (nsub, ncat, nsrc)
 end
 
@@ -356,7 +411,7 @@ Other keywords are passed to `vmlmb!`.
 
 """
 function fit_linear_terms!(obj::ObjectiveFunction{S,T},
-                           x::Vector{T} = zeros(T, size(obj.H,2) + 1);
+                           x::AbstractVector{T} = zeros(T, size(obj.H,2) + 1);
                            reset::Bool = false,
                            nonnegative::Bool = true,
                            eta::Real = Inf,
@@ -445,14 +500,14 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     # the "data" and the weights.  The sum is over index `i ~ (k,l)` such that
     # category index is given by `l = obj.l[i]`.
     #
-    w1 = fill!(obj.w1, zero(T))
-    w2 = fill!(obj.w2, zero(T))
-    w3 = fill!(obj.w3, zero(T))
+    w1 = fill!(obj.wcat1, zero(T))
+    w2 = fill!(obj.wcat2, zero(T))
+    w3 = fill!(obj.wcat3, zero(T))
     Ann = zero(T)
     bn = zero(T)
     if reweighted
         # Compute fluxes in calibration categories and flux-dependent weights.
-        c = mvmult!(obj.c, H, view(x, 1:nsrc))
+        c = compute_c(obj, view(x, 1:nsrc))
         @inbounds for i in 1:nsub
             Δt  = obj.Δt[i]
             l   = obj.l[i]
@@ -485,7 +540,7 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     @inbounds begin
         # Compute the LHS matrix A of the normal equations.
         A = obj.A
-        w4 = obj.w4 # FIXME: obj.c could be used as a temporary workspace here
+        w4 = obj.wcat4
         for j ∈ J
             # Leading (n-1)×(n-1) block.
             for l ∈ L
@@ -529,7 +584,7 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     return NormalEquations{T}(A, b)
 end
 
-function max_readout_variance(obj::ObjectiveFunction{S,T}) where {S,T}
+function compute_σ²_max(obj::ObjectiveFunction{S,T}) where {S,T}
     nsub, ncat, nsrc = size(obj, :checkindices)
     N = 0 # to count total number of data
     s = zero(T) # to compute sum of data
@@ -551,147 +606,134 @@ function max_readout_variance(obj::ObjectiveFunction{S,T}) where {S,T}
     return s/N
 end
 
-function max_readout_variance(obj::ObjectiveFunction{S,T},
-                              x::AbstractVector{T}) where {S,T}
+function compute_σ²_max(obj::ObjectiveFunction{S,T},
+                        x::AbstractVector{T}) where {S,T}
     n = length(x)
     if n == 0
-        return  max_readout_variance(obj)
+        return  compute_sigma²max(obj)
     end
     nsub, ncat, nsrc = size(obj, :checkindices)
     if n == nsrc + 1
         # Get zero-kevel and compute fluxes in calibration categories.
         z = x[n]
-        c = mvmult!(obj.c, obj.H, view(x, 1:n-1))
+        c = compute_c(obj, view(x, 1:n-1))
     elseif  n == nsrc + 3
         # Get zero-kevel and compute fluxes in calibration categories.
         z = x[1]
-        c = mvmult!(obj.c, obj.H, view(x, 4:n))
+        c = compute_c(obj, view(x, 4:n))
     elseif n == 1
         z = x[1]
-        c = fill!(obj.c, 0)
+        c = fill!(obj.wcat1, 0)
     else
         error("invalid length for vector of parameters")
     end
 
+    # Compute contribution of sources.
+    cΔt = compute_cΔt(obj, c; unsafe=true)
+
     N = 0 # to count total number of data
     s = zero(T) # to compute sum
     @inbounds @simd for i ∈ 1:nsub
-        Δt  = obj.Δt[i]     # exposure time
-        l   = obj.l[i]      # category index
         n   = obj.n[i]      # number of samples in subset
-        cΔt = c[l]*Δt       # contribution of sources
         d   = obj.avg[i]    # data = sample mean
         v   = obj.var[i]    # sample variance
-        r   = (cΔt + z) - d # residuals: model - data
+        r   = (cΔt[i] + z) - d # residuals: model - data
         s  += n*(v + r^2)
         N  += n
     end
     return s/N
 end
 
+function unpack_parameters(obj::ObjectiveFunction{<:Any,T},
+                           x::AbstractVector{T},
+                           grd::AbstractVector{T};
+                           nonnegative::Bool = false) where {T}
+    axes(grd) == axes(x) || error(
+        "variables and gradients have different indices")
+    return unpack_parameters(obj, x; nonnegative=nonnegative)
+end
+
+function unpack_parameters(obj::ObjectiveFunction{:orig,T},
+                           x::AbstractVector{T};
+                           nonnegative::Bool = false) where {T}
+    nsub, ncat, nsrc = size(obj, :checkindices)
+    Base.has_offset_axes(x) && error(
+        "variables have non-standard indexing")
+    n = length(x)
+    n == nsrc + 3 || error(
+        "variables must have ", nsrc + 3, " elements, got ", n)
+    @inbounds z = x[1]
+    @inbounds g = x[2]
+    (isfinite(g) && g > 0) || argument_error(
+        "gain `g` must be finite and strictly positive")
+    @inbounds σ = x[3]
+    (isfinite(σ) && σ > 0) || argument_error(
+        "standard deviation of the read-out noise `σ` ",
+        "must be finite and strictly positive")
+    s = view(x, 4:n) # source terms
+    if nonnegative
+        isnonnegative(s) || argument_error("source terms must be nonnegative")
+    end
+    return z, g, σ, s
+end
+
+function unpack_parameters(obj::ObjectiveFunction{:alt,T},
+                           x::AbstractVector{T};
+                           nonnegative::Bool = false) where {T}
+    nsub, ncat, nsrc = size(obj, :checkindices)
+    Base.has_offset_axes(x) && error(
+        "variables have non-standard indexing")
+    n = length(x)
+    n == nsrc + 3 || error(
+        "variables must have ", nsrc + 3, " elements, got ", n)
+    @inbounds z = x[1]
+    @inbounds g = x[2]
+    (isfinite(g) && g > 0) || argument_error(
+        "gain `g` must be finite and strictly positive")
+    @inbounds η = x[3]
+    (isfinite(η) && η > 0) || argument_error(
+        "parameter `η` (the variance of the read-out noise times the gain) ",
+        "must be finite and strictly positive")
+    s = view(x, 4:n) # source terms
+    if nonnegative
+        isnonnegative(s) || argument_error("source terms must be nonnegative")
+    end
+    return z, g, η, s
+end
+
+function unpack_parameters_with_cΔt(obj::ObjectiveFunction{<:Any,T},
+                                    x::AbstractVector{T},
+                                    grd::AbstractVector{T};
+                                    nonnegative::Bool = false) where {T}
+    z, g, q, s = unpack_parameters(obj, x, grd; nonnegative=nonnegative)
+    cΔt = compute_cΔt(obj, compute_c(obj, s); unsafe=true)
+    return z, g, q, cΔt
+end
+
+function unpack_parameters_with_cΔt(obj::ObjectiveFunction{<:Any,T},
+                                    x::AbstractVector{T};
+                                    nonnegative::Bool = false) where {T}
+    z, g, q, s = unpack_parameters(obj, x; nonnegative=nonnegative)
+    cΔt = compute_cΔt(obj, compute_c(obj, s); unsafe=true)
+    return z, g, q, cΔt
+end
+
 #
-#     f = obj(z, g, η, s)
+#     f = obj(x)
 #
 # yields the value of the objective function associated with workspace `obj`
 # and for model parameters `x = (z, g, η, s...)` with `z` the zero level, `g`
 # the gain, `η` the variance of the readout noise times the gain and the source
 # terms `s`.
 #
-function (obj::ObjectiveFunction{:alt,T})(z::Real, g::Real, η::Real,
-                                          s::AbstractVector{T}) where {T}
-    return obj(to_type(T, z), to_type(T, g), to_type(T, η), s)
-end
-
-function (obj::ObjectiveFunction{:alt,T})(z::T, g::T, η::T,
-                                          s::AbstractVector{T}) where {T}
-    check_args(obj, z, g, η, s)
-    c = mvmult!(obj.c, obj.H, s) # compute fluxes in calibration categories
-    N = 0 # to count total number of data
-    χ² = zero(T) # to sum χ²/g terms
-    sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
-    nsub, ncat, nsrc = size(obj, :checkindices)
-    @inbounds @simd for i ∈ 1:nsub
-        Δt  = obj.Δt[i]     # exposure time
-        l   = obj.l[i]      # category index
-        n   = obj.n[i]      # number of samples in subset
-        n_  = T(n)
-        cΔt = c[l]*Δt       # contribution of sources
-        d   = obj.avg[i]    # data = sample mean
-        r   = (cΔt + z) - d # residuals: model - data
-        w   = n_/(cΔt + η)  # weight
-        χ² += w*(obj.var[i] + r^2)
-        sum_n_logw_n += n_*log(w/n_)
-        N += n
-    end
-    return g*χ² - sum_n_logw_n - N*log(g)
-end
-
-function check_args(obj::ObjectiveFunction{:alt},
-                    z::Real, g::Real, η::Real,
-                    s::AbstractVector{<:Real})
-    g > 0 || throw_argument_error("gain `g` must be positive")
-    η > 0 || throw_argument_error("readout variance `η` must be positive")
-    isnonnegative(s) || throw_argument_error(
-        "source terms `s` must be nonnegative")
-end
-
 #
-#     f = obj(z, g, η, s, grd)
+#     f = obj(x, grd)
 #
 # yields the value of the objective function `f(x)` associated with workspace
 # `obj` and overwrites `grd` with the gradient `∇f(x)` for model parameters `x
 # = (z, g, η, s...)` with `z` the zero level, `g` the gain, `η` the variance of
 # the readout noise times the gain and the source terms `s`.
 #
-function (obj::ObjectiveFunction{:alt,T})(z::Real, g::Real, η::Real,
-                                          s::AbstractVector{T},
-                                          grd::AbstractVector{T}) where {T}
-    return obj(to_type(T, z), to_type(T, g), to_type(T, η), s, grd)
-end
-
-function (obj::ObjectiveFunction{:alt,T})(z::T, g::T, η::T,
-                                          s::AbstractVector{T},
-                                          grd::AbstractVector{T}) where {T}
-    check_args(obj, z, g, η, s)
-    length(grd) == 3 + length(s) || error("bad gradient size")
-    c = mvmult!(obj.c, obj.H, s) # compute fluxes in calibration categories
-    N = 0 # to count total number of data
-    χ² = zero(T) # to sum χ²/g terms
-    sum_n_logw_n = zero(T) # to sum n⋅log(w/n)
-    ∂c = fill!(obj.∂c, 0) # to compute ∂L/∂c
-    ∂z = zero(T) # to compute ∂L/∂z
-    ∂η = zero(T) # to compute ∂L/∂η
-    nsub, ncat, nsrc = size(obj, :checkindices)
-    @inbounds @simd for i ∈ 1:nsub
-        Δt  = obj.Δt[i]     # exposure time
-        l   = obj.l[i]      # category index
-        n   = T(obj.n[i])   # number of samples in subset
-        cΔt = c[l]*Δt       # contribution of sources
-        d   = obj.avg[i]    # data = sample mean
-        r   = (cΔt + z) - d # residuals: model - data
-        q   = cΔt + η       # model variance times gain
-        w   = n/q           # weight
-        v   = obj.var[i] + r^2
-        χ² += w*v
-        w_n = w/n
-        sum_n_logw_n += n*log(w_n)
-        N += n
-        ∂m = 2*g*w*r # ∂L/∂m
-        ∂w = g*v - q # ∂L/∂w
-        ρ = w*w_n*∂w # (w²/n)⋅(∂L/∂w)
-        ∂z += ∂m
-        ∂η -= ρ
-        ∂c[l] += (∂m - ρ)*Δt
-    end
-    ∂g = χ² - N/g # ∂L/∂g
-    # Store/convert gradients.
-    @inbounds grd[1] = ∂z
-    @inbounds grd[2] = ∂g
-    @inbounds grd[3] = ∂η
-    mvmult!(view(grd, 4:length(grd)), obj.H', ∂c)
-    # Return total objective function.
-    return g*χ² - sum_n_logw_n - N*log(g)
-end
 
 #     f = obj(x, grd)
 #
@@ -714,80 +756,220 @@ end
 #     vmlmb(obj, copy(x); lower=xmin, verb=1, mem=length(x), maxiter=1000,
 #           maxeval=5000, ftol=(0,0), xtol=(0,0), gtol=(1e-5,0))
 #
-function (obj::ObjectiveFunction{:orig,T})(x::Vector{T},
-                                           grd::Vector{T}) where {T}
-    nsub, ncat, nsrc = size(obj, :checkindices)
-    inds = axes(x)
-    axes(grd) == inds || error(
-        "variables and gradients have different indices")
-    first(inds[1]) == 1 || error(
-        "variables have non-standard indexing")
-    xlen = length(x)
-    xlen == nsrc + 3 ||  error(
-        "variables must have ", nsrc + 3, " elements, got ", xlen)
-    @inbounds begin
-        # Unpack parameters.
-        z = x[1]
-        g = x[2]
-        σ = x[3]
-        I = 4:xlen # index range of source terms
-        (isfinite(g) && g > 0) || argument_error(
-            "gain must be finite and strictly positive")
-        (isfinite(σ) && σ > 0) || argument_error(
-            "standard deviation of read-out ",
-            "noise must be finite and strictly positive")
-        ρ = 1/g
-        σ² = σ
+#
+# Parameters: x = (z, g, σ, s...)
+#
+function (obj::ObjectiveFunction{:orig,T})(x::AbstractVector{T}) where {T}
+    # Unpack parameters and check arguments.
+    z, g, σ, cΔt = unpack_parameters_with_cΔt(obj, x)
+    ρ = 1/g
+    σ² = σ^2
+    nsub = length(cΔt)
 
-        # Compute fluxes in calibration categories.
-        c = mvmult!(obj.c, obj.H, view(x, I))
+    # Loop to integrate the objective function.
+    f = zero(T) # to compute f
+    @inbounds @simd for i ∈ 1:nsub
+        n  = T(obj.n[i])          # number of samples in subset
+        u  = cΔt[i]               # contribution of sources
+        r  = (u + z) - obj.avg[i] # residuals = model - sample mean
+        u₊ = fastmax(u, zero(T))
+        v  = ρ*u₊ + σ²            # model of variance
+        χ² = (r^2 + obj.var[i])/v # χ² per sample of the sub-set
+        f += (log(v) + χ²)*n      # objective function
+    end
+    return f
+end
 
-        # Loop to integrate objective function and its gradient.
-        f      = zero(T)          # to compute f
-        ∂f_∂z  = zero(T)          # to compute ∂f/∂z
-        ∂f_∂ρ  = zero(T)          # to compute ∂f/∂ρ
-        ∂f_∂σ² = zero(T)          # to compute ∂f/∂σ²
-        ∂f_∂c  = fill!(obj.∂c, 0) # to compute ∂f/∂c
-        @simd for i ∈ 1:nsub
-            # Objective function for this subset.
-            Δt  = obj.Δt[i]        # exposure time
-            l   = obj.l[i]         # category index
-            n   = T(obj.n[i])      # number of samples in subset
-            cΔt = c[l]*Δt          # contribution of sources
-            m   = cΔt + z          # model of data
-            r   = m - obj.avg[i]   # residuals = model - sample mean
-            q   = r^2 + obj.var[i] # quadratic error
-            v   = ρ*cΔt + σ²       # model of variance
-            w   = 1/v              # weight
-            f  += n*(w*q - log(w)) # objective function
+function (obj::ObjectiveFunction{:orig,T})(x::AbstractVector{T},
+                                           grd::AbstractVector{T}) where {T}
+    # Unpack parameters and check arguments.
+    z, g, σ, cΔt = unpack_parameters_with_cΔt(obj, x, grd)
+    ρ = 1/g
+    σ² = σ^2
+    nsub = length(cΔt)
 
-            # Partial derivatives of `f` w.r.t. `m` and `w`:
-            ∂f_∂w = n*(q - v)   # ∂f/∂w = n⋅(q - 1/w)
-            ∂f_∂m = 2n*w*r      # ∂f/∂m = 2n⋅w⋅r
+    # Loop to integrate objective function and its gradient.
+    f      = zero(T) # to compute f
+    ∂f_∂z  = zero(T) # to compute ∂f/∂z
+    ∂f_∂ρ  = zero(T) # to compute ∂f/∂ρ
+    ∂f_∂σ² = zero(T) # to compute ∂f/∂σ²
+    ∂f_∂c_temp = cΔt # overwrite workspace cΔt for ∂f/∂c
+    @inbounds @simd for i ∈ 1:nsub
+        Δt = obj.Δt[i]            # exposure time
+        n  = T(obj.n[i])          # number of samples in subset
+        u  = cΔt[i]               # contribution of sources
+        r  = (u + z) - obj.avg[i] # residuals = model - sample mean
+        u₊ = fastmax(u, zero(T))
+        v  = ρ*u₊ + σ²            # model of variance
+        w  = 1/v                  # weight
+        χ² = (r^2 + obj.var[i])*w # χ² per sample of the sub-set
+        f += (log(v) + χ²)*n      # objective function
+        nw = n*w
+        ∂f_∂m = 2*nw*r            # ∂f/∂m[k,l]
+        ∂f_∂v = nw*(1 - χ²)       # ∂f/∂v[k,l]
+        ∂f_∂z  += ∂f_∂m
+        ∂f_∂σ² += ∂f_∂v
+        ∂f_∂ρ  += u₊*∂f_∂v
+        ∂v_∂u = ifelse(u > zero(T), ρ, zero(T))
+        ∂f_∂c_temp[i] = (∂f_∂m + ∂f_∂v*∂v_∂u)*Δt
+    end
 
-            # ∂(m,w)/∂z = (1, 0)
-            ∂f_∂z += ∂f_∂m
+    # Convert gradients and return objective function.
+    ∂f_∂g = -ρ^2*∂f_∂ρ
+    ∂f_∂σ = 2σ*∂f_∂σ²   # ∂f/∂σ = 2⋅σ⋅(∂f/∂σ²)
+    @inbounds grd[1] = ∂f_∂z
+    @inbounds grd[2] = ∂f_∂g
+    @inbounds grd[3] = ∂f_∂σ
+    ∂f_∂c = fill!(obj.wcat1, zero(T)) # to compute ∂f/∂c
+    @inbounds @simd for i ∈ 1:nsub
+        l = obj.l[i] # category index
+        ∂f_∂c[l] += ∂f_∂c_temp[i]
+    end
+    mvmult!(view(grd, 4:length(grd)), obj.H', ∂f_∂c)
+    return f
+end
 
-            # ∂(m,w)/∂ρ = (0, -w²⋅c⋅Δt)
-            w² = w^2
-            ∂f_∂ρ -= w²*cΔt*∂f_∂w
+#
+# Parameters: x = (z, g, η, s...)
+#
+function (obj::ObjectiveFunction{:alt,T})(x::AbstractVector{T}) where {T}
+    # Unpack parameters and check arguments.
+    z, g, η, cΔt = unpack_parameters_with_cΔt(obj, x)
+    ρ = 1/g
+    nsub = length(cΔt)
 
-            # ∂(m,w)/∂σ² = (0, -w²)
-            ∂f_∂σ² -= w²*∂f_∂w
+    # Loop to integrate the objective function.
+    f = zero(T) # to compute f
+    @inbounds @simd for i ∈ 1:nsub
+        n  = T(obj.n[i])          # number of samples in subset
+        u  = cΔt[i]               # contribution of sources
+        r  = (u + z) - obj.avg[i] # residuals = model - sample mean
+        u₊ = fastmax(u, zero(T))
+        v  = (u₊ + η)*ρ           # model of variance
+        χ² = (r^2 + obj.var[i])/v # χ² per sample of the sub-set
+        f += (log(v) + χ²)*n      # objective function
+    end
+    return f
+end
 
-            # ∂(m,w)/∂c = (1, -w²⋅ρ)⋅Δt
-            ∂f_∂c[l] += (∂f_∂m - w²*ρ*∂f_∂w)*Δt
+function (obj::ObjectiveFunction{:alt,T})(x::AbstractVector{T},
+                                          grd::AbstractVector{T}) where {T}
+    # Unpack parameters and check arguments.
+    z, g, η, cΔt = unpack_parameters_with_cΔt(obj, x, grd)
+    ρ = 1/g
+    nsub = length(cΔt)
+
+    # Loop to integrate the objective function and its gradient.
+    f          = zero(T) # to compute f
+    ∂f_∂z      = zero(T) # to compute ∂f/∂z = sum_{k,l} ∂f/∂m[k,l]
+    ∂f_∂σ²     = zero(T) # to compute ∂f/∂σ² = sum_{k,l} ∂f/∂v[k,l]
+    sum_v∂f_∂v = zero(T) # to compute sum_{k,l} v[k,l]⋅(∂f/∂v[k,l])
+    ∂f_∂c_temp = cΔt     # overwrite workspace cΔt for ∂f/∂c
+    @inbounds @simd for i ∈ 1:nsub
+        Δt = obj.Δt[i]            # exposure time
+        n  = T(obj.n[i])          # number of samples in subset
+        u  = cΔt[i]               # contribution of sources
+        r  = (u + z) - obj.avg[i] # residuals = model - sample mean
+        u₊ = fastmax(u, zero(T))
+        v  = (u₊ + η)*ρ           # model of variance
+        w  = 1/v                  # weight
+        χ² = (r^2 + obj.var[i])*w # χ² per sample of the sub-set
+        f += (log(v) + χ²)*n      # objective function
+        nw = n*w
+        ∂f_∂m = 2*nw*r            # ∂f/∂m[k,l]
+        ∂f_∂v = nw*(1 - χ²)       # ∂f/∂v[k,l]
+        ∂f_∂z += ∂f_∂m
+        ∂f_∂σ² += ∂f_∂v
+        sum_v∂f_∂v += v*∂f_∂v
+        ∂v_∂u = ifelse(u > zero(T), ρ, zero(T))
+        ∂f_∂c_temp[i] = (∂f_∂m + ∂f_∂v*∂v_∂u)*Δt
+    end
+
+    # Convert gradients and return objective function.
+    ∂f_∂g = -ρ*sum_v∂f_∂v # ∂f/∂g = -(1/g)⋅sum_{k,l} v[k,l]⋅(∂f/∂v[k,l])
+    ∂f_∂η = ρ*∂f_∂σ²      # ∂f/∂η = (1/g)⋅(∂f/∂σ²)
+    @inbounds grd[1] = ∂f_∂z
+    @inbounds grd[2] = ∂f_∂g
+    @inbounds grd[3] = ∂f_∂η
+    ∂f_∂c = fill!(obj.wcat1, zero(T)) # to compute ∂f/∂c
+    @inbounds @simd for i ∈ 1:nsub
+        l = obj.l[i] # category index
+        ∂f_∂c[l] += ∂f_∂c_temp[i]
+    end
+    mvmult!(view(grd, 4:length(grd)), obj.H', ∂f_∂c)
+    return f
+end
+
+"""
+    compute_c(obj, s) -> c
+
+yields the current terms `c` corresponding to the source terms `s` for the
+calibration data stored by `obj`.  The returned array is the internal buffer
+`obj.wcat1` of `obj`.
+
+"""
+function compute_c(obj::ObjectiveFunction{S,T},
+                   s::AbstractVector{T}) where {S,T}
+    return mvmult!(obj.wcat1, obj.H, s)
+end
+
+"""
+    compute_cΔt(obj [, c = obj.wcat1]; unsafe=false) -> cΔt
+
+yields the contribution of the sources `c` in the calibration data stored by
+`obj` using the internal buffer `obj.wsub1` and returns it.  If `c` is not
+specified, the internal buffer of `obj` storing the sources is used (this
+assumes that its contents has been updated).  Computations are done by
+`compute_cΔt!`.
+
+"""
+function compute_cΔt(obj::ObjectiveFunction{S,T},
+                     c::AbstractVector{T} = obj.wcat1;
+                     kwds...) where {S,T}
+    return compute_cΔt!(obj.wsub1, obj, c; kwds...)
+end
+
+"""
+    compute_cΔt!(cΔt, obj, c; unsafe=false) -> cΔt
+
+overwrites destination array `cΔt` with the contribution of the sources `c` in
+the calibration data stored by `obj` and returns `cΔt`.  This amounts to
+computing `cΔt[i] = c[obj.l[i]]*obj.Δt[i]` for all indices `i` and returns
+`cΔt`.  This method also checks that arguments and internal buffers of `obj`
+have correct indices.
+
+If keyword `unsafe` is true, it is assumed that the category indices in `obj`
+can be trusted.
+
+"""
+function compute_cΔt!(cΔt::AbstractVector{T},
+                      obj::ObjectiveFunction{S,T},
+                      c::AbstractVector{T};
+                      unsafe::Bool=false) where {S,T}
+    nsub, ncat, nsrc = size(obj)
+    I = Base.OneTo(nsub)
+    L = Base.OneTo(ncat)
+    axes(cΔt) == (I,) || argument_error(
+        "destination array has incompatible indices")
+    axes(obj.Δt) == (I,) || argument_error(
+        "exposure time buffer has incompatible indices")
+    axes(obj.l) == (I,) || argument_error(
+        "category index buffer has incompatible indices")
+    axes(c) == (L,) || argument_error(
+        "category array has incompatible indices")
+    if !unsafe
+        flag = true
+        @inbounds @simd for i ∈ I
+            flag &= ((obj.l[i] - 1)%UInt < ncat)
         end
-
-        # Store/convert gradients and return objective function.
-        ∂f_∂g = -ρ^2*∂f_∂ρ
-        ∂f_∂σ = 2σ*∂f_∂σ²
-        grd[1] = ∂f_∂z
-        grd[2] = ∂f_∂g
-        grd[3] = ∂f_∂σ
-        mvmult!(view(grd, I), obj.H', ∂f_∂c)
-        return f
-    end # @inbounds
+        flag || error("out of bound category index")
+    end
+    @inbounds for i ∈ I
+        Δt     = obj.Δt[i] # exposure time
+        l      = obj.l[i]  # category index
+        cΔt[i] = c[l]*Δt   # contribution of sources
+    end
+    return cΔt
 end
 
 """
@@ -854,6 +1036,30 @@ function isnonnegative(A::AbstractArray{<:Real})
     end
     return flag
 end
+
+"""
+    fastmin(x, y)
+
+yields the least of `x` and `y` if neither `x` nor `y` are NaNs, or `x`
+otherwise.
+
+Calling `fastmin(x,y)` is faster than `min(x,y)` but the latter propagates
+NaNs (i.e., `min(x,y)` yields NaN if any of `x` or `y` is a NaN).
+
+"""
+fastmin(x::T, y::T) where {T<:Real} = (x > y ? y : x)
+
+"""
+    fastmax(x, y)
+
+yields the greatest of `x` and `y` if neither `x` nor `y` are NaNs, or `x`
+otherwise.
+
+Calling `fastmax(x,y)` is faster than `max(x,y)` but the latter propagates
+NaNs (i.e., `max(x,y)` yields NaN if any of `x` or `y` is a NaN).
+
+"""
+fastmax(x::T, y::T) where {T<:Real} = (x < y ? y : x)
 
 """
     to_type(T, x)
