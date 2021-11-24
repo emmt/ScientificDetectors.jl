@@ -74,10 +74,12 @@ binning(R::OrdinalRange{<:Integer,<:Integer}) = Int(step(R))
 @doc @doc(DetectorAxis) binning
 
 Base.length(A::DetectorAxis) = A.len
-Base.size(roi::DetectorAxes{N}) where {N} = map(length, roi)
+Base.size(roi::DetectorAxes) = map(length, roi)
 Base.size(roi::DetectorAxes{N}, i::Integer) where {N} =
     (i < 1 ? error("out of range dimension index") :
-     i ≤ N ? length(roi[i]) : 1)
+     i ≤ N ? length(@inbounds roi[i]) : 1)
+Base.axes(roi::DetectorAxes) = map(Base.OneTo, size(roi))
+Base.axes(roi::DetectorAxes, i::Integer) = Base.OneTo(size(roi, i))
 
 Base.show(io::IO, A::DetectorAxis) =
     print(io, "DetectorAxis(", length(A), "; off=", offset(A),
@@ -185,6 +187,14 @@ See also [`PreprocessingParameters`](@ref).
 
 """
 function exposuretime end
+
+"""
+    getfields(x) -> (getfield(x,1), getfield(x,2), ..., getfield(x,nfields(x)))
+
+yields a tuple of the fields of object `x`.
+
+"""
+getfields(x) = ntuple(i -> getfield(x, i), Val(nfields(x)))
 
 @noinline argument_error(args...) =
     argument_error(string(args...))
