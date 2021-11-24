@@ -1,5 +1,6 @@
 module Calibration
 
+using ProgressMeter
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
 using ArrayTools
@@ -1026,6 +1027,7 @@ function ReducedCalibration(alg::Val{S},
                                 [nans(T, dims) for j in 1:nsrc],  # s
                                 src_names)
     npixels = prod(dims)
+    p = Progress(npixels)
     Threads.@threads for k in 1:npixels
         let i = Threads.threadid()
             extract!(obj[i], dat, k)
@@ -1042,18 +1044,9 @@ function ReducedCalibration(alg::Val{S},
             for j in 1:nsrc
                 out.s[j][k] = x[i][j + 3]
             end
-            if !quiet
-                t = 100*k/npixels
-                if abs(t - round(Int,t)) < 1/npixels
-                    print("  ", round(Int,t), "%    \r")
-                end
-            end
+            quiet || next!(p)
         end
     end
-    if !quiet
-        print("done!       \n")
-    end
-
     return out
 end
 
