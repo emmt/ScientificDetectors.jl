@@ -986,7 +986,8 @@ function ReducedCalibration(alg::Val{S},
                             nonnegative::Bool = false,
                             gmin::Real = 0.1,
                             g::Real = gmin,
-                            σ::Real = 1/sqrt(12)) where {S,T,N}
+                            σ::Real = 1/sqrt(12),
+                            quiet::Bool = false) where {S,T,N}
     (isfinite(gmin) && gmin > 0) || argument_error(
         "value of keyword `gmin` must be finite and positive")
     (isfinite(g) && g ≥ gmin) || argument_error(
@@ -1002,7 +1003,6 @@ function ReducedCalibration(alg::Val{S},
     n = 3 + nsrc
     x = [Vector{T}(undef, n) for i in 1:nthreads]
     xmin = [Vector{T}(undef, n) for i in 1:nthreads]
-    gx = [Vector{T}(undef, n) for i in 1:nthreads]
     for i in 1:nthreads
         fill!(xmin[i], -Inf)
         xmin[i][2] = gmin
@@ -1025,7 +1025,8 @@ function ReducedCalibration(alg::Val{S},
                                 nans(T, dims),  # σ
                                 [nans(T, dims) for j in 1:nsrc],  # s
                                 src_names)
-    Threads.@threads for k in 1:prod(dims)
+    npixels = prod(dims)
+    Threads.@threads for k in 1:npixels
         let i = Threads.threadid()
             extract!(obj[i], dat, k)
             copyto!(x[i], xmin[i])
@@ -1041,8 +1042,18 @@ function ReducedCalibration(alg::Val{S},
             for j in 1:nsrc
                 out.s[j][k] = x[i][j + 3]
             end
+            if !quiet
+                t = 100*k/npixels
+                if abs(t - round(Int,t)) < 1/npixels
+                    print("  ", round(Int,t), "%    \r")
+                end
+            end
         end
     end
+    if !quiet
+        print("done!       \n")
+    end
+
     return out
 end
 
