@@ -87,7 +87,8 @@ end
 
 function read(::Type{ReducedCalibration{T,N}},
               hdu::FitsImageHDU) where {T<:AbstractFloat,N}
-    length(size(hdu)) == N+1 || dimension_mismatch("invalid number of dimensions")
+    length(size(hdu)) == N+1 || dimension_mismatch(
+        "invalid number of dimensions")
     return read(ReducedCalibration{T}, hdu)
 end
 
@@ -107,15 +108,15 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     dims = size(hdu)
     N = length(dims) - 1
     N ≥ 1 || dimension_mismatch("invalid number of dimensions")
-    nc = dims[end] - 4
-    nc ≥ 0 || dimension_mismatch("invalid last dimension")
+    nsrc = dims[end] - 4
+    nsrc ≥ 0 || dimension_mismatch("invalid last dimension")
 
     # Read header and retrieve contents.
     hdr = read(FitsHeader, hdu)
     roi = get(NTuple{N,DetectorAxis}, hdr)
-    cat = Vector{String}(undef, nc)
-    for k in 1:nc
-        cat[k] = get(hdr, string("CAT",k), "")
+    src = Vector{String}(undef, nsrc)
+    for k in 1:nsrc
+        src[k] = get(hdr, string("SRC",k), "")
     end
 
     # Read data and build instance.
@@ -124,26 +125,26 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
-    c = Vector{typeof(f)}(undef, nc)
-    for k in 1:nc
-        c[k] = read(hdu, inds..., 4 + k)
+    s = Vector{typeof(f)}(undef, nsrc)
+    for k in 1:nsrc
+        s[k] = read(hdu, inds..., 4 + k)
     end
-    return T(roi, f, z, g, σ, c, cat)
+    return T(roi, f, z, g, σ, s, src)
 end
 
 function write(io::FitsIO, obj::ReducedCalibration{T,N},
                hdr::FitsHeader) where {T,N}
     # Create data array.
     dims = size(obj)
-    dat = Array{T,N+1}(undef, dims..., 4 + length(obj.c))
+    dat = Array{T,N+1}(undef, dims..., 4 + length(obj.s))
     dat[..,1] .= obj.f
     dat[..,2] .= obj.z
     dat[..,3] .= obj.g
     dat[..,4] .= obj.σ
     k = 4
-    for c in obj.c
+    for s in obj.s
         k += 1
-        dat[..,k] .= c
+        dat[..,k] .= s
     end
 
     # Create FITS header.
@@ -151,8 +152,8 @@ function write(io::FitsIO, obj::ReducedCalibration{T,N},
     hdr["HDUNAME"] = (name, "reduced detector calibration")
     hdr["HDUVERS"] = (vers, "version of this format")
     merge!(hdr, DetectorAxes(obj))
-    for k ∈ eachindex(obj.cat)
-        hdr[string("CAT",k)] = obj.cat[k]
+    for k ∈ eachindex(obj.src)
+        hdr[string("SRC",k)] = obj.src[k]
     end
 
     # Write FITS HDU.
@@ -409,14 +410,14 @@ end
 function read(::Type{SampleStatistics{T,N}},
               obj::FitsHDU) where {T<:AbstractFloat,N}
     tup = _read1(SampleStatistics, obj)
-    tup === nothing && error("HDU does not contains detetctor sample statistics")
+    tup === nothing && error("HDU does not contain detector sample statistics")
     length(tup[3]) == N || dimension_mismatch("invalid number of dimensions")
     return _read2(SampleStatistics{T}, obj, tup...)
 end
 
 function read(::Type{T}, obj::FitsHDU) where {T<:SampleStatistics}
     tup = _read1(SampleStatistics, obj)
-    tup === nothing && error("HDU does not contains detetctor sample statistics")
+    tup === nothing && error("HDU does not contain detector sample statistics")
     return _read2(T, obj, tup...)
 end
 
@@ -472,8 +473,11 @@ function _read1(::Type{T}, obj::FitsHDU) where{T<:SampleStatistics}
     xbin = get(obj, "XBIN", nothing)
     ybin = get(obj, "YBIN", nothing)
     dims = size(obj)
-    mesg = (length(dims) != 3 ? "invalid number of dimensions for sample statistics" :
-            dims[end] != 2 ? "invalid last dimension for sample statistics" : "")
+    mesg = (
+        length(dims) != 3 ?
+        "invalid number of dimensions for sample statistics" :
+        dims[end] != 2 ?
+        "invalid last dimension for sample statistics" : "")
     if isa(exposure, Integer) && xbin === nothing && ybin === nothing
         # Assume exposure time in microseconds.
         mesg == "" || error(mesg)
