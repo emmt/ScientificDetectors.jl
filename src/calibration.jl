@@ -12,6 +12,7 @@ using ..ScientificDetectors:
     DetectorAxisTypes,
     OnlineStatistics,
     binning,
+    getfields,
     offset
 import ..ScientificDetectors:
     DetectorAxes,
@@ -111,6 +112,8 @@ struct ObjectiveFunction{S,T<:AbstractFloat}
     wsub1::Vector{T} # used to compute `c⋅Δt`
 
     # Workspaces for the normal equations.
+    sz::Vector{T} # to store [s..., z]
+    sz_min::Vector{T} # to store inferoir bound for [s..., z]
     A::Matrix{T} # LHS matrix of the normal equations
     b::Vector{T} # RHS vector of the normal equations
 end
@@ -124,9 +127,9 @@ must be nonnegative (this is checked).  The same workspace can be re-used for
 another pixel provided the matrix `H` remains the same.  Type parameter `S` is
 a symbol which specifies the chosen parametrization for the unknowns `θ`:
 
-- `S = :orig` to have parameters `θ = [z, g, σ, s...]`;
+- `S = :zgσs` to have parameters `θ = [z, g, σ, s...]`;
 
-- `S = :alt` to have parameters `θ = [z, g, η, s...]`;
+- `S = :zgηs` to have parameters `θ = [z, g, η, s...]`;
 
 - `S = :hier` to have parameters `θ = [η, s...]` while `z` and `g` are
   automatically derived from the others;
@@ -161,6 +164,8 @@ function ObjectiveFunction{S,T}(H::AbstractMatrix{<:Real},
         Vector{T}(  undef, ncat), # workspace wcat3
         Vector{T}(  undef, ncat), # workspace wcat4
         Vector{T}(  undef, nsub), # workspace wsub1
+        Vector{T}(  undef, n),    # vector sz
+        Vector{T}(  undef, n),    # vector sz_min
         Matrix{T}(  undef, n, n), # LHS matrix A
         Vector{T}(  undef, n))    # RHS vector b
 end
@@ -188,20 +193,7 @@ ObjectiveFunction{S}(obj::ObjectiveFunction{<:Any,T}) where {S,T} =
 ObjectiveFunction{S,T}(obj::ObjectiveFunction{S,T}) where {S,T} = obj
 function ObjectiveFunction{S,T}(obj::ObjectiveFunction{<:Any,T}) where {S,T}
     isa(S, Symbol) || argument_error("type parameter S must be a symbol")
-    return ObjectiveFunction{S,T}(
-        obj.H,
-        obj.Δt,
-        obj.l,
-        obj.n,
-        obj.avg,
-        obj.var,
-        obj.wcat1,
-        obj.wcat2,
-        obj.wcat3,
-        obj.wcat4,
-        obj.wsub1,
-        obj.A,
-        obj.b)
+    return ObjectiveFunction{S,T}(getfields(obj)...)
 end
 
 Base.convert(::Type{T}, obj::ObjectiveFunction) where {T<:ObjectiveFunction} =
@@ -209,20 +201,7 @@ Base.convert(::Type{T}, obj::ObjectiveFunction) where {T<:ObjectiveFunction} =
 
 # Copy constructor.
 Base.copy(obj::ObjectiveFunction{S,T}) where {S,T} =
-    ObjectiveFunction{S,T}(
-        copy(obj.H),
-        copy(obj.Δt),
-        copy(obj.l),
-        copy(obj.n),
-        copy(obj.avg),
-        copy(obj.var),
-        copy(obj.wcat1),
-        copy(obj.wcat2),
-        copy(obj.wcat3),
-        copy(obj.wcat4),
-        copy(obj.wsub1),
-        copy(obj.A),
-        copy(obj.b))
+    ObjectiveFunction{S,T}(map(copy, getfields(obj))...)
 
 """
     size(obj[, chk]) -> (nsub, ncat, nsrc)
@@ -251,17 +230,19 @@ function Base.size(obj::ObjectiveFunction, ::Val{:checksizes})
         "bad size of sources to categories matrix")
     length(obj.Δt)  == nsub  || error("bad number of exposure times")
     =#
-    length(obj.l)     == nsub  || error("bad number of category indices")
-    length(obj.n)     == nsub  || error("bad number of subset sizes")
-    length(obj.avg)   == nsub  || error("bad number of empirical means")
-    length(obj.var)   == nsub  || error("bad number of empirical variances")
-    length(obj.wcat1) == ncat  || error("bad size for workspace WCAT1")
-    length(obj.wcat2) == ncat  || error("bad size for workspace WCAT2")
-    length(obj.wcat3) == ncat  || error("bad size for workspace WCAT3")
-    length(obj.wcat4) == ncat  || error("bad size for workspace WCAT4")
-    length(obj.wsub1) == nsub  || error("bad size for workspace WSUB1")
-    size(obj.A)       == (n,n) || error("bad size for LHS matrix A")
-    length(obj.b)     == n     || error("bad size for RHS vector b")
+    length(obj.l)      == nsub  || error("bad number of category indices")
+    length(obj.n)      == nsub  || error("bad number of subset sizes")
+    length(obj.avg)    == nsub  || error("bad number of empirical means")
+    length(obj.var)    == nsub  || error("bad number of empirical variances")
+    length(obj.wcat1)  == ncat  || error("bad size for workspace WCAT1")
+    length(obj.wcat2)  == ncat  || error("bad size for workspace WCAT2")
+    length(obj.wcat3)  == ncat  || error("bad size for workspace WCAT3")
+    length(obj.wcat4)  == ncat  || error("bad size for workspace WCAT4")
+    length(obj.wsub1)  == nsub  || error("bad size for workspace WSUB1")
+    length(obj.sz)     == n     || error("bad size for field `sz`")
+    length(obj.sz_min) == n     || error("bad size for field `sz_min`")
+    size(obj.A)        == (n,n) || error("bad size for LHS matrix A")
+    length(obj.b)      == n     || error("bad size for RHS vector b")
     return (nsub, ncat, nsrc)
 end
 
@@ -411,7 +392,7 @@ Other keywords are passed to `vmlmb!`.
 
 """
 function fit_linear_terms!(obj::ObjectiveFunction{S,T},
-                           x::AbstractVector{T} = zeros(T, size(obj.H,2) + 1);
+                           x::AbstractVector{T} = zeros(T, size(obj.H,2) + 3);
                            reset::Bool = false,
                            nonnegative::Bool = true,
                            eta::Real = Inf,
@@ -420,20 +401,18 @@ function fit_linear_terms!(obj::ObjectiveFunction{S,T},
     # Do a weighted least squares fit on all the linear parameters with the
     # positivity constraint on the source terms.
     eq = form_normal_equations!(obj, x, to_type(T, eta))
-    reset && fill!(x, 0) # FIXME:
     if nonnegative
         # Solve the normal equations under the constraints that the source
         # terms are nonnegative.
-        n = length(x)
-        xmin = Vector{T}(undef, n) # FIXME: make is part of obj
-        @inbounds for i in 1:n-1
-            xmin[i] = 0 # source terms are nonnegative
-        end
-        xmin[n] = -Inf # z is unbounded
-        vmlmb!(eq, x; mem=mem, lower=xmin, autodiff=false, kwds...)
+        fill!(obj.sz, 0)
+        fill!(obj.sz_min, 0)
+        obj.sz_min[end] = -Inf
+        vmlmb!(eq, obj.sz; mem=mem, lower=obj.sz_min, autodiff=false, kwds...)
     else
-        x .= eq.A\eq.b # FIXME: use in-place operations
+        obj.sz .= eq.A\eq.b # FIXME: use in-place operations
     end
+    x[1] = obj.sz[end]
+    x[4:end] = obj.sz[1:end-1]
     return x
 end
 
@@ -465,9 +444,10 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
                                 η::T) where {S,T<:AbstractFloat}
     # Extract parameters from workspace.
     nsub, ncat, nsrc = size(obj, :checkindices)
+    length(x) == nsrc + 3 || error("variables must have ", nsrc + 3, " elements")
+    s = view(x, 4:length(x))
     n = nsrc + 1
-    length(x) == n || error("variables must have ", n, " elements")
-    J = Base.OneTo(nsrc)
+    J = 4:n
     L = Base.OneTo(ncat)
     H = obj.H
 
@@ -475,12 +455,11 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     reweighted = false
     if η != Inf
         η > 0 || argument_error("value of `η = g⋅σ²` must be positive")
-        @inbounds for j in J
-            if x[j] != 0
-                reweighted = true
-                ((x[j] > 0) & isfinite(x[j])) || argument_error(
-                    "sources `x[1:end-1]` must be finite and nonnegative")
-            end
+        @inbounds for j in eachindex(s)
+            s[j] == 0 && continue
+            reweighted = true
+            ((s[j] > 0) & isfinite(x[j])) || argument_error(
+                "source terms `s = x[4:end]` must be finite and nonnegative")
         end
     end
 
@@ -507,7 +486,7 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     bn = zero(T)
     if reweighted
         # Compute fluxes in calibration categories and flux-dependent weights.
-        c = compute_c(obj, view(x, 1:nsrc))
+        c = compute_c(obj, s)
         @inbounds for i in 1:nsub
             Δt  = obj.Δt[i]
             l   = obj.l[i]
@@ -653,7 +632,7 @@ function unpack_parameters(obj::ObjectiveFunction{<:Any,T},
     return unpack_parameters(obj, x; nonnegative=nonnegative)
 end
 
-function unpack_parameters(obj::ObjectiveFunction{:orig,T},
+function unpack_parameters(obj::ObjectiveFunction{:zgσs,T},
                            x::AbstractVector{T};
                            nonnegative::Bool = false) where {T}
     nsub, ncat, nsrc = size(obj, :checkindices)
@@ -677,7 +656,7 @@ function unpack_parameters(obj::ObjectiveFunction{:orig,T},
     return z, g, σ, s
 end
 
-function unpack_parameters(obj::ObjectiveFunction{:alt,T},
+function unpack_parameters(obj::ObjectiveFunction{:zgηs,T},
                            x::AbstractVector{T};
                            nonnegative::Bool = false) where {T}
     nsub, ncat, nsrc = size(obj, :checkindices)
@@ -699,6 +678,30 @@ function unpack_parameters(obj::ObjectiveFunction{:alt,T},
         isnonnegative(s) || argument_error("source terms must be nonnegative")
     end
     return z, g, η, s
+end
+
+function unpack_parameters(obj::ObjectiveFunction{:zρσs,T},
+                           x::AbstractVector{T};
+                           nonnegative::Bool = false) where {T}
+    nsub, ncat, nsrc = size(obj, :checkindices)
+    Base.has_offset_axes(x) && error(
+        "variables have non-standard indexing")
+    n = length(x)
+    n == nsrc + 3 || error(
+        "variables must have ", nsrc + 3, " elements, got ", n)
+    @inbounds z = x[1]
+    @inbounds ρ = x[2]
+    (isfinite(g) && g > 0) || argument_error(
+        "reciprocal gain `ρ` must be finite and strictly positive")
+    @inbounds σ = x[3]
+    (isfinite(σ) && σ > 0) || argument_error(
+        "standard deviation of the read-out noise `σ` ",
+        "must be finite and strictly positive")
+    s = view(x, 4:n) # source terms
+    if nonnegative
+        isnonnegative(s) || argument_error("source terms must be nonnegative")
+    end
+    return z, ρ, σ, s
 end
 
 function unpack_parameters_with_cΔt(obj::ObjectiveFunction{<:Any,T},
@@ -759,7 +762,7 @@ end
 #
 # Parameters: x = (z, g, σ, s...)
 #
-function (obj::ObjectiveFunction{:orig,T})(x::AbstractVector{T}) where {T}
+function (obj::ObjectiveFunction{:zgσs,T})(x::AbstractVector{T}) where {T}
     # Unpack parameters and check arguments.
     z, g, σ, cΔt = unpack_parameters_with_cΔt(obj, x)
     ρ = 1/g
@@ -780,7 +783,7 @@ function (obj::ObjectiveFunction{:orig,T})(x::AbstractVector{T}) where {T}
     return f
 end
 
-function (obj::ObjectiveFunction{:orig,T})(x::AbstractVector{T},
+function (obj::ObjectiveFunction{:zgσs,T})(x::AbstractVector{T},
                                            grd::AbstractVector{T}) where {T}
     # Unpack parameters and check arguments.
     z, g, σ, cΔt = unpack_parameters_with_cΔt(obj, x, grd)
@@ -832,7 +835,7 @@ end
 #
 # Parameters: x = (z, g, η, s...)
 #
-function (obj::ObjectiveFunction{:alt,T})(x::AbstractVector{T}) where {T}
+function (obj::ObjectiveFunction{:zgηs,T})(x::AbstractVector{T}) where {T}
     # Unpack parameters and check arguments.
     z, g, η, cΔt = unpack_parameters_with_cΔt(obj, x)
     ρ = 1/g
@@ -852,8 +855,8 @@ function (obj::ObjectiveFunction{:alt,T})(x::AbstractVector{T}) where {T}
     return f
 end
 
-function (obj::ObjectiveFunction{:alt,T})(x::AbstractVector{T},
-                                          grd::AbstractVector{T}) where {T}
+function (obj::ObjectiveFunction{:zgηs,T})(x::AbstractVector{T},
+                                           grd::AbstractVector{T}) where {T}
     # Unpack parameters and check arguments.
     z, g, η, cΔt = unpack_parameters_with_cΔt(obj, x, grd)
     ρ = 1/g
@@ -970,6 +973,77 @@ function compute_cΔt!(cΔt::AbstractVector{T},
         cΔt[i] = c[l]*Δt   # contribution of sources
     end
     return cΔt
+end
+
+ReducedCalibration(dat::CalibrationData; kwds...) =
+    ReducedCalibration(:zgσs, dat; kwds...)
+
+ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
+    ReducedCalibration(Val(alg), dat; kwds...)
+
+function ReducedCalibration(alg::Val{S},
+                            dat::CalibrationData{T,N};
+                            nonnegative::Bool = false,
+                            gmin::Real = 0.1,
+                            g::Real = gmin,
+                            σ::Real = 1/sqrt(12)) where {S,T,N}
+    (isfinite(gmin) && gmin > 0) || argument_error(
+        "value of keyword `gmin` must be finite and positive")
+    (isfinite(g) && g ≥ gmin) || argument_error(
+        "value of keyword `g` must be finite and greater or equal `gmin`")
+    (isfinite(σ) && σ > 0) || argument_error(
+        "value of keyword `σ` must be finite and positive")
+    nthreads = Threads.nthreads()
+    if nthreads ≤ 1
+        @warn "You may start Julia as `JULIA_NUM_THREADS=$(Base.Sys.CPU_THREADS) julia`"
+    end
+    obj = [ObjectiveFunction{S}(dat) for i in 1:nthreads]
+    nsub, ncat, nsrc = size(obj[1])
+    n = 3 + nsrc
+    x = [Vector{T}(undef, n) for i in 1:nthreads]
+    xmin = [Vector{T}(undef, n) for i in 1:nthreads]
+    gx = [Vector{T}(undef, n) for i in 1:nthreads]
+    for i in 1:nthreads
+        fill!(xmin[i], -Inf)
+        xmin[i][2] = gmin
+        xmin[i][3] = 1e-6
+        if nonnegative
+            fill!(view(xmin[i], 4:n), 0)
+        end
+    end
+    nans(::Type{T}, dims::Dims{N}) where {T<:AbstractFloat,N} =
+        fill!(Array{T,N}(undef, dims), NaN)
+    dims = size(dat.roi)
+    src_names = Array{String}(undef, nsrc)
+    for (key,val) in dat.src_index
+        src_names[val] = key
+    end
+    out = ReducedCalibration{T}(dat.roi,
+                                nans(T, dims),  # f
+                                nans(T, dims),  # z
+                                nans(T, dims),  # g
+                                nans(T, dims),  # σ
+                                [nans(T, dims) for j in 1:nsrc],  # s
+                                src_names)
+    Threads.@threads for k in 1:prod(dims)
+        let i = Threads.threadid()
+            extract!(obj[i], dat, k)
+            copyto!(x[i], xmin[i])
+            x[i][2] = g
+            x[i][3] = (S === :zgσs ? σ : g*σ^2)
+            fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
+            vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
+                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0))
+            out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
+            out.z[k] = x[i][1]
+            out.g[k] = x[i][2]
+            out.σ[k] = (S === :zgσs ? x[i][3] : sqrt(x[i][3]/x[i][2]))
+            for j in 1:nsrc
+                out.s[j][k] = x[i][j + 3]
+            end
+        end
+    end
+    return out
 end
 
 """
