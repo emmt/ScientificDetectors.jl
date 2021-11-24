@@ -7,17 +7,17 @@ parameters with `T` the floating-point type for the computations and where
 (automatically guessed from argument `f` if not specified), `f` is the
 co-log-likelihood, `z` is the *zero level* that is the constant bias set by the
 analog to digital converter (in ADU), `g` is the detector gain (in electrons
-per ADU) and `σ` is the standard deviation of the readout noise (in ADU/frame).
+per ADU) and `σ` is the standard deviation of the readout noise (in ADU).
 Arguments `f`, `z`, `g` and `σ` are pixelwise.
 
 Additional arguments `args...` can be:
 
-- Key-value pairs like `"cat1" => c1`, `:cat2 => c2`, ... of category
+- Key-value pairs like `"src1" => c1`, `:src2 => c2`, ... of category
   identifiers and arrays corresponding to current terms like the dark current or
   any background flux (in ADU/second).  Arguments `c1`, `c2`, ... are assumed to
   be pixelwise.
 
-- Two arguments: `c = [c1, c2, ...]` and `cat = ["cat1", "cat2", ...]`
+- Two arguments: `s = [c1, c2, ...]` and `src = ["src1", "src2", ...]`
   respectively a vector of current terms and of corresponding category
   identifiers.
 
@@ -64,37 +64,24 @@ struct ReducedCalibration{T<:AbstractFloat,N}
 
     # Time dependent bias, e.g. dark current and background flux, (in
     # ADU/second), may be empty or zero-filled:
-    c::Vector{Array{T,N}}
+    s::Vector{Array{T,N}}
 
     # Categories of the different sources responsible of the different
     # time-dependent bias terms.
-    cat::Vector{String}
+    src::Vector{String}
 
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
-                                     f::Array{T,N},
-                                     z::Array{T,N},
-                                     g::Array{T,N},
-                                     σ::Array{T,N},
-                                     c::Vector{Array{T,N}},
-                                     cat::Vector{String};
+                                     f::AbstractArray{T,N},
+                                     z::AbstractArray{T,N},
+                                     g::AbstractArray{T,N},
+                                     σ::AbstractArray{T,N},
+                                     s::AbstractVector{<:AbstractArray{T,N}},
+                                     src::AbstractVector{<:AbstractString};
                                      check::Bool = false
                                      ) where {T<:AbstractFloat,N}
-        for i in 1:N
-            @assert length(roi[i]) ≥ 1
-            @assert offset(roi[i]) ≥ 0
-            @assert binning(roi[i]) ≥ 1
-        end
-        dims = size(roi)
-        @assert size(f) == dims
-        @assert size(z) == dims
-        @assert size(g) == dims
-        @assert size(σ) == dims
-        @assert length(cat) == length(c)
-        for k ∈ eachindex(c)
-            @assert size(c[k]) == dims
-        end
-        obj = new{T,N}(roi, f, z, g, σ, c, cat)
+        checkindices(ReducedCalibration, roi, f, z, g, σ, s, src)
+        obj = new{T,N}(roi, f, z, g, σ, s, src)
         check && checkvalues(obj)
         return obj
     end
@@ -110,49 +97,31 @@ function ReducedCalibration(roi::NTuple{N,DetectorAxis},
                             z::AbstractArray{<:Real,N},
                             g::AbstractArray{<:Real,N},
                             σ::AbstractArray{<:Real,N},
-                            c::AbstractVector{Array{<:Real,N}},
-                            cat::AbstractVector{String};
+                            s::AbstractVector{<:AbstractArray{<:Real,N}},
+                            src::AbstractVector{<:AbstractString};
                             kwds...) where {N}
     T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
-                           map(eltype, c)...))
-    ReducedCalibration{T}(roi, f, z, g, σ, c, cat; kwds...)
+                           map(eltype, s)...))
+    ReducedCalibration{T}(roi, f, z, g, σ, s, src; kwds...)
 end
 
 ReducedCalibration{T}(obj::ReducedCalibration{T}) where {T} = obj
 ReducedCalibration{T}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
-    ReducedCalibration{T}(obj.roi, obj.f, obj.z, obj.g, obj.σ, obj.c, obj.cat)
+    ReducedCalibration{T,N}(obj)
 function ReducedCalibration{T}(roi::NTuple{N,DetectorAxis},
                                f::AbstractArray{<:Real,N},
                                z::AbstractArray{<:Real,N},
                                g::AbstractArray{<:Real,N},
                                σ::AbstractArray{<:Real,N},
-                               c::AbstractVector{Array{<:Real,N}},
-                               cat::AbstractVector{String};
+                               s::AbstractVector{<:AbstractArray{<:Real,N}},
+                               src::AbstractVector{<:AbstractString};
                                kwds...) where {T<:AbstractFloat,N}
-    # Call the inner constructor with all arguments of correct type.
-    ReducedCalibration{T,N}(roi,
-                            convert(Array{T,N}, f),
-                            convert(Array{T,N}, z),
-                            convert(Array{T,N}, g),
-                            convert(Array{T,N}, σ),
-                            map(x -> convert(Array{T,N}, x), c),
-                            convert(Array{String}, cat);
-                            kwds...)
+    ReducedCalibration{T,N}(roi, f, z, g, σ, s, src; kwds...)
 end
 
 ReducedCalibration{T,N}(obj::ReducedCalibration{T,N}) where {T,N} = obj
 ReducedCalibration{T,N}(obj::ReducedCalibration{<:Any,N}) where {T,N} =
-    ReducedCalibration{T}(obj)
-function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
-                                 f::AbstractArray{<:Real,N},
-                                 z::AbstractArray{<:Real,N},
-                                 g::AbstractArray{<:Real,N},
-                                 σ::AbstractArray{<:Real,N},
-                                 c::AbstractVector{Array{<:Real,N}},
-                                 cat::AbstractVector{String};
-                                 kwds...) where {T<:AbstractFloat,N}
-    ReducedCalibration{T}(roi, f, z, g, σ, c, cat; kwds...)
-end
+    ReducedCalibration{T,N}(getfields(obj)...)
 
 #
 # Getters.
@@ -162,18 +131,22 @@ cologlikelihood(obj::ReducedCalibration) = obj.f
 detectorbias(obj::ReducedCalibration) = obj.z
 detectorgain(obj::ReducedCalibration) = obj.g
 detectornoise(obj::ReducedCalibration) = obj.σ
-currents(obj::ReducedCalibration) = obj.c
+currents(obj::ReducedCalibration) = obj.s
 current(obj::ReducedCalibration, k::Integer) = getindex(currents(obj), k)
-categories(obj::ReducedCalibration) = obj.cat
+categories(obj::ReducedCalibration) = obj.src
 category(obj::ReducedCalibration, k::Integer) = getindex(categories(obj), k)
 
 #
 # Basic operations on ReducedCalibration structure.
 #
+Base.ndims(obj::ReducedCalibration) = ndims(typeof(obj))
+Base.ndims(::Type{<:ReducedCalibration{T,N}}) where {T,N} = N
 Base.eltype(obj::ReducedCalibration) = eltype(typeof(obj))
 Base.eltype(::Type{<:ReducedCalibration{T}}) where {T} = T
 Base.size(obj::ReducedCalibration) = size(DetectorAxes(obj))
 Base.size(obj::ReducedCalibration, i) = size(DetectorAxes(obj), i)
+Base.axes(obj::ReducedCalibration) = axes(DetectorAxes(obj))
+Base.axes(obj::ReducedCalibration, i) = axes(DetectorAxes(obj), i)
 Base.length(obj::ReducedCalibration) = prod(size(obj))
 Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
     T(obj)
@@ -182,13 +155,15 @@ Base.show(io::IO, obj::ReducedCalibration{T,N}) where {T,N} = begin
     join(io, size(obj),"×")
     print(io, " ReducedCalibration{$T,$N}:")
     for i in 1:length(categories(obj))
-        print(io, "\n - cat", i, ": \"", identifier(category(obj,i)), "\"")
+        print(io, "\n - src", i, ": \"", identifier(category(obj,i)), "\"")
     end
 end
 
 # Allow for `T.(obj)` to work with `T` a floating-point type.
-Broadcast.broadcasted(::Type{T}, obj::ReducedCalibration) where {T<:AbstractFloat} =
-    ReducedCalibration{T}(obj)
+function Broadcast.broadcasted(::Type{T},
+                               obj::ReducedCalibration) where {T<:AbstractFloat}
+    return ReducedCalibration{T}(obj)
+end
 
 #
 # More complex outer constructors for ReducedCalibration structure.
@@ -243,12 +218,12 @@ function ReducedCalibration(roi::NTuple{N,DetectorAxis},
                             z::AbstractArray,
                             g::AbstractArray,
                             σ::AbstractArray,
-                            c::AbstractVector{<:AbstractArray},
-                            cat::AbstractVector{<:Identifiers};
+                            s::AbstractVector{<:AbstractArray},
+                            src::AbstractVector{<:Identifiers};
                             kwds...) where {N}
     T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
-                           _promote_eltype(c)))
-    ReducedCalibration{T,N}(roi, f, z, g, σ, c, cat; kwds...)
+                           _promote_eltype(s)))
+    ReducedCalibration{T,N}(roi, f, z, g, σ, s, src; kwds...)
 end
 
 function ReducedCalibration{T}(roi::NTuple{N,DetectorAxis},
@@ -256,10 +231,10 @@ function ReducedCalibration{T}(roi::NTuple{N,DetectorAxis},
                                z::AbstractArray,
                                g::AbstractArray,
                                σ::AbstractArray,
-                               c::AbstractVector{<:AbstractArray},
-                               cat::AbstractVector{<:Identifiers};
+                               s::AbstractVector{<:AbstractArray},
+                               src::AbstractVector{<:Identifiers};
                                kwds...) where {T,N}
-    ReducedCalibration{T,N}(roi, f, z, g, σ, c, cat; kwds...)
+    ReducedCalibration{T,N}(roi, f, z, g, σ, s, src; kwds...)
 end
 
 function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
@@ -267,12 +242,12 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                                  z::AbstractArray,
                                  g::AbstractArray,
                                  σ::AbstractArray,
-                                 c::AbstractVector{<:AbstractArray},
-                                 cat::AbstractVector{<:Identifiers};
+                                 s::AbstractVector{<:AbstractArray},
+                                 src::AbstractVector{<:Identifiers};
                                  kwds...) where {T,N}
     T <: AbstractFloat || error("parameter `T` must be a floating-point type")
     length(roi) == N || error("ROI has incompatible number of dimensions")
-    length(cat) == length(c) || error("incompatible number of categories")
+    length(src) == length(s) || error("incompatible number of categories")
     dims = size(roi)
 
     function fixarray(A::AbstractArray)
@@ -288,8 +263,8 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                             fixarray(z),
                             fixarray(g),
                             fixarray(σ),
-                            map(fixarray, c),
-                            map(identifier, cat); kwds...)
+                            map(fixarray, s),
+                            map(identifier, src); kwds...)
 end
 
 # Convert pairs like "key1"=>arr1, :key2=>arr2, ... in a list of
@@ -298,8 +273,8 @@ _getcurrents(args::Pair{<:Union{AbstractString,Symbol},<:AbstractArray}...) =
     (collect(map(x -> x[2], args)),
      collect(map(x -> identifier(x[1]), args)))
 _getcurrents() = Int8[], String[]
-_getcurrents(c::AbstractVector{<:AbstractArray}, cat::AbstractVector) =
-    (c, cat)
+_getcurrents(s::AbstractVector{<:AbstractArray}, src::AbstractVector) =
+    (s, src)
 
 """
     checkvalues(obj)
@@ -309,15 +284,10 @@ invalid.
 
 """
 function checkvalues(cal::ReducedCalibration)
-    f, z, g, σ, c = cal.f, cal.z, cal.g, cal.σ, cal.c
-    dims = size(cal)
-    @assert size(f) == dims
-    @assert size(z) == dims
-    @assert size(g) == dims
-    @assert size(σ) == dims
-    for k ∈ eachindex(c)
-        @assert size(c[k]) == dims
-        all(x -> isfinite(x) && x ≥ 0, c[k]) ||
+    checkindices(cal)
+    f, z, g, σ, s = cal.f, cal.z, cal.g, cal.σ, cal.s
+    for k ∈ eachindex(s)
+        all(x -> isfinite(x) && x ≥ 0, s[k]) ||
             error("some invalid values in time-dependent bias")
     end
     all(x -> isfinite(x), z) ||
@@ -326,4 +296,53 @@ function checkvalues(cal::ReducedCalibration)
         error("some invalid values in detector gain")
     all(x -> isfinite(x) && x ≥ 0, σ) ||
         error("some invalid values in readout noise")
+end
+
+"""
+    checkindices(x)
+
+throws an exception if the fields of object `x` have invalid or incompatible
+dimensions or indices.
+
+"""
+checkindices(obj::ReducedCalibration) =
+    checkindices(typeof(obj), getfields(obj)...)
+
+"""
+    checkindices(T, f1, f2, ...)
+
+throws an exception if the fields `f1`, `f2`, ... for an object of type `T`
+have invalid or incompatible dimensions or indices.
+
+"""
+function checkindices(::Type{<:ReducedCalibration},
+                      roi::NTuple{N,DetectorAxis},
+                      f::AbstractArray,
+                      z::AbstractArray,
+                      g::AbstractArray,
+                      σ::AbstractArray,
+                      s::AbstractVector{<:AbstractArray},
+                      src::AbstractVector{<:AbstractString}) where {N}
+    for i in 1:N
+        length(roi[i]) ≥ 1 || argument_error(
+            "invalid detector axis length")
+        offset(roi[i]) ≥ 0 || argument_error(
+            "invalid detector axis offset")
+        binning(roi[i]) ≥ 1|| argument_error(
+            "invalid detector axis binning factor")
+    end
+    inds = axes(roi)
+    all(I -> first(I) == 1, inds) || argument_error(
+        "ROI has non-standard indices")
+    axes(f) == inds || dimension_mismatch("`f` has incompatible indices")
+    axes(z) == inds || dimension_mismatch("`z` has incompatible indices")
+    axes(g) == inds || dimension_mismatch("`g` has incompatible indices")
+    axes(σ) == inds || dimension_mismatch("`σ` has incompatible indices")
+    axes(src) == axes(s) || dimension_mismatch(
+        "source terms and names have incompatible indices")
+    for k ∈ eachindex(s)
+        axes(s[k]) == inds || dimension_mismatch(
+            "source `s[",k,"]` has incompatible indices")
+    end
+    return nothing
 end
