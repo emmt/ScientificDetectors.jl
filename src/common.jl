@@ -141,6 +141,36 @@ function Base.get(::Type{DetectorAxes{N}},
     ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
 
+#------------------------------------------------------------------------------
+# IDENTIFIERS
+
+"""
+    ScientificDetectors.Identifiers
+
+is the union of types acceptable for identifiers (strings, symbols, or
+integers).
+
+"""
+const Identifiers = Union{AbstractString,Symbol,Integer}
+
+"""
+    identifier(key) -> str
+
+converts `key` into a string identifier.  Argument `key` can be of any type
+part of the union `Identifiers` (a string, a symbol or an integer).  Also works
+if argument is a tuple or an array of identifiers.
+
+"""
+identifier(key::String) = key
+identifier(key::AbstractString) = String(key)
+identifier(key::Integer) = string("#",key)
+identifier(key::Symbol) = String(key)
+identifier(A::AbstractArray{String}) = A
+identifier(A::AbstractArray{<:Identifiers}) = map(identifier, A)
+identifier(A::Tuple{Vararg{String}}) = A
+identifier(A::Tuple{Vararg{<:Identifiers}}) = map(identifier, A)
+
+#------------------------------------------------------------------------------
 #
 # Sampler to provide samples given an array.
 #

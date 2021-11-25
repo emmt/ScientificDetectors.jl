@@ -11,9 +11,11 @@ using MultivariateOnlineStatistics:
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,
+    Identifiers,
     OnlineStatistics,
     binning,
     getfields,
+    identifier,
     offset
 import ..ScientificDetectors:
     DetectorAxes,
@@ -26,10 +28,6 @@ const Category = Union{AbstractString,Symbol}
 
 const Colons{N} = NTuple{N,Colon}
 
-# Union of acceptable identifer types.
-# FIXME: Only needed by ReducedCalibration.
-const Identifiers = Union{AbstractString,Symbol,Integer}
-
 # Include code for types with constructors and basic method.
 include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
@@ -38,21 +36,6 @@ include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 
 #------------------------------------------------------------------------------
-# FIXME: Only needed by ReducedCalibration.
-"""
-    identifier(key) -> str
-
-converts `key` into a string identifier.  Argument `key` can be of any type
-part of the union `Identifiers` (a string, a symbol or an integer).
-
-"""
-identifier(key::String) = key
-identifier(key::AbstractString) = String(key)
-identifier(key::Integer) = string("#",key)
-identifier(key::Symbol) = String(key)
-
-@doc @doc(identifier) Identifiers
-
 # FIXME: Only needed by ReducedCalibration.
 """
     find(obj, key) -> j
