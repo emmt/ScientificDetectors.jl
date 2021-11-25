@@ -819,8 +819,8 @@ function (obj::ObjectiveFunction{:zgσs,T})(x::AbstractVector{T},
     end
 
     # Convert gradients and return objective function.
-    ∂f_∂g = -ρ^2*∂f_∂ρ
-    ∂f_∂σ = 2σ*∂f_∂σ²   # ∂f/∂σ = 2⋅σ⋅(∂f/∂σ²)
+    ∂f_∂g = -ρ^2*∂f_∂ρ # ∂f/∂g = -ρ²⋅(∂f/∂ρ)
+    ∂f_∂σ = 2σ*∂f_∂σ²  # ∂f/∂σ = 2⋅σ⋅(∂f/∂σ²)
     @inbounds grd[1] = ∂f_∂z
     @inbounds grd[2] = ∂f_∂g
     @inbounds grd[3] = ∂f_∂σ
@@ -1062,9 +1062,9 @@ function mvmult!(y::AbstractVector,
                  A::AbstractMatrix{Ta},
                  x::AbstractVector) where {Ta}
     I, J = axes(A)
-    axes(y) == (I,) || throw_dimension_mismatch(
+    axes(y) == (I,) || dimension_mismatch(
         "incompatible indices of destination vector")
-    axes(x) == (J,) || throw_dimension_mismatch(
+    axes(x) == (J,) || dimension_mismatch(
         "incompatible indices of source vector")
     T = promote_type(Ta, eltype(x))
     @inbounds for i ∈ I
@@ -1082,9 +1082,9 @@ function mvmult!(y::AbstractVector,
                  x::AbstractVector) where {Ta}
     A = parent(A′)
     I, J = axes(A)
-    axes(y) == (J,) || throw_dimension_mismatch(
+    axes(y) == (J,) || dimension_mismatch(
         "incompatible indices of destination vector")
-    axes(x) == (I,) || throw_dimension_mismatch(
+    axes(x) == (I,) || dimension_mismatch(
         "incompatible indices of source vector")
     T = promote_type(Ta, eltype(x))
     @inbounds for j ∈ J
