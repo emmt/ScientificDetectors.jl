@@ -1122,13 +1122,4 @@ NaNs (i.e., `max(x,y)` yields NaN if any of `x` or `y` is a NaN).
 """
 fastmax(x::T, y::T) where {T<:Real} = (x < y ? y : x)
 
-"""
-    to_type(T, x)
-
-yields `x` converted to type `T`, the result is asserted to be of type `T`.
-
-"""
-to_type(::Type{T}, x::T) where {T} = x
-to_type(::Type{T}, x::Any) where {T} = convert(T, x)::T
-
 end # module
