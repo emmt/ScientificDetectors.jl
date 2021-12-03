@@ -926,6 +926,22 @@ following a strategy to solve the problem by means of hierarchical optimization
 and first show how to eliminate the bias and the gain of the problem thanks to
 a simple change of variables.}
 
+\subsection{Approximation of the variance}
+
+From Eq.~\eqref{eq:assumed-expectation} follows that $c_{\ell}\,\Delta
+t_{k,\ell} \approx d_{k,\ell,n} - z$, the following approximation of the
+variance may then be used in practice:
+\begin{equation}
+  \label{eq:approx-variance}
+  \Var{d_{k,\ell,n}} \approx \max\Paren{d_{k,\ell,n} - z,0}/g + \sigma^2.
+\end{equation}
+This approximation of the variance may be exploited to estimate the precision
+of the pre-processed data and to define the co-log-likelihood.  Inserting
+Eq.~\eqref{eq:approx-variance} in the co-log-likelihood yields a criterion that
+is quadratic function of the source terms.  Fitting the detector parameters
+with this approximation is more consistent if the same approximation is used in
+the pre-processing.
+
 
 \subsection{Estimation of the zero level and of the gain}
 
