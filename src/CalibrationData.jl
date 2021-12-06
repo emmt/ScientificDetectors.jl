@@ -17,10 +17,10 @@ contributions by a number of so-called *sources*, the sources are identified by
 a symbolic name.  The simplest way to indicate this mapping is to call the
 constructor as in the following example:
 
-    A = CalibrationData{T}(roi,
+    A = CalibrationData{Float32}(roi,
                            "DARK"  => :(dark),
                            "LAMP1" => :(dark + lamp1),
-                           "LAMP2" => :(dark + lamp2), ...)
+                           "LAMP2" => :(dark + lamp2),
                            "LAMP1+LAMP2" => :(dark + lamp1 + lamp2), ...)
 
 where there are 4 categories named `"DARK"`, `"LAMP1", `"LAMP2", and
@@ -128,6 +128,8 @@ CalibrationCategory(name::AbstractString) =
     CalibrationCategory(name, ScaledVariable(name))
 
 CalibrationCategory(kv::Pair) = CalibrationCategory(kv[1], kv[2])
+name(x::CalibrationCategory) = x.name
+
 
 for argtype in (:(Union{CalibrationCategory,Pair,AbstractString}...),
                 :(Tuple{Vararg{Union{CalibrationCategory,
