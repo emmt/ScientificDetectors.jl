@@ -967,7 +967,7 @@ ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
 
 function ReducedCalibration(alg::Val{S},
                             dat::CalibrationData{T,N};
-                            nonnegative::Bool = false,
+                            nonnegative::Bool = true,
                             gmin::Real = 0.1,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
@@ -1018,8 +1018,13 @@ function ReducedCalibration(alg::Val{S},
             x[i][2] = g
             x[i][3] = (S === :zgσs ? σ : g*σ^2)
             fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
-            vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
+            try
+                vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
                    ftol=(1e-8,0), xtol=(0,0), gtol=(0,0))
+            catch
+                @debug "VMLMB crashed on pixel  $k"
+                continue
+            end
             out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
             out.z[k] = x[i][1]
             out.g[k] = x[i][2]
