@@ -128,8 +128,6 @@ CalibrationCategory(name::AbstractString) =
     CalibrationCategory(name, ScaledVariable(name))
 
 CalibrationCategory(kv::Pair) = CalibrationCategory(kv[1], kv[2])
-name(x::CalibrationCategory) = x.name
-
 
 for argtype in (:(Union{CalibrationCategory,Pair,AbstractString}...),
                 :(Tuple{Vararg{Union{CalibrationCategory,
