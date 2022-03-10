@@ -987,8 +987,10 @@ function ReducedCalibration(alg::Val{S},
     n = 3 + nsrc
     x = [Vector{T}(undef, n) for i in 1:nthreads]
     xmin = [Vector{T}(undef, n) for i in 1:nthreads]
+    xmax = [Vector{T}(undef, n) for i in 1:nthreads]
     for i in 1:nthreads
         fill!(xmin[i], -Inf)
+        fill!(xmax[i], +Inf)
         xmin[i][2] = gmin
         xmin[i][3] = 1e-6
         if nonnegative
@@ -1017,10 +1019,11 @@ function ReducedCalibration(alg::Val{S},
             copyto!(x[i], xmin[i])
             x[i][2] = g
             x[i][3] = (S === :zgσs ? σ : g*σ^2)
-            fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
+
             try
+                fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
                 vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
-                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0))
+                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=2000)
             catch
                 @debug "VMLMB crashed on pixel  $k"
                 continue
