@@ -13,7 +13,7 @@ struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
     Δt::Float64           # Exposure time.
     roi::DetectorAxes{N}  # Detector axes settings.
     function CalibrationFrameSampler{T,N,Np1,A}(data::A,
-                                                cat::Category,
+                                                cat::String,
                                                 Δt::Real;
                                                 roi::DetectorAxes{N} = DetectorAxes(view(data, colons(N)..., 1))
                                                 ) where {T,N,Np1,A<:AbstractArray{T,Np1}}
@@ -29,7 +29,9 @@ struct CalibrationFrameSampler{T,N,Np1,A<:AbstractArray{T,Np1}}
     end
 end
 
-CalibrationFrameSampler(data::A,cat::Category,Δt::Real) where {T,N,A<:AbstractArray{T,N}} = CalibrationFrameSampler{T,N-1,N,A}(data,cat::Category,Δt::Real)
+CalibrationFrameSampler(data::A,cat::String,Δt::Real) where {T,N,A<:AbstractArray{T,N}} =
+        CalibrationFrameSampler{T,N-1,N,A}(data,cat,Δt)
+
 exposuretime(A::CalibrationFrameSampler) = A.Δt
 category(A::CalibrationFrameSampler) = A.cat
 DetectorAxes(A::CalibrationFrameSampler) = A.roi
@@ -69,14 +71,18 @@ function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:Abstract
     to_vector(x::Tuple) = collect(x)
     local roi::DetectorAxes, N::Int
     cat_index = Dict{String,Int}()
+    args = to_vector(args)
     m = length(args) # number of categories
     m ≥ 1 || argument_error("there must be some categories")
     i = 0
+    catarr  = Vector{CalibrationCategory}()
     for x in args
         cat = category(x)
+
         if !haskey(cat_index, cat)
             i +=1;
             cat_index[cat] = i;
+            push!(catarr,CalibrationCategory(cat,Symbol(cat)));
         end
         if i == 1
             roi = DetectorAxes(x)
@@ -88,16 +94,21 @@ function CalibrationData{T}(args::CalibrationFrameSampler...) where {T<:Abstract
         end
     end
 
-    A = CalibrationData{T,N}(
+    A = CalibrationData{T}(
         roi,                               # region of interest
-        Dict{Tuple{String,Float64},Int}(), # stat_index
-        OnlineStatistics{T,N}[],           # stat
-        zeros(T, size(roi)),               # null,
-        Matrix(1.0I,m,m),                  # FIXME: a less dense Matrix should be better
-        cat_index)                         # cat_index
+        catarr
+    )
 
     for x in args
         merge!(A, x)
+    end
+    return A
+end
+
+
+function Base.push!(A::CalibrationData{T,N}, args::CalibrationFrameSampler) where {T<:AbstractFloat,N}
+    for x in args
+        push!(A, x)
     end
     return A
 end
