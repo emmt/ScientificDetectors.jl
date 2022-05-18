@@ -967,7 +967,7 @@ ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
 
 function ReducedCalibration(alg::Val{S},
                             dat::CalibrationData{T,N};
-                            nonnegative::Bool = false,
+                            nonnegative::Bool = true,
                             gmin::Real = 0.1,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
@@ -987,8 +987,10 @@ function ReducedCalibration(alg::Val{S},
     n = 3 + nsrc
     x = [Vector{T}(undef, n) for i in 1:nthreads]
     xmin = [Vector{T}(undef, n) for i in 1:nthreads]
+    xmax = [Vector{T}(undef, n) for i in 1:nthreads]
     for i in 1:nthreads
         fill!(xmin[i], -Inf)
+        fill!(xmax[i], +Inf)
         xmin[i][2] = gmin
         xmin[i][3] = 1e-6
         if nonnegative
@@ -1017,9 +1019,15 @@ function ReducedCalibration(alg::Val{S},
             copyto!(x[i], xmin[i])
             x[i][2] = g
             x[i][3] = (S === :zgσs ? σ : g*σ^2)
-            fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
-            vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
-                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0))
+
+            try
+                fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
+                vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
+                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=2000)
+            catch
+                @debug "VMLMB crashed on pixel  $k"
+                continue
+            end
             out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
             out.z[k] = x[i][1]
             out.g[k] = x[i][2]
