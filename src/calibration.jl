@@ -282,6 +282,29 @@ function extract!(obj::ObjectiveFunction,
         obj.avg[i] = mean(stat, k)
         obj.var[i] = var(stat, k; corrected=false)
     end
+end
+
+"""
+    reset!(obj) -> obj
+
+reset the workspace by setting all array to zero.
+
+"""
+function reset!(obj::ObjectiveFunction)
+    # Workspaces of length `ncat`.
+    fill!(obj.wcat1,0)
+    fill!(obj.wcat2,0)
+    fill!(obj.wcat3,0)
+    fill!(obj.wcat4,0)
+
+    # Workspaces of length `nsub`.
+    fill!(obj.wsub1,0)
+
+    # Workspaces for the normal equations.
+    fill!(obj.sz,0)
+    fill!(obj.sz_min,0)
+    fill!(obj.A,0)
+    fill!(obj.b,0)
     return obj
 end
 
@@ -430,8 +453,8 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     nsub, ncat, nsrc = size(obj, :checkindices)
     length(x) == nsrc + 3 || error("variables must have ", nsrc + 3, " elements")
     s = view(x, 4:length(x))
-    n = nsrc + 1
-    J = 4:n
+    n = nsrc + 1 # bias z is the last source
+    J = Base.OneTo(nsrc)   # only index over the sources
     L = Base.OneTo(ncat)
     H = obj.H
 
@@ -962,13 +985,24 @@ end
 ReducedCalibration(dat::CalibrationData; kwds...) =
     ReducedCalibration(:zgσs, dat; kwds...)
 
-ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
-    ReducedCalibration(Val(alg), dat; kwds...)
+ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) = 
+    ReducedCalibration(Val(alg), dat, trues(size(dat.roi)); kwds...)
+
+
+ReducedCalibration(dat::CalibrationData,good::AbstractArray{Bool}; kwds...) =
+    ReducedCalibration(:zgσs, dat,good; kwds...)
+
+ReducedCalibration(alg::Symbol, dat::CalibrationData,good::AbstractArray{Bool}; kwds...) =
+    ReducedCalibration(Val(alg), dat,good; kwds...)
+
 
 function ReducedCalibration(alg::Val{S},
-                            dat::CalibrationData{T,N};
+                            dat::CalibrationData{T,N},
+                            good::AbstractArray{Bool, N};
                             nonnegative::Bool = true,
+                            maxval::Real = +Inf,
                             gmin::Real = 0.1,
+                            gmax::Real = +Inf,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
                             quiet::Bool = false) where {S,T,N}
@@ -992,11 +1026,14 @@ function ReducedCalibration(alg::Val{S},
         fill!(xmin[i], -Inf)
         fill!(xmax[i], +Inf)
         xmin[i][2] = gmin
+        xmax[i][2] = gmax
         xmin[i][3] = 1e-6
+        fill!(view(xmax[i], 4:n), maxval)
         if nonnegative
             fill!(view(xmin[i], 4:n), 0)
         end
     end
+    
     nans(::Type{T}, dims::Dims{N}) where {T<:AbstractFloat,N} =
         fill!(Array{T,N}(undef, dims), NaN)
     dims = size(dat.roi)
@@ -1012,22 +1049,23 @@ function ReducedCalibration(alg::Val{S},
                                 [nans(T, dims) for j in 1:nsrc],  # s
                                 src_names)
     npixels = prod(dims)
-    p = Progress(npixels)
-    Threads.@threads for k in 1:npixels
+    p = Progress(sum(good); showspeed=true)
+    Threads.@threads for k in (1:npixels)[good[:]]
         let i = Threads.threadid()
             extract!(obj[i], dat, k)
             copyto!(x[i], xmin[i])
             x[i][2] = g
             x[i][3] = (S === :zgσs ? σ : g*σ^2)
-
-            try
+            # try
                 fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
-                vmlmb!(obj[i], x[i]; mem=n, lower=xmin[i], autodiff=false,
-                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=2000)
-            catch
-                @debug "VMLMB crashed on pixel  $k"
-                continue
-            end
+                vmlmb!(obj[i],x[i]; mem=n, lower=xmin[i], upper=xmax[i],  autodiff=false,
+                ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
+            # catch e
+            #     @debug showerror(stdout, e)
+            #     @debug "VMLMB crashed on pixel  $k"
+            #     reset!(obj[i])
+            #     continue
+            # end
             out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
             out.z[k] = x[i][1]
             out.g[k] = x[i][2]

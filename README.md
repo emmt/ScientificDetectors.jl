@@ -84,7 +84,7 @@ process!(wgt, dat, prm, raw[:,:,7]);
   matrix;
 - entry point: collect. `CalibrationDataFrame` for different Δt and categories
   in `CalibrationData`;
-- fit detetctor parameters -> `ReducedCalibration`
+- fit detector parameters -> `ReducedCalibration`
 
 ## Installation
 
