@@ -282,6 +282,7 @@ function extract!(obj::ObjectiveFunction,
         obj.avg[i] = mean(stat, k)
         obj.var[i] = var(stat, k; corrected=false)
     end
+    return obj
 end
 
 """
@@ -305,7 +306,6 @@ function reset!(obj::ObjectiveFunction)
     fill!(obj.sz_min,0)
     fill!(obj.A,0)
     fill!(obj.b,0)
-    return obj
 end
 
 struct NormalEquations{T<:AbstractFloat,
