@@ -596,7 +596,7 @@ function compute_σ²_max(obj::ObjectiveFunction{S,T},
                         x::AbstractVector{T}) where {S,T}
     n = length(x)
     if n == 0
-        return  compute_sigma²max(obj)
+        return  compute_σ²_max(obj)
     end
     nsub, ncat, nsrc = size(obj, :checkindices)
     if n == nsrc + 1
