@@ -32,6 +32,10 @@ end
 CalibrationFrameSampler(data::A,cat::String,Δt::Real) where {T,N,A<:AbstractArray{T,N}} =
         CalibrationFrameSampler{T,N-1,N,A}(data,cat,Δt)
 
+CalibrationFrameSampler(data::A,cat::String,Δt::Real;roi::DetectorAxes{M}) where {T,N,M,A<:AbstractArray{T,N}} =
+        CalibrationFrameSampler{T,M,N,A}(data,cat,Δt;roi=roi)
+
+
 exposuretime(A::CalibrationFrameSampler) = A.Δt
 category(A::CalibrationFrameSampler) = A.cat
 DetectorAxes(A::CalibrationFrameSampler) = A.roi
