@@ -991,7 +991,7 @@ ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
 
 function ReducedCalibration(alg::Val{S},
                             dat::CalibrationData{T,N};
-                            valid::AbstractArray{Bool, N} = FastUniformArray(true, size(dat.roi)),
+                            valid::AbstractArray{Bool, N} = FastUniformArray(true, size(dat)),
                             nonnegative::Bool = true,
                             maxval::Real = +Inf,
                             gmin::Real = 0.1,
