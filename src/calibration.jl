@@ -8,6 +8,7 @@ using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
     storage
+using StructuredArrays
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,
@@ -985,16 +986,15 @@ end
 ReducedCalibration(dat::CalibrationData; kwds...) =
     ReducedCalibration(:zgσs, dat; kwds...)
 
-ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) = 
-    ReducedCalibration(Val(alg), dat, trues(size(dat.roi)); kwds...)
+ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
+    ReducedCalibration(Val(alg), dat, FastUniformArray(true, size(dat.roi)); kwds...)
 
 
-ReducedCalibration(dat::CalibrationData,good::AbstractArray{Bool}; kwds...) =
-    ReducedCalibration(:zgσs, dat,good; kwds...)
+ReducedCalibration(dat::CalibrationData, good::AbstractArray{Bool}; kwds...) =
+    ReducedCalibration(:zgσs, dat, good; kwds...)
 
-ReducedCalibration(alg::Symbol, dat::CalibrationData,good::AbstractArray{Bool}; kwds...) =
-    ReducedCalibration(Val(alg), dat,good; kwds...)
-
+ReducedCalibration(alg::Symbol, dat::CalibrationData, good::AbstractArray{Bool}; kwds...) =
+    ReducedCalibration(Val(alg), dat, good; kwds...)
 
 function ReducedCalibration(alg::Val{S},
                             dat::CalibrationData{T,N},
@@ -1033,7 +1033,7 @@ function ReducedCalibration(alg::Val{S},
             fill!(view(xmin[i], 4:n), 0)
         end
     end
-    
+
     nans(::Type{T}, dims::Dims{N}) where {T<:AbstractFloat,N} =
         fill!(Array{T,N}(undef, dims), NaN)
     dims = size(dat.roi)
@@ -1049,7 +1049,7 @@ function ReducedCalibration(alg::Val{S},
                                 [nans(T, dims) for j in 1:nsrc],  # s
                                 src_names)
     npixels = prod(dims)
-    p = Progress(sum(good); showspeed=true)
+    p = Progress(count(good); showspeed=true)
     Threads.@threads for k in (1:npixels)[good[:]]
         let i = Threads.threadid()
             extract!(obj[i], dat, k)
@@ -1057,9 +1057,9 @@ function ReducedCalibration(alg::Val{S},
             x[i][2] = g
             x[i][3] = (S === :zgσs ? σ : g*σ^2)
             # try
-                fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
-                vmlmb!(obj[i],x[i]; mem=n, lower=xmin[i], upper=xmax[i],  autodiff=false,
-                ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
+            fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
+            vmlmb!(obj[i],x[i]; mem=n, lower=xmin[i], upper=xmax[i],  autodiff=false,
+                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
             # catch e
             #     @debug showerror(stdout, e)
             #     @debug "VMLMB crashed on pixel  $k"
