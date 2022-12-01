@@ -3,6 +3,7 @@
 *.jl.mem
 *.bak
 *.sav
+*.fits*
 build/
 devel/
 work/
