@@ -1043,30 +1043,32 @@ function ReducedCalibration(alg::Val{S},
                                 src_names)
     npixels = prod(dims)
     p = Progress(count(valid); showspeed=true)
-    Threads.@threads for k in (1:npixels)[valid[:]]
-        let i = Threads.threadid()
-            extract!(obj[i], dat, k)
-            copyto!(x[i], xmin[i])
-            x[i][2] = g
-            x[i][3] = (S === :zgσs ? σ : g*σ^2)
-            # try
-            fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
-            vmlmb!(obj[i],x[i]; mem=n, lower=xmin[i], upper=xmax[i],  autodiff=false,
-                   ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
-            # catch e
-            #     @debug showerror(stdout, e)
-            #     @debug "VMLMB crashed on pixel  $k"
-            #     reset!(obj[i])
-            #     continue
-            # end
-            out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
-            out.z[k] = x[i][1]
-            out.g[k] = x[i][2]
-            out.σ[k] = (S === :zgσs ? x[i][3] : sqrt(x[i][3]/x[i][2]))
-            for j in 1:nsrc
-                out.s[j][k] = x[i][j + 3]
+    Threads.@threads for k in 1:npixels
+        if valid[k]
+            let i = Threads.threadid()
+                extract!(obj[i], dat, k)
+                copyto!(x[i], xmin[i])
+                x[i][2] = g
+                x[i][3] = (S === :zgσs ? σ : g*σ^2)
+                # try
+                fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
+                vmlmb!(obj[i],x[i]; mem=n, lower=xmin[i], upper=xmax[i],  autodiff=false,
+                ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
+                # catch e
+                #     @debug showerror(stdout, e)
+                #     @debug "VMLMB crashed on pixel  $k"
+                #     reset!(obj[i])
+                #     continue
+                # end
+                out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
+                out.z[k] = x[i][1]
+                out.g[k] = x[i][2]
+                out.σ[k] = (S === :zgσs ? x[i][3] : sqrt(x[i][3]/x[i][2]))
+                for j in 1:nsrc
+                    out.s[j][k] = x[i][j + 3]
+                end
+                quiet || next!(p)
             end
-            quiet || next!(p)
         end
     end
     return out
