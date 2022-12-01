@@ -9,13 +9,14 @@ is an alias for:
 const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
 
 """
-    A = DetectorAxis(len; off=0, bin=1)
+    A = DetectorAxis(len; off=0, bin=1, step=1)
 
 builds an instance `A` of `DetectorAxis` describing a detector axis with `len`
 samples starting at offset `off` with respect to the corresponding sensor egde
-and with a binning factor `bin`.  The offset `off` and the binning factor `bin`
-are in units of sensor samples (e.g., *pixels*), the length `len` is in units
-of macro-samples (i.e., `bin` sensor samples each).
+and with a binning factor `bin`, and sampling `step`. The offset `off`, the
+binning factor `bin`, and the sampling `step` are in units of sensor samples
+(e.g., *pixels*), the length `len` is in units of macro-samples (i.e., `bin`
+sensor samples each).
 
 Basic methods (`A` is an instance of `DetectorAxis`, `ROI` is a tuple of
 `DetectorAxis`):
@@ -23,6 +24,7 @@ Basic methods (`A` is an instance of `DetectorAxis`, `ROI` is a tuple of
     length(A)    # the length `len`
     offset(A)    # the offset `off`
     binning(A)   # the binning factor `bin`
+    step(A)      # the sampling step in pixels `step`
     size(ROI)    # the size of ROI
     size(ROI, i) # the length of the i-th dimension of ROI
 
@@ -47,6 +49,7 @@ struct DetectorAxis
     len::Int # number of macro-pixels
     off::Int # offset (in pixels) of the ROI relative to detector edge
     bin::Int # binning factor (in pixels)
+    stp::Int # step (in pixels)
 end
 
 const DetectorAxes{N} = NTuple{N,DetectorAxis}
@@ -57,7 +60,7 @@ const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
 
 DetectorAxis(A::DetectorAxis) = A
 
-DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1) =
+DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1, step::Integer=1) =
     DetectorAxis(len, off, bin)
 
 DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
@@ -65,15 +68,18 @@ DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
     DetectorAxis(length(R), offset(R), binning(R))
 end
 
-offset(A::DetectorAxis) = A.off
+# Accessors.
+Base.length(A::DetectorAxis) = getfield(A, :len)
+offset(A::DetectorAxis) = getfield(A, :off)
+binning(A::DetectorAxis) = getfield(A, :bin)
+Base.step(A::DetectorAxis) = getfield(A, :step)
+
 offset(R::OrdinalRange{<:Integer,<:Integer}) = Int(first(R)) - 1
-binning(A::DetectorAxis) = A.bin
-binning(R::OrdinalRange{<:Integer,<:Integer}) = Int(step(R))
+# FIXME: binning(R::OrdinalRange{<:Integer,<:Integer}) = Int(step(R))
 
 @doc @doc(DetectorAxis) offset
 @doc @doc(DetectorAxis) binning
 
-Base.length(A::DetectorAxis) = A.len
 Base.size(roi::DetectorAxes) = map(length, roi)
 Base.size(roi::DetectorAxes{N}, i::Integer) where {N} =
     (i < 1 ? error("out of range dimension index") :
@@ -83,7 +89,7 @@ Base.axes(roi::DetectorAxes, i::Integer) = Base.OneTo(size(roi, i))
 
 Base.show(io::IO, A::DetectorAxis) =
     print(io, "DetectorAxis(", length(A), "; off=", offset(A),
-          ", bin=", binning(A), ")")
+          ", bin=", binning(A), ", step=", step(A), ")")
 
 DetectorAxes{N}(A::AbstractArray{<:Any,N}) where {N} = DetectorAxes(A)
 DetectorAxes{N}(I::DetectorAxisTypes...) where {N} = DetectorAxes{N}(I)
@@ -113,6 +119,10 @@ function Base.merge!(dst::FitsHeader,
         sfx = string(d)
         dst["BIN"*sfx] = (prm[d].bin, "binning factor of axis "*sfx)
     end
+    for d in 1:n
+        sfx = string(d)
+        dst["STP"*sfx] = (prm[d].bin, "sampling step axis "*sfx)
+    end
     return dst
 end
 
@@ -123,7 +133,8 @@ function Base.get(::Type{DetectorAxis}, i::Integer,
     len = src["NAXIS"*sfx]
     off = get(src, "OFF"*sfx, 0)
     bin = get(src, "BIN"*sfx, 1)
-    return DetectorAxis(len, off, bin)
+    stp = get(src, "STP"*sfx, 1)
+    return DetectorAxis(len, off, bin, stp)
 end
 
 function Base.get(::Type{Vector{DetectorAxis}},
