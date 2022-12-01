@@ -987,18 +987,11 @@ ReducedCalibration(dat::CalibrationData; kwds...) =
     ReducedCalibration(:zgσs, dat; kwds...)
 
 ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
-    ReducedCalibration(Val(alg), dat, FastUniformArray(true, size(dat.roi)); kwds...)
-
-
-ReducedCalibration(dat::CalibrationData, good::AbstractArray{Bool}; kwds...) =
-    ReducedCalibration(:zgσs, dat, good; kwds...)
-
-ReducedCalibration(alg::Symbol, dat::CalibrationData, good::AbstractArray{Bool}; kwds...) =
-    ReducedCalibration(Val(alg), dat, good; kwds...)
+    ReducedCalibration(Val(alg), dat; kwds...)
 
 function ReducedCalibration(alg::Val{S},
-                            dat::CalibrationData{T,N},
-                            good::AbstractArray{Bool, N};
+                            dat::CalibrationData{T,N};
+                            valid::AbstractArray{Bool, N} = FastUniformArray(true, size(dat.roi)),
                             nonnegative::Bool = true,
                             maxval::Real = +Inf,
                             gmin::Real = 0.1,
@@ -1049,8 +1042,8 @@ function ReducedCalibration(alg::Val{S},
                                 [nans(T, dims) for j in 1:nsrc],  # s
                                 src_names)
     npixels = prod(dims)
-    p = Progress(count(good); showspeed=true)
-    Threads.@threads for k in (1:npixels)[good[:]]
+    p = Progress(count(valid); showspeed=true)
+    Threads.@threads for k in (1:npixels)[valid[:]]
         let i = Threads.threadid()
             extract!(obj[i], dat, k)
             copyto!(x[i], xmin[i])
