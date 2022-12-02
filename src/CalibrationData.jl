@@ -98,6 +98,18 @@ end
 DetectorAxes{N}(cal::CalibrationData{T,N}) where {T,N} = DetectorAxes(cal)
 DetectorAxes(cal::CalibrationData) = getfield(cal, :roi)
 
+Base.eltype(A::CalibrationData) = eltype(typeof(A))
+Base.eltype(::Type{<:CalibrationData{T}}) where {T} = T
+
+Base.ndims(A::CalibrationData) = ndims(typeof(A))
+Base.ndims(::Type{<:CalibrationData{T,N}}) where {T,N} = N
+
+Base.size(A::CalibrationData) = size(DetectorAxes(A))
+Base.size(A::CalibrationData, d::Integer) = size(DetectorAxes(A), d)
+
+Base.axes(A::CalibrationData) = axes(DetectorAxes(A))
+Base.axes(A::CalibrationData, d::Integer) = axes(DetectorAxes(A), d)
+
 """
     CalibrationCategory(catname, expr)
 
@@ -301,11 +313,6 @@ function update_list!(A::AbstractVector{T}, x::T) where {T}
     push!(A, x)
 end
 
-Base.eltype(A::CalibrationData) = eltype(typeof(A))
-Base.eltype(::Type{<:CalibrationData{T}}) where {T} = T
-
-Base.size(A::CalibrationData) = size(A.roi)
-
 function Base.merge!(A::CalibrationData, itr)
     for x in itr
         push!(A, x)
@@ -335,7 +342,7 @@ function Base.push!(A::CalibrationData{T,N},
     dims = size(pxl)
     dims == size(roi) || dimension_mismatch(
         "array of pixels and region of interest have different sizes")
-    roi == A.roi || argument_error(
+    roi == DetectorAxes(A) || argument_error(
         "detector ROI settings must be identical for all calibration data")
 
     # Update statistics for given category and exposure time.
