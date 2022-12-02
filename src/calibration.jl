@@ -999,6 +999,7 @@ function ReducedCalibration(alg::Val{S},
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
                             quiet::Bool = false) where {S,T,N}
+    axes(valid) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
     (isfinite(gmin) && gmin > 0) || argument_error(
         "value of keyword `gmin` must be finite and positive")
     (isfinite(g) && g ≥ gmin) || argument_error(
