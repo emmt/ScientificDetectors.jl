@@ -41,28 +41,28 @@ include("SimpleCalibration.jl")
 """
     find(obj, key) -> j
 
-yields the index `j` of the current term in reduced calibration data which
+yields the index `j` of the source term in reduced calibration data which
 match `key` or `0` if not found.
 
 """
 find(obj::ReducedCalibration, key::Nothing) = 0
 
 function find(obj::ReducedCalibration, key::AbstractString)
-    cat = categories(obj)
+    src = sources(obj)
     n = 0
     j = 0
-    for i in 1:length(cat)
-        if cat[i] == key
+    for i in nsources(obj)
+        if src[i] == key
             j = i
             n += 1
         end
     end
-    n > 1 && error("non-unique category identifier")
+    n > 1 && error("non-unique source identifier")
     return j
 end
 
 find(obj::ReducedCalibration, j::Integer) =
-    (1 ≤ j ≤ length(categories(obj)) ? Int(j) : 0)
+    (1 ≤ j ≤  nsources(obj) ? Int(j) : 0)
 
 # Same as ArrayTools.promote_eltype but for a vector of arrays.  Using a
 # recursion is the fastest method.  FIXME: Only needed by ReducedCalibration.

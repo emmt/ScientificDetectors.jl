@@ -12,13 +12,13 @@ Arguments `f`, `z`, `g` and `σ` are pixelwise.
 
 Additional arguments `args...` can be:
 
-- Key-value pairs like `"src1" => c1`, `:src2 => c2`, ... of category
-  identifiers and arrays corresponding to current terms like the dark current or
+- Key-value pairs like `"src1" => c1`, `:src2 => c2`, ... of source
+  identifiers and arrays corresponding to source terms like the dark current or
   any background flux (in ADU/second).  Arguments `c1`, `c2`, ... are assumed to
   be pixelwise.
 
 - Two arguments: `s = [c1, c2, ...]` and `src = ["src1", "src2", ...]`
-  respectively a vector of current terms and of corresponding category
+  respectively a vector of source terms and of corresponding source
   identifiers.
 
 Floating-point type, say `T`, and dimensionality, say `N`, may be specified:
@@ -40,10 +40,12 @@ Other implemented methods (must be imported or prefixed by `Calibration.`):
     detectorbias(obj)    # yields constant detector bias (in ADU)
     detectorgain(obj)    # yields detector gain (in e-/ADU)
     detectornoise(obj)   # yields standard deviation of detector noise (in ADU)
-    currents(obj)        # yields all current terms
-    current(obj, k)      # yields k-th current term (in ADU/s)
-    categories(obj)      # yields names of current terms
-    category(obj, k)     # yields name of k-th current term
+    sources(obj)         # yields all sources terms
+    sources(obj, k)      # yields k-th source term (in ADU/s)
+    sourcesid(obj)       # yields names of sources terms
+    sourcesid(obj, k)    # yields name of k-th source term
+    nsources(obj)        # # yields number of sources
+
 
 """
 struct ReducedCalibration{T<:AbstractFloat,N}
@@ -62,11 +64,11 @@ struct ReducedCalibration{T<:AbstractFloat,N}
     # Standard deviation of the readout noise (in ADU/frame):
     σ::Array{T,N}
 
-    # Time dependent bias, e.g. dark current and background flux, (in
+    # Time dependent source, e.g. dark current and background flux, (in
     # ADU/second), may be empty or zero-filled:
     s::Vector{Array{T,N}}
 
-    # Categories of the different sources responsible of the different
+    # Identifiers of the different sources responsible of the different
     # time-dependent bias terms.
     src::Vector{String}
 
@@ -131,11 +133,12 @@ cologlikelihood(obj::ReducedCalibration) = obj.f
 detectorbias(obj::ReducedCalibration) = obj.z
 detectorgain(obj::ReducedCalibration) = obj.g
 detectornoise(obj::ReducedCalibration) = obj.σ
-currents(obj::ReducedCalibration) = obj.s
-current(obj::ReducedCalibration, k::Integer) = getindex(currents(obj), k)
-categories(obj::ReducedCalibration) = obj.src
-category(obj::ReducedCalibration, k::Integer) = getindex(categories(obj), k)
+sources(obj::ReducedCalibration) = obj.s
+sources(obj::ReducedCalibration, k::Integer) = getindex(sources(obj), k)
+sourcesid(obj::ReducedCalibration) = obj.src
+sourcesid(obj::ReducedCalibration, k::Integer) = getindex(sourcesid(obj), k)
 
+nsources(obj::ReducedCalibration) = length(sources(obj))
 #
 # Basic operations on ReducedCalibration structure.
 #
@@ -154,8 +157,8 @@ Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
 Base.show(io::IO, obj::ReducedCalibration{T,N}) where {T,N} = begin
     join(io, size(obj),"×")
     print(io, " ReducedCalibration{$T,$N}:")
-    for i in 1:length(categories(obj))
-        print(io, "\n - src", i, ": \"", identifier(category(obj,i)), "\"")
+    for i in 1:nsources(obj)
+        print(io, "\n - src", i, ": \"", identifier(sourcesid(obj,i)), "\"")
     end
 end
 
@@ -169,48 +172,48 @@ end
 # More complex outer constructors for ReducedCalibration structure.
 #
 
-# Provide a ROI if not specified and parse current terms.
+# Provide a ROI if not specified and parse source terms.
 function ReducedCalibration(f::AbstractArray, z::AbstractArray,
                             g::AbstractArray, σ::AbstractArray,
                             args...; kwds...)
     ReducedCalibration(map(DetectorAxis, size(f)), f, z, g, σ,
-                       _getcurrents(args...)...; kwds...)
+                       _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T}(f::AbstractArray, z::AbstractArray,
                                g::AbstractArray, σ::AbstractArray,
                                args...; kwds...) where {T}
     ReducedCalibration{T}(map(DetectorAxis, size(f)), f, z, g, σ,
-                          _getcurrents(args...)...; kwds...)
+                          _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T,N}(f::AbstractArray, z::AbstractArray,
                                  g::AbstractArray, σ::AbstractArray,
                                  args...; kwds...) where {T,N}
     ReducedCalibration{T,N}(map(DetectorAxis, size(f)), f, z, g, σ,
-                            _getcurrents(args...)...; kwds...)
+                            _getsources(args...)...; kwds...)
 end
 
-# Parse current terms.
+# Parse source terms.
 function ReducedCalibration(roi::Tuple{Vararg{DetectorAxis}},
                             f::AbstractArray, z::AbstractArray,
                             g::AbstractArray, σ::AbstractArray,
                             args...; kwds...)
-    ReducedCalibration(roi, f, z, g, σ, _getcurrents(args...)...; kwds...)
+    ReducedCalibration(roi, f, z, g, σ, _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T}(roi::Tuple{Vararg{DetectorAxis}},
                                f::AbstractArray, z::AbstractArray,
                                g::AbstractArray, σ::AbstractArray,
                                args...; kwds...) where {T}
-    ReducedCalibration{T}(roi, f, z, g, σ, _getcurrents(args...)...; kwds...)
+    ReducedCalibration{T}(roi, f, z, g, σ, _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                                  f::AbstractArray, z::AbstractArray,
                                  g::AbstractArray, σ::AbstractArray,
                                  args...; kwds...) where {T,N}
-    ReducedCalibration{T,N}(roi, f, z, g, σ, _getcurrents(args...)...; kwds...)
+    ReducedCalibration{T,N}(roi, f, z, g, σ, _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration(roi::NTuple{N,DetectorAxis},
@@ -247,7 +250,7 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                                  kwds...) where {T,N}
     T <: AbstractFloat || error("parameter `T` must be a floating-point type")
     length(roi) == N || error("ROI has incompatible number of dimensions")
-    length(src) == length(s) || error("incompatible number of categories")
+    length(src) == length(s) || error("incompatible number of sources")
     dims = size(roi)
 
     function fixarray(A::AbstractArray)
@@ -269,11 +272,11 @@ end
 
 # Convert pairs like "key1"=>arr1, :key2=>arr2, ... in a list of
 # arrays and a list of identifiers.
-_getcurrents(args::Pair{<:Union{AbstractString,Symbol},<:AbstractArray}...) =
+_getsources(args::Pair{<:Union{AbstractString,Symbol},<:AbstractArray}...) =
     (collect(map(x -> x[2], args)),
      collect(map(x -> identifier(x[1]), args)))
-_getcurrents() = Int8[], String[]
-_getcurrents(s::AbstractVector{<:AbstractArray}, src::AbstractVector) =
+_getsources() = Int8[], String[]
+_getsources(s::AbstractVector{<:AbstractArray}, src::AbstractVector) =
     (s, src)
 
 """
