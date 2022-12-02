@@ -73,7 +73,7 @@ struct ReducedCalibration{T<:AbstractFloat,N}
     src::Vector{String}
 
     # bad pixels map
-    bpm::Array{Bool,N}
+    bpm::AbstractArray{Bool, N}
 
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
