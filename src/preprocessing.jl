@@ -10,8 +10,8 @@ import ..ScientificDetectors:
     process
 
 using ..Calibration:
-    categories,
-    currents,
+    sourcesid,
+    sources,
     detectorbias,
     detectorgain,
     detectornoise,
