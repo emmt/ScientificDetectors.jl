@@ -65,16 +65,17 @@ DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1, step::Integer=1) =
 
 DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
     step(R) > 0 || argument_error("step must be positive")
-    DetectorAxis(length(R), offset(R), binning(R))
+    DetectorAxis(length(R), offset(R), binning(R),step(R))
 end
 
 # Accessors.
 Base.length(A::DetectorAxis) = getfield(A, :len)
 offset(A::DetectorAxis) = getfield(A, :off)
 binning(A::DetectorAxis) = getfield(A, :bin)
-Base.step(A::DetectorAxis) = getfield(A, :step)
+Base.step(A::DetectorAxis) = getfield(A, :stp)
 
 offset(R::OrdinalRange{<:Integer,<:Integer}) = Int(first(R)) - 1
+binning(A::OrdinalRange) = 1
 # FIXME: binning(R::OrdinalRange{<:Integer,<:Integer}) = Int(step(R))
 
 @doc @doc(DetectorAxis) offset
