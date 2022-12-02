@@ -1042,7 +1042,8 @@ function ReducedCalibration(alg::Val{S},
                                 nans(T, dims),  # g
                                 nans(T, dims),  # σ
                                 [nans(T, dims) for j in 1:nsrc],  # s
-                                src_names)
+                                src_names;
+                                bpm=valid)
     npixels = prod(dims)
     p = Progress(count(valid); showspeed=true)
     Threads.@threads for k in 1:npixels
