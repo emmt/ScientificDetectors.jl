@@ -61,11 +61,11 @@ const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
 DetectorAxis(A::DetectorAxis) = A
 
 DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1, step::Integer=1) =
-    DetectorAxis(len, off, bin)
+    DetectorAxis(len, off, bin, step)
 
 DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
     step(R) > 0 || argument_error("step must be positive")
-    DetectorAxis(length(R), offset(R), binning(R),step(R))
+    DetectorAxis(length(R), offset(R), binning(R), step(R))
 end
 
 # Accessors.
@@ -74,9 +74,9 @@ offset(A::DetectorAxis) = getfield(A, :off)
 binning(A::DetectorAxis) = getfield(A, :bin)
 Base.step(A::DetectorAxis) = getfield(A, :stp)
 
+# Extend methods for ranges.
 offset(R::OrdinalRange{<:Integer,<:Integer}) = Int(first(R)) - 1
-binning(A::OrdinalRange) = 1
-# FIXME: binning(R::OrdinalRange{<:Integer,<:Integer}) = Int(step(R))
+binning(R::OrdinalRange{<:Integer,<:Integer}) = 1
 
 @doc @doc(DetectorAxis) offset
 @doc @doc(DetectorAxis) binning
@@ -98,7 +98,7 @@ DetectorAxes{N}(I::NTuple{N,DetectorAxisTypes}) where {N} = DetectorAxes(I)
 
 DetectorAxes(A::AbstractArray) = begin
     Base.has_offset_axes(A) && error("array has non-standard indexing")
-    map(DetectorAxis, size(A))
+    return map(DetectorAxis, size(A))
 end
 
 DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
@@ -150,7 +150,7 @@ end
 
 function Base.get(::Type{DetectorAxes{N}},
                   src::Union{FitsHeader,FitsImage}) where {N}
-    ntuple(i -> get(DetectorAxis, i, src), Val(N))
+    return ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
 
 #------------------------------------------------------------------------------

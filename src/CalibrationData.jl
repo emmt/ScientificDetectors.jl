@@ -304,7 +304,6 @@ end
 Base.eltype(A::CalibrationData) = eltype(typeof(A))
 Base.eltype(::Type{<:CalibrationData{T}}) where {T} = T
 
-
 Base.size(A::CalibrationData) = size(A.roi)
 
 function Base.merge!(A::CalibrationData, itr)
