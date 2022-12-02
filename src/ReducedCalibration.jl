@@ -144,9 +144,9 @@ Base.ndims(::Type{<:ReducedCalibration{T,N}}) where {T,N} = N
 Base.eltype(obj::ReducedCalibration) = eltype(typeof(obj))
 Base.eltype(::Type{<:ReducedCalibration{T}}) where {T} = T
 Base.size(obj::ReducedCalibration) = size(DetectorAxes(obj))
-Base.size(obj::ReducedCalibration, i) = size(DetectorAxes(obj), i)
+Base.size(obj::ReducedCalibration, d::Integer) = size(DetectorAxes(obj), d)
 Base.axes(obj::ReducedCalibration) = axes(DetectorAxes(obj))
-Base.axes(obj::ReducedCalibration, i) = axes(DetectorAxes(obj), i)
+Base.axes(obj::ReducedCalibration, d::Integer) = axes(DetectorAxes(obj), d)
 Base.length(obj::ReducedCalibration) = prod(size(obj))
 Base.convert(::Type{T}, obj::ReducedCalibration) where {T<:ReducedCalibration} =
     T(obj)
