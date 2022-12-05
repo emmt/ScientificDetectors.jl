@@ -35,7 +35,8 @@ export
     readfits,
     write!,
     writefits!,
-    writefits
+    writefits,
+    prune
 
 import Base: read, write
 
@@ -61,7 +62,8 @@ import .Calibration:
     CalibrationDataFrame,
     CalibrationFrameSampler,
     ReducedCalibration,
-    SimpleCalibration
+    SimpleCalibration,
+    prune
 
 include("preprocessing.jl")
 import .Preprocessing:
@@ -72,6 +74,10 @@ import .Preprocessing:
     StaticNoise
 
 include("io.jl")
+
+include("badpixel.jl")
+import .BadPixel:
+    buildbadpixel
 
 @deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 @deprecate regionofinterest(A) DetectorAxes(A) false
