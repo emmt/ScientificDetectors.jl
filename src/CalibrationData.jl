@@ -448,25 +448,3 @@ function prunecalibration(A::CalibrationData{T,N}) where {T,N}
         new_cat,              # cat_index
         new_src)              # src_index
 end
-
-
-
-"""
-    buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05) where {T,N}
-
-Compute bad pixel map
-"""
-function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05) where {T,N}
-
-   # d = vcat(mean.( A.stat),var.( A.stat))
-    d = vcat(mean.( A.stat))
-	m = median.(d)
-	v = mad.(d)
-    nb_param = length(d)
-
-	whiten = (./).((.-).(d, m), max.(v,0.1 )) # broadcasted broadcast is rather unreadable
-	
-	bpm = (sqrt.(sum(x -> abs2.(x),whiten)) .< cquantile.(Chisq(nb_param), threshold))
-
-	return bpm
-end

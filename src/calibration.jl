@@ -1,5 +1,15 @@
 module Calibration
 
+export
+    cologlikelihood,
+    detectorbias,
+    detectorgain,
+    detectornoise,
+    badpixelmap,
+    sources,
+    sourcesid,
+    nsources
+
 using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
