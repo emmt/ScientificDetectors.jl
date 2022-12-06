@@ -1,6 +1,6 @@
 module Calibration
 
-using ProgressMeter
+using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
 using ArrayTools
@@ -35,7 +35,7 @@ include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
-
+include("badpixel.jl")
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.
 """

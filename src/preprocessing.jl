@@ -45,8 +45,8 @@ terms.  Arguments `a`, `b`, `q` and `r` are pixelwise.
 It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
-    PreprocessingParameters(cal::ReducedCalibration,
-                            bad=zeros(Bool, size(cal));
+    PreprocessingParameters(cal::ReducedCalibration;
+                            bad=nothing,
                             flat=nothing, flatbg=nothing,
                             bg=nothing, Δt=0) -> obj
 
@@ -293,12 +293,17 @@ PreprocessingParameters(cal::ReducedCalibration{T}, args...; kwds...) where {T} 
 PreprocessingParameters{T,N}(cal::ReducedCalibration{R,N}, args...; kwds...) where {T,R,N} =
     PreprocessingParameters{T}(cal, args...; kwds...)
 
-function PreprocessingParameters{T}(cal::ReducedCalibration{R,N},
-                                    bad::AbstractArray{Bool,N} = zeros(Bool, size(cal));
+function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
+                                    bad::Union{Nothing,AbstractArray{Bool,N}} = nothing,
                                     flat::Union{Nothing,Integer,String} = nothing,
                                     flatbg::Union{Nothing,Integer,String} = nothing,
                                     bg::Union{Nothing,Integer,String} = nothing,
                                     Δt::Real=0) where {T<:AbstractFloat,R,N}
+
+    # Get bad pixel
+    if (bad === nothing)
+        bad = cal.bpm
+    end
 
     # Get index of flat term and its background.
     jflat = find(cal, flat)
@@ -404,8 +409,7 @@ end
 PreprocessingParameters(cal::SimpleCalibration{T}, args...; kwds...) where {T} =
     PreprocessingParameters{T}(cal, args...; kwds...)
 
-function PreprocessingParameters{T}(cal::SimpleCalibration{R,N},
-                                    bad::AbstractArray{Bool,N} = zeros(Bool, size(cal))
+function PreprocessingParameters{T}(cal::SimpleCalibration{R,N}
                                     ) where {T<:AbstractFloat,R,N}
 
     # Get exposure time.
