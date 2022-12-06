@@ -73,7 +73,7 @@ struct ReducedCalibration{T<:AbstractFloat,N}
     src::Vector{String}
 
     # bad pixels map
-    bpm::AbstractArray{Bool, N}
+    bpm::Array{Bool,N}
 
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
@@ -137,6 +137,7 @@ cologlikelihood(obj::ReducedCalibration) = obj.f
 detectorbias(obj::ReducedCalibration) = obj.z
 detectorgain(obj::ReducedCalibration) = obj.g
 detectornoise(obj::ReducedCalibration) = obj.σ
+badpixelmap(obj::ReducedCalibration) = obj.bpm
 sources(obj::ReducedCalibration) = obj.s
 sources(obj::ReducedCalibration, k::Integer) = getindex(sources(obj), k)
 sourcesid(obj::ReducedCalibration) = obj.src

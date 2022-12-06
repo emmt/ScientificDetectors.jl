@@ -36,11 +36,11 @@ export
     write!,
     writefits!,
     writefits,
-    prune
+    buildbadpixel!
 
 import Base: read, write
 
-using Statistics, StatsBase
+using Statistics, StatsBase, Distributions
 using MultivariateOnlineStatistics
 using ArrayTools
 using EasyFITS
@@ -63,7 +63,7 @@ import .Calibration:
     CalibrationFrameSampler,
     ReducedCalibration,
     SimpleCalibration,
-    prune
+    buildbadpixel!
 
 include("preprocessing.jl")
 import .Preprocessing:
@@ -75,9 +75,6 @@ import .Preprocessing:
 
 include("io.jl")
 
-include("badpixel.jl")
-import .BadPixel:
-    buildbadpixel
 
 @deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 @deprecate regionofinterest(A) DetectorAxes(A) false
