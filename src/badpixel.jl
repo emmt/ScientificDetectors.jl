@@ -4,33 +4,102 @@ using StatsBase, Distributions
 
 
 """
-    buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05 ) where {T,N}
+    buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
+	
+	buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
 
-Update the bad pixel map according to all the quantities computed in `C`.  
+Update the bad pixel map according to all the quantities computed in `ReducedCalibration` or in  `CalibrationData.stat`
+
+- `threshold` is the rejection threshold (default 0.05) 
+
+- `estimatedof`  (default `false`), if `true`  the number of degree of freedom is estimated from the mean of the Χ^2 distribution. 
+
+-  `method` select the method of Χ^2 computation: 
+		- `:cov` use the empirical covariance matrix (default),
+		- `:diag` use the empirical variance only,
+		- `:robust` use robust estimates of empirical variance and mean using mad and median
+
 """
-function buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05 ) where {T,N}
+function buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
 
-	nb_param = 4 + nsources(C)
-	d = [ zeros(size(C)) for i in 1:nb_param]
 
 	valid = badpixelmap(C)
+	nvalid = count(valid)
+
+	nb_param = 4 + nsources(C)
+
+	
+	d = zeros(nvalid,nb_param) 
 
 	# Co-log-likelihood.
-	d[1] = cologlikelihood(C)
+	d[:,1] .= cologlikelihood(C)[valid]
     # Zero-level 
-	d[2] = detectorbias(C)
+	d[:,2] .= detectorbias(C)[valid]
     # Detector gain 
-	d[3] = detectorgain(C)
+	d[:,3] .= detectorgain(C)[valid]
     # Standard deviation of the readout noise 
-	d[4] = detectornoise(C)
+	d[:,4] .= detectornoise(C)[valid]
 	#sources
-	d[5:nb_param] .= sources(C)
-	m = median.(d)
-	v = mad.(d)
+	@inbounds for i=1:nsources(C)
+		d[:,4+i] .= sources(C,i)[valid]
+	end
 
-	whiten = (./).((.-).(d, m), max.(v,0.1 )) # broadcasted broadcast is rather unreadable
-	
-	C.bpm .= valid .& (sqrt.(sum(x -> abs2.(x),whiten)) .< cquantile.(Chisq(nb_param), threshold))
+	#m = [ median(d[:,i]) for i in 1:nb_param]
+	#v = [ mad(d[:,i]) for i in 1:nb_param]
+	Χ2 =Chi2(Val(method),d)
+	if estimatedof
+		dof = mean(Χ2)
+	else
+		dof = nb_param
+	end
+	C.bpm[valid] .=  (Χ2 .< cquantile(Chisq(dof), threshold))
+	return  C
+end
 
-	return C
+
+function Chi2( ::Val{:cov},A::AbstractArray{T,2}) where {T<:AbstractFloat}
+	m = mean(A, dims=1)
+	t = (A .- m)
+	U = cholesky(Symmetric(1/(size(A,1)-1)*(t'*t)); check=true).U
+	return sum(abs2,t / U,dims=2)
+end
+
+
+function Chi2(::Val{:diag},A::AbstractArray{T,2}) where {T<:AbstractFloat}
+	m = mean(A, dims=1)
+	s = std(A, dims=1, mean=m)
+	return sum(abs2,(A.-m) ./ s,dims=2)
+end
+
+
+function Chi2(::Val{:robust}, A::AbstractArray{T,2}) where {T<:AbstractFloat}
+	m = median(A, dims=1)
+	s = [ max.(1,mad(A[:,i],center=m[i])) for i in 1:size(A,2)]'
+	return  sum(abs2,(A.-m) ./ s,dims=2)
+end
+
+
+function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
+
+   # d = vcat(mean.( A.stat),var.( A.stat))
+
+    nb_param = length(A.stat)
+    numel = prod(size(A))
+	bpm = zeros(size(A))
+
+    d = zeros(numel,nb_param)
+    @inbounds for i in 1:nb_param 
+        d[:,i] = mean(A.stat[i])[:]
+    end
+
+    Χ2 =Chi2(Val(method),d)
+    if estimatedof
+		dof = mean(Χ2)
+	else
+		dof = nb_param
+	end
+
+	bpm .= (sum(x -> abs2.(x),Χ2) .< cquantile(Chisq(nb_param), threshold))
+
+	return bpm
 end
