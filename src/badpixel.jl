@@ -99,7 +99,7 @@ function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimated
 		dof = nb_param
 	end
 
-	bpm .= (sum(x -> abs2.(x),Χ2) .< cquantile(Chisq(nb_param), threshold))
+	bpm[:] .= (Χ2 .< cquantile(Chisq(nb_param), threshold))
 
 	return bpm
 end
