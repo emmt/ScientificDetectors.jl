@@ -391,11 +391,11 @@ StatsBase.nobs(A::CalibrationData) = begin
 end
 
 """
-    B = prune(A::CalibrationData{T,N}) where {T,N}
+    B = prunecalibration(A::CalibrationData{T,N}) where {T,N}
 
     Return a new CalibrationData `B` from CalibrationData `A` pruned of empty categories and sources 
 """
-function prune(A::CalibrationData{T,N}) where {T,N}
+function prunecalibration(A::CalibrationData{T,N}) where {T,N}
     src_nobs = zeros(length(A.src_index))
     existing_cat = falses(length(A.cat_index))
     nonzero_stat = falses(length(A.stat_index))
@@ -421,20 +421,19 @@ function prune(A::CalibrationData{T,N}) where {T,N}
     H = A.src_to_cat[existing_cat,existing_src]
 
     # update categories dictionary
-    ncat=0
+
+    ncat=cumsum(existing_src)
     for (cat, c) ∈ A.cat_index
         if existing_cat[c] 
-            ncat +=1
-            new_cat[cat] = ncat
+            new_cat[cat] = ncat[c]
         end
     end
 
     # update sources dictionary
-    nsrc=0
+    nsrc=cumsum(existing_src)
     for (src, s) ∈ A.src_index
         if existing_src[s] 
-            nsrc +=1
-            new_src[src] = nsrc
+            new_src[src] = nsrc[s]
         end
     end
     
