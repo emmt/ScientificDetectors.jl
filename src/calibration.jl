@@ -61,7 +61,7 @@ function find(obj::ReducedCalibration, key::AbstractString)
     src = sources(obj)
     n = 0
     j = 0
-    for i in nsources(obj)
+    for i in 1:nsources(obj)
         if src[i] == key
             j = i
             n += 1
