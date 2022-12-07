@@ -85,7 +85,7 @@ function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimated
 
     nb_param = length(A.stat)
     numel = prod(size(A))
-	bpm = zeros(size(A))
+	bpm = trues(size(A))
 
     d = zeros(numel,nb_param)
     @inbounds for i in 1:nb_param 

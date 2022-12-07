@@ -1008,6 +1008,7 @@ function ReducedCalibration(alg::Val{S},
                             gmax::Real = +Inf,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
+                            badpixvalue::T = T(0),
                             quiet::Bool = false) where {S,T,N}
     axes(valid) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
     (isfinite(gmin) && gmin > 0) || argument_error(
@@ -1039,19 +1040,19 @@ function ReducedCalibration(alg::Val{S},
         end
     end
 
-    nans(::Type{T}, dims::Dims{N}) where {T<:AbstractFloat,N} =
-        fill!(Array{T,N}(undef, dims), NaN)
+    inits(::Type{T}, dims::Dims{N}, value::T) where {T<:AbstractFloat,N} =
+        fill!(Array{T,N}(undef, dims), value)
     dims = size(dat.roi)
     src_names = Array{String}(undef, nsrc)
     for (key,val) in dat.src_index
         src_names[val] = key
     end
     out = ReducedCalibration{T}(dat.roi,
-                                nans(T, dims),  # f
-                                nans(T, dims),  # z
-                                nans(T, dims),  # g
-                                nans(T, dims),  # σ
-                                [nans(T, dims) for j in 1:nsrc],  # s
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # f
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # z
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # g
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # σ
+                                [inits(T, dims, badpixvalue) for j in 1:nsrc], #[nans(T, dims) for j in 1:nsrc],  # s
                                 src_names;
                                 bpm=valid)
     npixels = prod(dims)

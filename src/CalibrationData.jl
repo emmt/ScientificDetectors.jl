@@ -422,7 +422,7 @@ function prunecalibration(A::CalibrationData{T,N}) where {T,N}
 
     # update categories dictionary
 
-    ncat=cumsum(existing_src)
+    ncat=cumsum(existing_cat)
     for (cat, c) ∈ A.cat_index
         if existing_cat[c] 
             new_cat[cat] = ncat[c]
