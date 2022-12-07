@@ -5,6 +5,7 @@ version = "0.3.0-c"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 EasyFITS = "a977f4a2-36a7-4172-89e7-19c2726f82e5"
 LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

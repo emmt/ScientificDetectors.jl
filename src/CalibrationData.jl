@@ -215,7 +215,7 @@ function CalibrationData{T}(roi::DetectorAxes{N},
             for j in 1:ncols
                 H[i,j] == h[j] || error(
                     "calibration category \"", cal.name, "\" defined ",
-                    "with different combinations of soruces")
+                    "with different combinations of sources")
             end
         end
     end
@@ -388,4 +388,63 @@ StatsBase.nobs(A::CalibrationData) = begin
         n += nobs(x)
     end
     return n
+end
+
+"""
+    B = prunecalibration(A::CalibrationData{T,N}) where {T,N}
+
+    Return a new CalibrationData `B` from CalibrationData `A` pruned of empty categories and sources 
+"""
+function prunecalibration(A::CalibrationData{T,N}) where {T,N}
+    src_nobs = zeros(length(A.src_index))
+    existing_cat = falses(length(A.cat_index))
+    nonzero_stat = falses(length(A.stat_index))
+    new_src = Dict{String,Int}()
+    new_cat = Dict{String,Int}()
+    for (src, s) ∈ A.src_index
+        for (cat, c) ∈ A.cat_index
+            if (A.src_to_cat[c,s] ≠ 0)
+                for (key, i) ∈ A.stat_index
+                    if cat == key[1]             # category name
+                        src_nobs[s] += nobs(A.stat[i])
+                        existing_cat[c] |= true
+                        new_src[src] = s
+                        new_cat[cat] = c
+                    end
+                end
+            end
+        end
+    end
+    existing_src = src_nobs .≠0
+
+    # update source to categories matrix
+    H = A.src_to_cat[existing_cat,existing_src]
+
+    # update categories dictionary
+
+    ncat=cumsum(existing_cat)
+    for (cat, c) ∈ A.cat_index
+        if existing_cat[c] 
+            new_cat[cat] = ncat[c]
+        end
+    end
+
+    # update sources dictionary
+    nsrc=cumsum(existing_src)
+    for (src, s) ∈ A.src_index
+        if existing_src[s] 
+            new_src[src] = nsrc[s]
+        end
+    end
+    
+    
+    # Build instance.
+    return CalibrationData{T,N}(
+        A.roi,                # region of interest
+        A.stat_index,         # stat_index
+        A.stat,               # stat
+        A.null,               # null,
+        H,                    # src_to_cat
+        new_cat,              # cat_index
+        new_src)              # src_index
 end

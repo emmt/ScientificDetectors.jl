@@ -35,11 +35,13 @@ export
     readfits,
     write!,
     writefits!,
-    writefits
+    writefits,
+    buildbadpixel!,
+    buildbadpixel
 
 import Base: read, write
 
-using Statistics, StatsBase
+using Statistics, StatsBase, Distributions
 using MultivariateOnlineStatistics
 using ArrayTools
 using EasyFITS
@@ -61,7 +63,9 @@ import .Calibration:
     CalibrationDataFrame,
     CalibrationFrameSampler,
     ReducedCalibration,
-    SimpleCalibration
+    SimpleCalibration,
+    buildbadpixel,
+    buildbadpixel!
 
 include("preprocessing.jl")
 import .Preprocessing:
@@ -72,6 +76,7 @@ import .Preprocessing:
     StaticNoise
 
 include("io.jl")
+
 
 @deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 @deprecate regionofinterest(A) DetectorAxes(A) false

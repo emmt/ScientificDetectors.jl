@@ -125,23 +125,25 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
+    bpm = read(hdu, inds..., 5)
     s = Vector{typeof(f)}(undef, nsrc)
     for k in 1:nsrc
-        s[k] = read(hdu, inds..., 4 + k)
+        s[k] = read(hdu, inds..., 5 + k)
     end
-    return T(roi, f, z, g, σ, s, src)
+    return T(roi, f, z, g, σ, s, src; bpm=bpm)
 end
 
 function write(io::FitsIO, obj::ReducedCalibration{T,N},
                hdr::FitsHeader) where {T,N}
     # Create data array.
     dims = size(obj)
-    dat = Array{T,N+1}(undef, dims..., 4 + length(obj.s))
+    dat = Array{T,N+1}(undef, dims..., 5 + length(obj.s))
     dat[..,1] .= obj.f
     dat[..,2] .= obj.z
     dat[..,3] .= obj.g
     dat[..,4] .= obj.σ
-    k = 4
+    dat[..,5] .= obj.bpm
+    k = 5
     for s in obj.s
         k += 1
         dat[..,k] .= s

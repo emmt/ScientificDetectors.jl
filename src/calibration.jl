@@ -1,6 +1,16 @@
 module Calibration
 
-using ProgressMeter
+export
+    cologlikelihood,
+    detectorbias,
+    detectorgain,
+    detectornoise,
+    badpixelmap,
+    sources,
+    sourcesid,
+    nsources
+
+using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
 using ArrayTools
@@ -35,34 +45,34 @@ include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
-
+include("badpixel.jl")
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.
 """
     find(obj, key) -> j
 
-yields the index `j` of the current term in reduced calibration data which
+yields the index `j` of the source term in reduced calibration data which
 match `key` or `0` if not found.
 
 """
 find(obj::ReducedCalibration, key::Nothing) = 0
 
 function find(obj::ReducedCalibration, key::AbstractString)
-    cat = categories(obj)
+    src = sources(obj)
     n = 0
     j = 0
-    for i in 1:length(cat)
-        if cat[i] == key
+    for i in 1:nsources(obj)
+        if src[i] == key
             j = i
             n += 1
         end
     end
-    n > 1 && error("non-unique category identifier")
+    n > 1 && error("non-unique source identifier")
     return j
 end
 
 find(obj::ReducedCalibration, j::Integer) =
-    (1 ≤ j ≤ length(categories(obj)) ? Int(j) : 0)
+    (1 ≤ j ≤  nsources(obj) ? Int(j) : 0)
 
 # Same as ArrayTools.promote_eltype but for a vector of arrays.  Using a
 # recursion is the fastest method.  FIXME: Only needed by ReducedCalibration.
@@ -998,6 +1008,7 @@ function ReducedCalibration(alg::Val{S},
                             gmax::Real = +Inf,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
+                            badpixvalue::T = T(0),
                             quiet::Bool = false) where {S,T,N}
     axes(valid) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
     (isfinite(gmin) && gmin > 0) || argument_error(
@@ -1029,20 +1040,21 @@ function ReducedCalibration(alg::Val{S},
         end
     end
 
-    nans(::Type{T}, dims::Dims{N}) where {T<:AbstractFloat,N} =
-        fill!(Array{T,N}(undef, dims), NaN)
+    inits(::Type{T}, dims::Dims{N}, value::T) where {T<:AbstractFloat,N} =
+        fill!(Array{T,N}(undef, dims), value)
     dims = size(dat.roi)
     src_names = Array{String}(undef, nsrc)
     for (key,val) in dat.src_index
         src_names[val] = key
     end
     out = ReducedCalibration{T}(dat.roi,
-                                nans(T, dims),  # f
-                                nans(T, dims),  # z
-                                nans(T, dims),  # g
-                                nans(T, dims),  # σ
-                                [nans(T, dims) for j in 1:nsrc],  # s
-                                src_names)
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # f
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # z
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # g
+                                inits(T, dims, badpixvalue), #nans(T, dims),  # σ
+                                [inits(T, dims, badpixvalue) for j in 1:nsrc], #[nans(T, dims) for j in 1:nsrc],  # s
+                                src_names;
+                                bpm=valid)
     npixels = prod(dims)
     p = Progress(count(valid); showspeed=true)
     Threads.@threads for k in 1:npixels
