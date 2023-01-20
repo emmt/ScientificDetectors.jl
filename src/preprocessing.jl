@@ -329,32 +329,31 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     z = detectorbias(cal)
     g = detectorgain(cal)
     σ = detectornoise(cal)
-    c = currents(cal)
-    cat = categories(cal)
+    s = sources(cal)
     @assert size(bad) == dims
     @assert size(z) == dims
     @assert size(g) == dims
     @assert size(σ) == dims
-    @assert size(c[jflat]) == dims
+    @assert size(s[jflat]) == dims
     if jflatbg != 0
-        @assert size(c[jflatbg]) == dims
+        @assert size(s[jflatbg]) == dims
     end
     if jbg != 0
-        @assert size(c[jbg]) == dims
+        @assert size(s[jbg]) == dims
     end
 
     # Compute the flux correction term.  Bad pixels have a[i] = 0.
     a = Array{T}(undef, dims)
-    cflat = c[jflat]
+    sflat = s[jflat]
     if jflatbg != 0
-        cflatbg = c[jflatbg]
-        @inbounds for i in eachindex(bad, a, cflat, cflatbg)
-            val = cflat[i] - cflatbg[i]
+        sflatbg = s[jflatbg]
+        @inbounds for i in eachindex(bad, a, sflat, sflatbg)
+            val = sflat[i] - sflatbg[i]
             a[i] = (bad[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
         end
     else
-        @inbounds for i in eachindex(bad, a, cflat)
-            val = cflat[i]
+        @inbounds for i in eachindex(bad, a, sflat)
+            val = sflat[i]
             a[i] = (bad[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
         end
     end
@@ -366,13 +365,13 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     q = Array{T}(undef, dims)
     r = Array{T}(undef, dims)
     if jbg != 0
-        cbg = c[jbg]
+        sbg = s[jbg]
         dt = T(Δt)
-        @inbounds for i in eachindex(bad, a, b, g, q, r, σ, cbg)
-            cdt = cbg[i]*dt
-            b_i = z[i] + cdt
+        @inbounds for i in eachindex(bad, a, b, g, q, r, σ, sbg)
+            sdt = sbg[i]*dt
+            b_i = z[i] + sdt
             q_i = g[i]/a[i]
-            r_i = a[i]*(g[i]*σ[i]^2 + cdt)
+            r_i = a[i]*(g[i]*σ[i]^2 + sdt)
             if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(q_i) & (q_i ≥ 0)) |
                 !(isfinite(r_i) & (r_i > 0)))
                 a[i] = zero(T)
