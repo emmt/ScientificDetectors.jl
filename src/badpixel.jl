@@ -8,7 +8,7 @@ using StatsBase, Distributions
 	
 	buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
 
-Update the bad pixel map according to all the quantities computed in `ReducedCalibration` or in  `CalibrationData.stat`
+Update the good pixel map according to all the quantities computed in `ReducedCalibration` or in  `CalibrationData.stat`
 
 - `threshold` is the rejection threshold (default 0.05) 
 
@@ -23,8 +23,8 @@ Update the bad pixel map according to all the quantities computed in `ReducedCal
 function buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
 
 
-	valid = badpixelmap(C)
-	nvalid = count(valid)
+	gpm = goodpixelmap(C)
+	nvalid = count(gpm)
 
 	nb_param = 4 + nsources(C)
 
@@ -32,16 +32,16 @@ function buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05, estima
 	d = zeros(nvalid,nb_param) 
 
 	# Co-log-likelihood.
-	d[:,1] .= cologlikelihood(C)[valid]
+	d[:,1] .= cologlikelihood(C)[gpm]
     # Zero-level 
-	d[:,2] .= detectorbias(C)[valid]
+	d[:,2] .= detectorbias(C)[gpm]
     # Detector gain 
-	d[:,3] .= detectorgain(C)[valid]
+	d[:,3] .= detectorgain(C)[gpm]
     # Standard deviation of the readout noise 
-	d[:,4] .= detectornoise(C)[valid]
+	d[:,4] .= detectornoise(C)[gpm]
 	#sources
 	@inbounds for i=1:nsources(C)
-		d[:,4+i] .= sources(C,i)[valid]
+		d[:,4+i] .= sources(C,i)[gpm]
 	end
 
 	#m = [ median(d[:,i]) for i in 1:nb_param]
@@ -52,7 +52,7 @@ function buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05, estima
 	else
 		dof = nb_param
 	end
-	C.bpm[valid] .=  (Χ2 .< cquantile(Chisq(dof), threshold))
+	C.gpm[gpm] .=  (Χ2 .< cquantile(Chisq(dof), threshold))
 	return  C
 end
 
@@ -85,7 +85,7 @@ function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimated
 
     nb_param = length(A.stat)
     numel = prod(size(A))
-	bpm = trues(size(A))
+	gpm = trues(size(A))
 
     d = zeros(numel,nb_param)
     @inbounds for i in 1:nb_param 
@@ -99,7 +99,7 @@ function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimated
 		dof = nb_param
 	end
 
-	bpm[:] .= (Χ2 .< cquantile(Chisq(nb_param), threshold))
+	gpm[:] .= (Χ2 .< cquantile(Chisq(nb_param), threshold))
 
-	return bpm
+	return gpm
 end

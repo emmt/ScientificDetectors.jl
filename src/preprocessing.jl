@@ -46,17 +46,17 @@ It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
     PreprocessingParameters(cal::ReducedCalibration;
-                            bad=nothing,
+                            gpm=nothing,
                             flat=nothing, flatbg=nothing,
                             bg=nothing, Δt=0) -> obj
 
-with `cal` an instance of [`ReducedCalibration`](@ref), `bad` a boolean mask
-indicating the bad pixels, `flat` the identifier of the flat calibration
-source, `flatbg` the identifier of the background source for the flat, `bg` the
-identifier of the background source and `Δt` the exposure time in seconds.
-Identifiers `flat`, `flatbg` and/or `bg` can be `nothing` if irrelevant or an
-integer or a string that corresponds to a specific current term in the reduced
-calibration data `cal`.
+with `cal` an instance of [`ReducedCalibration`](@ref), `gpm` a boolean mask
+indicating the good pixels (true = good pixel), `flat` the identifier of the
+flat calibration source, `flatbg` the identifier of the background source for
+the flat, `bg` the identifier of the background source and `Δt` the exposure
+time in seconds. Identifiers `flat`, `flatbg` and/or `bg` can be `nothing` if
+irrelevant or an integer or a string that corresponds to a specific current
+term in the reduced calibration data `cal`.
 
 Floating-point type, say `T`, and dimensionality, say `N`, may be specified:
 
@@ -294,15 +294,16 @@ PreprocessingParameters{T,N}(cal::ReducedCalibration{R,N}, args...; kwds...) whe
     PreprocessingParameters{T}(cal, args...; kwds...)
 
 function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
-                                    bad::Union{Nothing,AbstractArray{Bool,N}} = nothing,
+                                    gpm::Union{Nothing,AbstractArray{Bool,N}} = nothing,
                                     flat::Union{Nothing,Integer,String} = nothing,
                                     flatbg::Union{Nothing,Integer,String} = nothing,
                                     bg::Union{Nothing,Integer,String} = nothing,
                                     Δt::Real=0) where {T<:AbstractFloat,R,N}
 
-    # Get bad pixel map. FIXME: Check type-stability
-    if bad === nothing
-        bad = cal.bpm
+
+    # Get good pixel map. FIXME: Check type-stability
+    if (gpm === nothing)
+        gpm = cal.gpm
     end
 
     # Get index of flat term and its background.
@@ -330,7 +331,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     g = detectorgain(cal)
     σ = detectornoise(cal)
     s = sources(cal)
-    @assert size(bad) == dims
+    @assert size(gpm) == dims
     @assert size(z) == dims
     @assert size(g) == dims
     @assert size(σ) == dims
@@ -347,14 +348,14 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     sflat = s[jflat]
     if jflatbg != 0
         sflatbg = s[jflatbg]
-        @inbounds for i in eachindex(bad, a, sflat, sflatbg)
+        @inbounds for i in eachindex(gpm, a, sflat, sflatbg)
             val = sflat[i] - sflatbg[i]
-            a[i] = (bad[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
+            a[i] = (!gpm[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
         end
     else
-        @inbounds for i in eachindex(bad, a, sflat)
+        @inbounds for i in eachindex(gpm, a, sflat)
             val = sflat[i]
-            a[i] = (bad[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
+            a[i] = (!gpm[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
         end
     end
 
@@ -367,7 +368,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     if jbg != 0
         sbg = s[jbg]
         dt = T(Δt)
-        @inbounds for i in eachindex(bad, a, b, g, q, r, σ, sbg)
+        @inbounds for i in eachindex(gpm, a, b, g, q, r, σ, sbg)
             sdt = sbg[i]*dt
             b_i = z[i] + sdt
             q_i = g[i]/a[i]
@@ -385,7 +386,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
             end
         end
     else
-        @inbounds for i in eachindex(bad, a, b, g, q, r, σ)
+        @inbounds for i in eachindex(gpm, a, b, g, q, r, σ)
             b_i = z[i]
             q_i = g[i]/a[i]
             r_i = a[i]*g[i]*σ[i]^2
@@ -421,8 +422,7 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N}
     b = copy(cal.b)
     g = cal.g
     σ = cal.σ
-    #bad = cal.bpm
-    #@assert size(bad) == dims # FIXME: argument was undefined
+    #@assert size(gpm) == dims  #FIXME: existing gpm variable ?
     @assert size(a) == dims
     @assert size(b) == dims
     @assert size(g) == dims
@@ -432,9 +432,9 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N}
     # and r[i] = 1, to have zero precision and avoid division by zero.
     q = Array{T}(undef, dims)
     r = Array{T}(undef, dims)
-    @inbounds for j in eachindex(#bad,
+    @inbounds for j in eachindex(#gpm,
                                  a, b, g, σ, q, r)
-        if (#bad[j] ||
+        if (#!gpm[j] || 
             !isfinite(a[j]) || a[j] ≤ 0 || !isfinite(b[j]) ||
             !isfinite(g[j]) || g[j] ≤ 0 || !isfinite(σ[j]) || σ[j] ≤ 0)
             a[j] = zero(T)
