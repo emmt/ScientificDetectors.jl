@@ -158,10 +158,10 @@ function read(::Type{ReducedCalibration{T,N}},
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
-    bpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
+    gpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
         FastUniformArray(true, dims[1:end-1])
     s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
-    return ReducedCalibration{T}(roi, f, z, g, σ, s, src; bpm=bpm)
+    return ReducedCalibration{T}(roi, f, z, g, σ, s, src; gpm=gpm)
 end
 
 function write(io::FitsFile, hdr::FitsHeader,
@@ -195,7 +195,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     write(hdu, data.z; first = tick())
     write(hdu, data.g; first = tick())
     write(hdu, data.σ; first = tick())
-    write(hdu, data.bpm; first = tick())
+    write(hdu, data.gpm; first = tick())
     for arr ∈ data.s
         write(hdu, arr; first = tick())
     end
