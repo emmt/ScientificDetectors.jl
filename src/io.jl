@@ -154,6 +154,18 @@ function write(io::FitsIO, obj::ReducedCalibration{T,N},
     hdr["HDUNAME"] = (name, "reduced detector calibration")
     hdr["HDUVERS"] = (vers, "version of this format")
     merge!(hdr, DetectorAxes(obj))
+
+    # convenience headers for easier exploration of ReducedCalibration FITS files (i.e with fv,DS9,..)
+    hdr["FRAME1"] = "co-log-likelihood (f)"
+    hdr["FRAME2"] = "constant bias (z) (in ADU)"
+    hdr["FRAME3"] = "detector gain (g) (in electron/ADU)"
+    hdr["FRAME4"] = "std of readout-noise (sigma) (in ADU/frame)"
+    hdr["FRAME5"] = "good pixel map (gpm) (1=goodpixel)"
+    for k ∈ eachindex(obj.src)
+        hdr[string("FRAME",5+k)] = string(obj.src[k], " (in ADU/s)")
+    end
+
+    # mandatory headers to eventually read() the ReducedCalibration FITS file
     for k ∈ eachindex(obj.src)
         hdr[string("SRC",k)] = obj.src[k]
     end
