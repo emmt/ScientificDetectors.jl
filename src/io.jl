@@ -108,7 +108,7 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     dims = size(hdu)
     N = length(dims) - 1
     N ≥ 1 || dimension_mismatch("invalid number of dimensions")
-    nsrc = dims[end] - 4
+    nsrc = dims[end] - 5
     nsrc ≥ 0 || dimension_mismatch("invalid last dimension")
 
     # Read header and retrieve contents.
