@@ -58,7 +58,7 @@ match `key` or `0` if not found.
 find(obj::ReducedCalibration, key::Nothing) = 0
 
 function find(obj::ReducedCalibration, key::AbstractString)
-    src = sources(obj)
+    src = sourcesid(obj)
     n = 0
     j = 0
     for i in 1:nsources(obj)
