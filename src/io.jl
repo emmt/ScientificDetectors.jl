@@ -10,59 +10,93 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 SampleStatistics{T,N},
                                 SimpleCalibration{T,N}}
 
+# HDU name and revision number only depend on the type of our objects..
+EasyFITS.hduname(data::WritableData) = hduname(typeof(data))
+
 """
-    write!(path, obj)
+    write(dest, [hdr,] data; kwds...)
+    writefits(dest, [hdr,] data; kwds...)
 
-writes reduced detector calibration or preprocessing parameters `obj` in FITS
-file `path`.
+writes reduced detector calibration or preprocessing parameters `data` in
+`dest` which may be a FITS file instance or the name of a new FITS file to
+create. Argument `hdr` is an optional header which can be `nothing` or have
+any form accepted by the `FitsHeader` constructor. If `hdr` is not specifed,
+the other keywords than `overwrite` are used to build a header.
 
-If the FITS file already exists, it is (silently) overwritten.  Call `write`
-instead to throw an error if the file already exists.  The `write` method can
-take a FITS handle instead of a file name, to append a new FITS HDU with
-detector calibration parameters.
+If `dest` is the name of a file which already exists, an error is thrown unless
+keyword `overwrite = true` is specified. An alternative is to call `write!`
+or `fitswrite!` which silently overwrite existing files.
 
-Call:
+"""
+write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false) =
+    writefits(filename, hdr, data; overwrite = overwrite)
 
+write(filename::AbstractString, data::WritableData; kwds...) =
+    writefits(filename, data; kwds...)
+
+write!(filename::AbstractString, data::WritableData; kwds...) =
+    writefits!(filename, data; kwds...)
+
+write!(filename::AbstractString, hdr, data::WritableData) =
+    writefits!(filename, hdr, data)
+
+writefits!(filename::AbstractString, data::WritableData; kwds...) =
+    writefits(filename, data;  overwrite = true, kwds...)
+
+writefits!(filename::AbstractString, hdr, data::WritableData) =
+    writefits(filename, hdr, data; overwrite = true)
+
+function writefits(filename::AbstractString,
+                   data::WritableData; overwrite::Bool = false, kwds...)
+    writefits(filename, FitsHeader(; kwds...), data; overwrite = overwrite)
+end
+
+function writefits(filename::AbstractString, hdr::Nothing,
+                   data::WritableData; overwrite::Bool = false)
+    writefits(filename, FitsHeader(), data; overwrite = overwrite)
+end
+
+function writefits(filename::AbstractString, hdr,
+                   data::WritableData; overwrite::Bool = false)
+    writefits(filename, FitsHeader(hdr), data; overwrite = overwrite)
+end
+
+function writefits(filename::AbstractString, hdr::FitsHeader,
+                   data::WritableData; overwrite::Bool = false)
+    (overwrite == false && ispath(filename)) && throw_file_already_exists(
+        filename, "call `write!`, `writefits!`, or use `overwrite=true`")
+    FitsFile(filename, (overwrite ? "w!" : "w")) do io
+        write(io, hdr, data)
+    end
+    nothing
+end
+
+write(io::FitsFile, data::WritableData; kwds...) =
+    write(io, FitsHeader(; kwds...), data)
+
+write(io::FitsFile, hdr::Nothing, data::WritableData) =
+    write(io, FitsHeader(), data)
+
+write(io::FitsFile, hdr, data::WritableData) =
+    write(io, FitsHeader(hdr), data)
+
+"""
     read(ReducedCalibration, src)
-
-to read detector calibration parameters from source `src` (a file name or a FITS
-handle).  Similarly, call:
-
+    readfits(ReducedCalibration, src)
     read(PreprocessingParameters, src)
+    readfits(PreprocessingParameters, src)
 
-to read detector preprocessing parameters from source `src` (a file name or a
-FITS handle).
+read detector calibration parameters or preprocessing parameters
+from source `src` (a file name or a FITS file instance).
 
 """
-write!(path::AbstractString, obj::WritableData; kwds...) =
-    writefits!(path, obj; kwds...)
+read(T::Type{<:WritableData}, filename::AbstractString) =
+    readfits(T, filename)
 
-write(path::AbstractString, obj::WritableData; kwds...) =
-    writefits(path, obj; kwds...)
-
-read(::Type{T}, path::AbstractString) where {T<:WritableData} =
-    readfits(T, path)
-
-writefits!(path::AbstractString, obj::WritableData; kwds...) =
-    writefits(path, obj; overwrite=true, kwds...)
-
-function writefits(path::AbstractString, obj::WritableData;
-                   overwrite::Bool=false, kwds...)
-    (overwrite == false && ispath(path)) &&
-        throw_file_already_exists(path, "call `write!` or use `overwrite=true`")
-    FitsFile(path, (overwrite ? "w!" : "w")) do io
-        write(io, obj; kwds...)
+readfits(T::Type{<:WritableData}, filename::AbstractString) =
+    FitsFile(filename, "r") do io
+        read(T, io)
     end
-end
-
-write(io::FitsFile, obj::WritableData; kwds...) =
-    write(io, obj, FitsHeader(; kwds...))
-
-function readfits(::Type{T}, path::AbstractString) where {T<:WritableData}
-    FitsFile(path, "r") do io
-        return read(T, io)
-    end
-end
 
 #------------------------------------------------------------------------------
 #
@@ -70,95 +104,94 @@ end
 #
 
 # Extend EasyFITS method to provide HDU name and revision number.
-hduname(::Type{<:ReducedCalibration}) = ("REDUCED-DETECTOR-CALIBRATION", 3)
+EasyFITS.hduname(::Type{<:ReducedCalibration}) =
+    ("REDUCED-DETECTOR-CALIBRATION", 3)
 
-function read(R::Type{<:ReducedCalibration}, io::FitsFile)
+function read(T::Type{<:ReducedCalibration}, io::FitsFile)
     # Find HDU with calibration parameters.
-    name, vers = hduname(R)
+    name, vers = hduname(T)
     k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
     k === nothing && error("no reduced detector calibration found")
     hdu = io[k]
     isa(hdu, FitsImageHDU) || error("unexpected non-IMAGE HDU")
-    return read(R, hdu)
+    return read(T, hdu)
 end
 
 function read(::Type{ReducedCalibration}, hdu::FitsImageHDU{T}) where {T}
    return read(ReducedCalibration{float(T)}, hdu)
 end
 
-function read(::Type{ReducedCalibration{T,N}},
-              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
-    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
-    return read(ReducedCalibration{T}, hdu)
-end
-
 function read(::Type{ReducedCalibration{T}},
               hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+    return read(ReducedCalibration{T,N-1}, hdu)
+end
+
+function read(::Type{ReducedCalibration{T,N}},
+              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS, and BITPIX.
     name, _ = hduname(ReducedCalibration)
-    matchvalue(hdu, "HDUNAME", name) || error("invalid HDUNAME")
+    matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
     version = getvalue(Int, hdu, "HDUVERS", 0)
+    1 ≤ version ≤ 3 || error("unsupported format revision $version")
     bitpix = hdu["BITPIX"].integer
     bitpix == -32 || bitpix == -64 ||
         @warn("To avoid loss of precision, save reduced calibration data "*
               "in floating point format, i.e. use BITPIX = -32 or -64.")
-    1 ≤ version ≤ 3 || error("unsupported format revision $version")
 
     # Check dimensions.
+    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
+    N ≥ 1 || dimension_mismatch("invalid number of dimensions")
     dims = hdu.data_size
-    @assert length(dims) == N
-    N > 1 || dimension_mismatch("invalid number of dimensions")
+    @assert length(dims) == Np1
     n1 = (version < 3 ? 4 : 5) # number of fields before the sources
     nsrc = dims[end] - n1
     nsrc ≥ 0 || dimension_mismatch("invalid last dimension")
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(NTuple{N - 1, DetectorAxis}, hdr)
+    roi = get(NTuple{N, DetectorAxis}, hdr)
     src = [getvalue(String, hdr, "SRC$k", "") for k in 1:nsrc]
 
     # Read data and build instance.
-    inds = colons(N - 1)
+    inds = colons(N)
     f = read(hdu, inds..., 1)
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
-    bpm = n1 ≥ 5 ? read(hdu, inds..., 5) : FastUniformArray(true, dims[1:end-1])
-    s = Vector{typeof(f)}(undef, nsrc)
-    for k in 1:nsrc
-        s[k] = read(hdu, inds..., n1 + k)
-    end
+    bpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
+        FastUniformArray(true, dims[1:end-1])
+    s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
     return ReducedCalibration{T}(roi, f, z, g, σ, s, src; bpm=bpm)
 end
 
-function write(io::FitsFile, obj::ReducedCalibration{T,N},
-               hdr::FitsHeader) where {T,N}
-    # Create data array.
-    dims = size(obj)
-    dat = Array{T,N+1}(undef, dims..., 5 + length(obj.s))
-    dat[..,1] .= obj.f
-    dat[..,2] .= obj.z
-    dat[..,3] .= obj.g
-    dat[..,4] .= obj.σ
-    dat[..,5] .= obj.bpm
-    k = 5
-    for s in obj.s
-        k += 1
-        dat[..,k] .= s
-    end
+function write(io::FitsFile, hdr::FitsHeader,
+               data::ReducedCalibration{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    nsrc = length(data.s)
+    hdu = write(io, FitsImageHDU{T}, dims..., 5 + nsrc)::FitsImageHDU{T,N+1}
 
-    # Create FITS header.
-    name, vers = hduname(obj)
-    hdr["HDUNAME"] = (name, "reduced detector calibration")
-    hdr["HDUVERS"] = (vers, "version of this format")
-    merge!(hdr, DetectorAxes(obj))
-    for k ∈ eachindex(obj.src)
-        hdr[string("SRC",k)] = obj.src[k]
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "reduced detector calibration")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    merge!(hdu, DetectorAxes(data))
+    for k ∈ 1:nsrc
+        hdr["SRC$k"] = data.src[k]
     end
+    merge!(hdu, hdr)
 
-    # Write FITS HDU.
-    write(io, dat, hdr)
-    nothing
+    # Write data array.
+    tick = Ticker(1, prod(dims))
+    write(hdu, data.f; first = tick())
+    write(hdu, data.z; first = tick())
+    write(hdu, data.g; first = tick())
+    write(hdu, data.σ; first = tick())
+    write(hdu, data.bpm; first = tick())
+    for arr ∈ data.s
+        write(hdu, arr; first = tick())
+    end
+    return io
 end
 
 #------------------------------------------------------------------------------
@@ -167,44 +200,45 @@ end
 #
 
 # Extend EasyFITS method to provide HDU name and revision number.
-hduname(::Type{<:SimpleCalibration}) = ("SIMPLE-DETECTOR-CALIBRATION", 1)
+EasyFITS.hduname(::Type{<:SimpleCalibration}) =
+    ("SIMPLE-DETECTOR-CALIBRATION", 1)
 
-function read(::Type{T}, io::FitsFile) where {T<:SimpleCalibration}
+function read(T::Type{<:SimpleCalibration}, io::FitsFile)
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
     k === nothing && error("no simple detector calibration found")
     hdu = io[k]
     isa(hdu, FitsImageHDU) || error("unexpected non-IMAGE HDU")
-    version = getvalue(Int, hdu, "HDUVERS", 0)
-    version == 1 || error(string("unsupported format revision ", version))
     return read(T, hdu)
 end
 
-function read(::Type{SimpleCalibration{T,N}},
-              hdu::FitsImageHDU) where {T<:AbstractFloat,N}
-    dims = hdu.data_size
-    length(dims) == N+1 || dimension_mismatch("invalid number of dimensions")
-    dims[end] == 5 || dimension_mismatch("invalid last dimension")
-    return read(SimpleCalibration{T}, hdu)
+function read(::Type{SimpleCalibration}, hdu::FitsImageHDU{T}) where {T}
+   return read(SimpleCalibration{float(T)}, hdu)
 end
 
-function read(::Type{T}, hdu::FitsImageHDU) where {T<:SimpleCalibration}
+function read(::Type{SimpleCalibration{T}},
+              hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+    return read(SimpleCalibration{T,N-1}, hdu)
+end
+
+function read(::Type{SimpleCalibration{T,N}},
+              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS and BITPIX.
-    name, vers = hduname(T)
-    cname = getvalue(String, hdu, "HDUNAME", "")
-    cname == name || error(string("unexpected HDUNAME \"", cname, "\""))
-    cvers = getvalue(Int, hdu, "HDUVERS", 0)
-    cvers == vers || error(string("unsupported format revision ", cvers))
+    name, _ = hduname(ReducedCalibration)
+    matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
+    version = getvalue(Int, hdu, "HDUVERS", 0)
+    version == 1 || error("unsupported format revision $version")
     bitpix = hdu["BITPIX"].integer
     bitpix == -32 || bitpix == -64 ||
-        @warn("To avoid loss of precision, save reduced calibration data "*
+        @warn("To avoid loss of precision, save simple calibration data "*
               "in floating point format, i.e. use BITPIX = -32 or -64.")
 
     # Check dimensions.
-    dims = hdu.data_size
-    N = length(dims) - 1
+    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
     N ≥ 1 || dimension_mismatch("invalid number of dimensions")
+    dims = hdu.data_size
+    @assert length(dims) == Np1
     dims[end] == 5 || dimension_mismatch("invalid last dimension")
 
     # Read header and retrieve contents.
@@ -222,29 +256,29 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:SimpleCalibration}
     return T(roi, Δt, f, a, b, g, σ)
 end
 
-function write(io::FitsFile, obj::SimpleCalibration{T,N},
-               hdr::FitsHeader) where {T,N}
-    # Create data array.
-    dims = size(obj)
-    dat = Array{T,N+1}(undef, dims..., 5)
-    dat[..,1] .= obj.f
-    dat[..,2] .= obj.a
-    dat[..,3] .= obj.b
-    dat[..,4] .= obj.g
-    dat[..,5] .= obj.σ
+function write(io::FitsFile, hdr::FitsHeader,
+               data::SimpleCalibration{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    hdu = write(io, FitsImageHDU{T}, dims..., 5)::FitsImageHDU{T,N+1}
 
-    # Create FITS header.
-    name, vers = hduname(obj)
-    hdr["HDUNAME"] = (name, "simple detector calibration")
-    hdr["HDUVERS"] = (vers, "version of this format")
-    hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
-    merge!(hdr, DetectorAxes(obj))
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "simple detector calibration")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["EXPTIME"] = (exposuretime(data), "[s] exposure time")
+    merge!(hdu, DetectorAxes(data))
+    merge!(hdu, hdr)
 
-    # Write FITS HDU.
-    write(io, dat, hdr)
-    nothing
+    # Write data.
+    tick = Ticker(1, prod(dims))
+    write(hdu, data.f; first = tick())
+    write(hdu, data.a; first = tick())
+    write(hdu, data.b; first = tick())
+    write(hdu, data.g; first = tick())
+    write(hdu, data.σ; first = tick())
+    return io
 end
-
 
 #------------------------------------------------------------------------------
 #
@@ -252,10 +286,10 @@ end
 #
 
 # Extend EasyFITS method to provide HDU name and revision number.
-hduname(::Type{<:PreprocessingParameters}) =
+EasyFITS.hduname(::Type{<:PreprocessingParameters}) =
     ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
 
-function read(::Type{T}, io::FitsFile) where {T<:PreprocessingParameters}
+function read(T::Type{<:PreprocessingParameters}, io::FitsFile)
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(hdu -> matchvalue(hdu, "HDUNAME", name), io)
@@ -267,30 +301,32 @@ function read(::Type{T}, io::FitsFile) where {T<:PreprocessingParameters}
     return read(T, hdu)
 end
 
-function read(::Type{PreprocessingParameters{T,N}},
-              hdu::FitsImageHDU) where {T<:AbstractFloat,N}
-    dims = hdu.data_size
-    length(dims) == N+1 || dimension_mismatch("invalid number of dimensions")
-    dims[end] == 4 || dimension_mismatch("invalid last dimension")
-    return read(PreprocessingParameters{T}, hdu)
+function read(::Type{PreprocessingParameters}, hdu::FitsImageHDU{T}) where {T}
+   return read(PreprocessingParameters{float(T)}, hdu)
 end
 
-function read(::Type{T}, hdu::FitsImageHDU) where {T<:PreprocessingParameters}
+function read(::Type{PreprocessingParameters{T}},
+              hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+    return read(PreprocessingParameters{T,N-1}, hdu)
+end
+
+function read(::Type{PreprocessingParameters{T,N}},
+              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS and BITPIX.
-    name, vers = hduname(T)
-    cname = getvalue(String, hdu, "HDUNAME", "")
-    cname == name || error(string("unexpected HDUNAME \"", cname, "\""))
-    cvers = getvalue(Int, hdu, "HDUVERS", 0)
-    cvers == vers || error(string("unsupported format revision ", cvers))
+    name, _ = hduname(T)
+    matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
+    version = getvalue(Int, hdu, "HDUVERS", 0)
+    version == 1 || error(string("unsupported format revision ", version))
     bitpix = hdu["BITPIX"].integer
     bitpix == -32 || bitpix == -64 ||
         @warn("To avoid loss of precision, save reduced calibration data "*
               "in floating point format, i.e. use BITPIX = -32 or -64.")
 
     # Check dimensions.
-    dims = hdu.data_size
-    N = length(dims) - 1
+    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
     N ≥ 1 || dimension_mismatch("invalid number of dimensions")
+    dims = hdu.data_size
+    @assert length(dims) == Np1
     dims[end] == 4 || dimension_mismatch("invalid last dimension")
 
     # Read header and retrieve contents.
@@ -304,29 +340,30 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:PreprocessingParameters}
     b = read(hdu, inds..., 2)
     q = read(hdu, inds..., 3)
     r = read(hdu, inds..., 4)
-    return T(roi, Δt, a, b, q, r)
+    return PreprocessingParameters{T}(roi, Δt, a, b, q, r)
 end
 
-function write(io::FitsFile, obj::PreprocessingParameters{T,N},
-               hdr::FitsHeader) where {T,N}
-    # Create data array.
-    dims = size(obj)
-    dat = Array{T,N+1}(undef, dims..., 4)
-    dat[..,1] .= obj.a
-    dat[..,2] .= obj.b
-    dat[..,3] .= obj.q
-    dat[..,4] .= obj.r
+function write(io::FitsFile, hdr::FitsHeader,
+               data::PreprocessingParameters{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    hdu = write(io, FitsImageHDU{T}, dims..., 4)::FitsImageHDU{T,N+1}
 
-    # Create FITS header.
-    name, vers = hduname(obj)
-    hdr["HDUNAME"] = (name, "pre-processing parameters")
-    hdr["HDUVERS"] = (vers, "version of this format")
-    hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
-    merge!(hdr, DetectorAxes(obj))
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "pre-processing parameters")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["EXPTIME"] = (exposuretime(data), "[s] exposure time")
+    merge!(hdu, DetectorAxes(data))
+    merge!(hdu, hdr)
 
-    # Write FITS HDU.
-    write(io, dat, hdr)
-    nothing
+    # Write data.
+    tick = Ticker(1, prod(dims))
+    write(hdu, data.a; first = tick())
+    write(hdu, data.b; first = tick())
+    write(hdu, data.q; first = tick())
+    write(hdu, data.r; first = tick())
+    return io
 end
 
 #------------------------------------------------------------------------------
@@ -334,7 +371,8 @@ end
 # I/O methods for `SampleStatistics`.
 #
 
-hduname(::Type{<:SampleStatistics}) = ("DETECTOR-SAMPLE-STATISTICS", 1)
+EasyFITS.hduname(::Type{<:SampleStatistics}) =
+    ("DETECTOR-SAMPLE-STATISTICS", 1)
 
 """
 # Sample Statistics
@@ -420,7 +458,7 @@ function read(::Type{T}, hdu::FitsHDU) where {T<:SampleStatistics}
     return _read2(T, hdu, tup...)
 end
 
-function _read1(::Type{T}, hdu::FitsHDU) where{T<:SampleStatistics}
+function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
     # First try to extract information from new format.
     name, lastvers = hduname(T)
     if matchvalue(hdu, "HDUNAME", name)
@@ -481,9 +519,9 @@ function _read1(::Type{T}, hdu::FitsHDU) where{T<:SampleStatistics}
     return nothing
 end
 
-function _read2(::Type{T}, hdu::FitsImageHDU,
+function _read2(T::Type{<:SampleStatistics}, hdu::FitsImageHDU,
                 samples::Integer, Δt::Float64,
-                roi::NTuple{N,DetectorAxis}) where {T<:SampleStatistics,N}
+                roi::NTuple{N,DetectorAxis}) where {N}
     # Read data and build instance.
     inds = colons(N)
     avg = read(hdu, inds..., 1)
@@ -491,23 +529,24 @@ function _read2(::Type{T}, hdu::FitsImageHDU,
     return T(avg, std, samples, Δt, roi)
 end
 
-function write(io::FitsFile, obj::SampleStatistics{T,N},
-               hdr::FitsHeader) where {T,N}
-    # Create data array.
-    dims = size(obj)
-    dat = Array{T,N+1}(undef, dims..., 2)
-    dat[..,1] .= mean(obj)
-    dat[..,2] .= std(obj)
+function write(io::FitsFile, hdr::FitsHeader,
+               data::SampleStatistics{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    hdu = write(io, FitsImageHDU{T}, dims..., 2)::FitsImageHDU{T,N+1}
 
-    # Create FITS header.
-    name, vers = hduname(obj)
-    hdr["HDUNAME"] = (name, "detector sample statistics")
-    hdr["HDUVERS"] = (vers, "version of this format")
-    hdr["EXPTIME"] = (exposuretime(obj), "[s] exposure time")
-    hdr["SAMPLES"] = (nobs(obj), "number of samples")
-    merge!(hdr, DetectorAxes(obj))
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "detector sample statistics")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["EXPTIME"] = (exposuretime(data), "[s] exposure time")
+    hdu["SAMPLES"] = (nobs(data), "number of samples")
+    merge!(hdu, DetectorAxes(data))
+    merge!(hdu, hdr)
 
-    # Write FITS HDU.
-    write(io, dat, hdr)
-    nothing
+    # Write data.
+    tick = Ticker(1, prod(dims))
+    write(hdu, mean(data); first = tick())
+    write(hdu, std( data); first = tick())
+    return io
 end
