@@ -16,7 +16,6 @@ import ..ScientificDetectors:
     exposuretime
 
 using EasyFITS
-using EasyFITS: isprimary
 
 using ArrayTools
 using Statistics, StatsBase

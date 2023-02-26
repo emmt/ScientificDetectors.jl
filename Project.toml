@@ -19,6 +19,7 @@ StructuredArrays = "2e8cd123-6858-488d-b42d-068777248635"
 
 [compat]
 ArrayTools = "0.2.3"
+EasyFITS = "0.5"
 MultivariateOnlineStatistics = "0.2.1"
 StructuredArrays = "0.2.5"
 julia = "1.3"

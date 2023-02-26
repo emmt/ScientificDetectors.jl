@@ -35,7 +35,7 @@ Other methods:
     merge!(dst, ROI)               # set detector axes of `dst`
 
 here the source `src` and the destination `dst` can be instances of
-`FitsHeader` or `FitsImage`, `ROI` is a vector or a tuple of `DetectorAxis`.
+`FitsHeader` or of `FitsHDU`, `ROI` is a vector or a tuple of `DetectorAxis`.
 
     DetectorAxes(B)
 
@@ -104,43 +104,38 @@ end
 DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
 DetectorAxes(I::Tuple{Vararg{DetectorAxisTypes}}) = map(DetectorAxis, I)
 
-function Base.merge!(dst::FitsHeader,
-                     prm::Union{Tuple{Vararg{T}},AbstractVector{T}}
-                     ) where {T<:DetectorAxis}
+function Base.merge!(dst::Union{FitsHeader,FitsHDU},
+                     prm::Union{Tuple{Vararg{T}},
+                                AbstractVector{T}}) where {T<:DetectorAxis}
     n = length(prm)
-    for d in 1:n
-        sfx = string(d)
-        dst["NAXIS"*sfx] = (prm[d].len, "length of data axis "*sfx)
+    for i in 1:n
+        dst["NAXIS$i"] = (prm[i].len, "length of data axis $i")
     end
-    for d in 1:n
-        sfx = string(d)
-        dst["OFF"*sfx] = (prm[d].off, "offset along axis "*sfx)
+    for i in 1:n
+        dst["OFF$i"] = (prm[i].off, "offset along axis $i")
     end
-    for d in 1:n
-        sfx = string(d)
-        dst["BIN"*sfx] = (prm[d].bin, "binning factor of axis "*sfx)
+    for i in 1:n
+        dst["BIN$i"] = (prm[i].bin, "binning factor of axis $i")
     end
-    for d in 1:n
-        sfx = string(d)
-        dst["STP"*sfx] = (prm[d].bin, "sampling step axis "*sfx)
+    for i in 1:n
+        dst["STP$i"] = (prm[i].bin, "sampling step axis $i")
     end
     return dst
 end
 
 function Base.get(::Type{DetectorAxis}, i::Integer,
-                  src::Union{FitsHeader,FitsImage})
-    @assert 1 ≤ i
-    sfx = string(i)
-    len = src["NAXIS"*sfx]
-    off = get(src, "OFF"*sfx, 0)
-    bin = get(src, "BIN"*sfx, 1)
-    stp = get(src, "STP"*sfx, 1)
+                  src::Union{FitsHeader,FitsHDU})
+    i ≥ 1 || throw(ArgumentError("invalid axis number $i"))
+    len = src["NAXIS$i"].integer
+    off = getvalue(Int, src, "OFF$i", 0)
+    bin = getvalue(Int, src, "BIN$i", 1)
+    stp = getvalue(Int, src, "STP$i", 1)
     return DetectorAxis(len, off, bin, stp)
 end
 
 function Base.get(::Type{Vector{DetectorAxis}},
-                  src::Union{FitsHeader,FitsImage})
-    n = src["NAXIS"]
+                  src::Union{FitsHeader,FitsHDU})
+    n = src["NAXIS"].integer
     res = Vector{DetectorAxis}(undef, n)
     for i in 1:n
         res[i] = get(DetectorAxis, i, src)
@@ -149,9 +144,82 @@ function Base.get(::Type{Vector{DetectorAxis}},
 end
 
 function Base.get(::Type{DetectorAxes{N}},
-                  src::Union{FitsHeader,FitsImage}) where {N}
+                  src::Union{FitsHeader,FitsHDU}) where {N}
     return ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
+
+#------------------------------------------------------------------------------
+# FITS CARD VALUES
+
+# FIXME: The following methods should be provided by EasyFITS.
+
+"""
+    getvalue([T,] H, key)
+
+yields the value of FITS keyword `key` in `H` throwing an error if `key` does
+not exist. If `T` is specified, the keyword value is converted to type `T`.
+
+"""
+getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value()
+getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value(T)
+
+"""
+    getvalue([T,] H, key, def)
+
+yields the value of FITS keyword `key` in `H` or `def` if `key` does not exist.
+If `T` is specified and keyword `key` exists, the keyword value is converted to
+type `T`.
+
+"""
+getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
+    (card = get(H, key, nothing)) === nothing ? def : card.value()
+getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
+    (card = get(H, key, nothing)) === nothing ? def : card.value(T)
+
+"""
+    matchvalue(val, card)
+    matchvalue(card, val)
+
+yield whether `val` is equal to the value of the FITS card `card`.
+
+"""
+matchvalue(val, card::FitsCard) = matchvalue(card, val)
+matchvalue(card::FitsCard, val::EasyFITS.Undefined) = card.type == FITS_UNDEFINED
+matchvalue(card::FitsCard, val::Nothing) = card.type == FITS_COMMENT
+matchvalue(card::FitsCard, val::AbstractString) =
+    card.type == FITS_STRING ? card.string == val : false
+matchvalue(card::FitsCard, val::Number) =
+    card.type == FITS_LOGICAL ? card.logical == val :
+    card.type == FITS_INTEGER ? card.integer == val :
+    card.type == FITS_FLOAT   ? card.float   == val :
+    card.type == FITS_COMPLEX ? card.complex == val : false
+matchvalue(card::FitsCard, val) = false
+
+"""
+    matchvalue(H, key, val)
+
+yields whether `H` has a FITS keyword `key` whose value is equal to `val`.
+
+"""
+matchvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, val) =
+    (card = get(H, key, nothing)) === nothing ? false : matchvalue(card, val)
+
+"""
+    f = KeywordMatcher(key, val)
+
+yields a callable object `f` which can be called as:
+
+    f(H)
+
+to yield whether `H` has a FITS keyword `key` whose value is equal to `val`.
+
+"""
+struct KeywordMatcher{V} <: Function
+    key::String
+    value::V
+end
+(obj::KeywordMatcher)(H::Union{FitsHDU,FitsHeader}) =
+    matchvalue(H, obj.key, obj.val)
 
 #------------------------------------------------------------------------------
 # IDENTIFIERS
@@ -237,6 +305,27 @@ yields a tuple of the fields of object `x`.
 
 """
 getfields(x) = ntuple(i -> getfield(x, i), Val(nfields(x)))
+
+"""
+    nth(n)
+
+yields the string `"\$n\$(ordinal_suffix(n))"`.
+
+"""
+nth(n::Integer) = string(n)*ordinal_suffix(n)
+# NOTE: `string(n)*ordinal_suffix(n)` is about 3 times faster (76.5ns) than
+#       `string(n,ordinal_suffix(n))` or `"$n$(ordinal_suffix(n))"` which are
+#       equally slow (208ns).
+
+"""
+    ordinal_suffix(n)
+
+yields the ordinal suffix `"st"`, `"nd"`, `"rd"`, or `"th"` corresponding
+to the value of the integer `n`.
+
+"""
+ordinal_suffix(n::Integer) =
+    (d = abs(n)%10) == 1 ? "st" : d == 2 ? "nd" : d == 3 ? "rd" : "th"
 
 @noinline argument_error(args...) =
     argument_error(string(args...))
