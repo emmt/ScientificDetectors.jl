@@ -43,9 +43,9 @@ import Base: read, write
 
 using Statistics, StatsBase, Distributions
 using MultivariateOnlineStatistics
-using ArrayTools
+using ArrayTools, StructuredArrays
 using EasyFITS
-using EasyFITS: exists, isprimary, throw_file_already_exists
+using EasyFITS: throw_file_already_exists
 import EasyFITS: write!, hduname, readfits, writefits, writefits!
 
 function process end
