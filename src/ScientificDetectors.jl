@@ -45,8 +45,8 @@ using Statistics, StatsBase, Distributions
 using MultivariateOnlineStatistics
 using ArrayTools, StructuredArrays
 using EasyFITS
-using EasyFITS: throw_file_already_exists
-import EasyFITS: write!, hduname, readfits, writefits, writefits!
+using EasyFITS: hduname, throw_file_already_exists
+import EasyFITS: write!, readfits, writefits, writefits!
 
 function process end
 function process! end
