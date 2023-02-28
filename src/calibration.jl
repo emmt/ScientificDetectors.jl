@@ -13,7 +13,7 @@ export
 using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
-using ArrayTools
+using ArrayTools, StructuredArrays
 using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
@@ -27,6 +27,7 @@ using ..ScientificDetectors:
     binning,
     getfields,
     identifier,
+    nth,
     offset
 import ..ScientificDetectors:
     DetectorAxes,
