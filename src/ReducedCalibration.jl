@@ -72,7 +72,7 @@ struct ReducedCalibration{T<:AbstractFloat,N}
     # time-dependent bias terms.
     src::Vector{String}
 
-    # bad pixels map
+    # Bad pixels map.
     bpm::Array{Bool,N}
 
     # Inner constructor provided to force using outer constructors.
@@ -83,7 +83,7 @@ struct ReducedCalibration{T<:AbstractFloat,N}
                                      σ::AbstractArray{T,N},
                                      s::AbstractVector{<:AbstractArray{T,N}},
                                      src::AbstractVector{<:AbstractString};
-                                     bpm::AbstractArray{Bool, N} =  FastUniformArray(true, size(roi)),
+                                     bpm::AbstractArray{Bool, N} = FastUniformArray(true, size(roi)),
                                      check::Bool = false
                                      ) where {T<:AbstractFloat,N}
         checkindices(ReducedCalibration, roi, f, z, g, σ, s, src,bpm)
@@ -258,12 +258,18 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
     length(src) == length(s) || error("incompatible number of sources")
     dims = size(roi)
 
+    counter = 0
     function fixarray(A::AbstractArray)
-        Base.has_offset_axes(A) && error("array has non-standard indexing")
-        eltype(A) <: Real || error("array has incompatible element type")
-        ndims(A) == N || error("array has incompatible number of dimensions")
+        counter += 1
+        Base.has_offset_axes(A) && error(
+            "$(nth(counter)) array has non-standard indexing")
+        eltype(A) <: Real || error(
+            "$(nth(counter)) array has incompatible element type")
+        ndims(A) == N || error(
+            "$(nth(counter)) array has incompatible number of dimensions")
         size(A) == dims ||
-            dimension_mismatch("array has incompatible dimensions")
+            dimension_mismatch(
+                "$(nth(counter)) array has incompatible dimensions")
         return convert(Array{T,N}, A)
     end
     ReducedCalibration{T,N}(roi,
