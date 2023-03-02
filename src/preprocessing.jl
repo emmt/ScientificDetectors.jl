@@ -421,7 +421,8 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N}
     b = copy(cal.b)
     g = cal.g
     σ = cal.σ
-    @assert size(bad) == dims
+    #bad = cal.bpm
+    #@assert size(bad) == dims # FIXME: argument was undefined
     @assert size(a) == dims
     @assert size(b) == dims
     @assert size(g) == dims
@@ -431,8 +432,10 @@ function PreprocessingParameters{T}(cal::SimpleCalibration{R,N}
     # and r[i] = 1, to have zero precision and avoid division by zero.
     q = Array{T}(undef, dims)
     r = Array{T}(undef, dims)
-    @inbounds for j in eachindex(bad, a, b, g, σ, q, r)
-        if (bad[j] || !isfinite(a[j]) || a[j] ≤ 0 || !isfinite(b[j]) ||
+    @inbounds for j in eachindex(#bad,
+                                 a, b, g, σ, q, r)
+        if (#bad[j] ||
+            !isfinite(a[j]) || a[j] ≤ 0 || !isfinite(b[j]) ||
             !isfinite(g[j]) || g[j] ≤ 0 || !isfinite(σ[j]) || σ[j] ≤ 0)
             a[j] = zero(T)
             b[j] = zero(T)
