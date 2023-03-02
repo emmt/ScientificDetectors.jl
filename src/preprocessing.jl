@@ -300,8 +300,8 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
                                     bg::Union{Nothing,Integer,String} = nothing,
                                     Δt::Real=0) where {T<:AbstractFloat,R,N}
 
-    # Get bad pixel
-    if (bad === nothing)
+    # Get bad pixel map. FIXME: Check type-stability
+    if bad === nothing
         bad = cal.bpm
     end
 
