@@ -181,8 +181,8 @@ function write(io::FitsFile, hdr::FitsHeader,
     hdu["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
     hdu["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
     hdu["FRAME5"] = ("good", "good pixel map (gpm) (1=goodpixel)")
-    for k ∈ eachindex(obj.src)
-        hdu["FRAME$(5+k)"] = (obj.src[k], "[ADU/s]")
+    for k ∈ eachindex(data.src)
+        hdu["FRAME$(5+k)"] = (data.src[k], "[ADU/s]")
     end
     for k ∈ 1:nsrc
         hdu["SRC$k"] = data.src[k]
