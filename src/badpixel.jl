@@ -22,46 +22,51 @@ Update the good pixel map according to all the quantities computed in `ReducedCa
 """
 function buildbadpixel!(C::ReducedCalibration{T,N}; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
 
+	# first step with CoLogLikelihood
+	# robust method to rule out the huge values that happen in CoLogLikeHood
 
 	gpm = goodpixelmap(C)
-	nvalid = count(gpm)
+	L = reshape(cologlikelihood(C)[gpm],:,1)
+	Χ2 = Chi2(Val(:robust),L)
+	C.gpm[gpm] .= (Χ2 .< cquantile(Chisq(1), 0.01))
 
-	nb_param = 4 + nsources(C)
 
+	# second step with the others columns
+	# and the user chosen method
 	
-	d = zeros(nvalid,nb_param) 
+	gpm = goodpixelmap(C)
 
-	# Co-log-likelihood.
-	d[:,1] .= cologlikelihood(C)[gpm]
-    # Zero-level 
-	d[:,2] .= detectorbias(C)[gpm]
-    # Detector gain 
-	d[:,3] .= detectorgain(C)[gpm]
-    # Standard deviation of the readout noise 
-	d[:,4] .= detectornoise(C)[gpm]
-	#sources
-	@inbounds for i=1:nsources(C)
-		d[:,4+i] .= sources(C,i)[gpm]
+	nb_param = 3 + nsources(C)
+
+	d = Matrix{T}(undef, count(gpm), nb_param)
+	d[:,1] .= detectorbias(C)[gpm]
+	d[:,2] .= detectorgain(C)[gpm]
+	d[:,3] .= detectornoise(C)[gpm]
+	@inbounds for i=1:nsources(C) # every source
+		d[:,3+i] .= sources(C,i)[gpm]
 	end
 
-	#m = [ median(d[:,i]) for i in 1:nb_param]
-	#v = [ mad(d[:,i]) for i in 1:nb_param]
-	Χ2 =Chi2(Val(method),d)
-	if estimatedof
-		dof = mean(Χ2)
-	else
-		dof = nb_param
-	end
-	C.gpm[gpm] .=  (Χ2 .< cquantile(Chisq(dof), threshold))
-	return  C
+	Χ2 = Chi2(Val(method),d)
+
+	dof = estimatedof ? mean(Χ2) : nb_param
+
+	C.gpm[gpm] .= (Χ2 .< cquantile(Chisq(dof), threshold))
+
+	return C
 end
 
 
 function Chi2( ::Val{:cov},A::AbstractArray{T,2}) where {T<:AbstractFloat}
 	m = mean(A, dims=1)
 	t = (A .- m)
-	U = cholesky(Symmetric(1/(size(A,1)-1)*(t'*t)); check=true).U
-	return sum(abs2,t / U,dims=2)
+	C = Symmetric(1/(size(A,1)-1)*(t'*t))
+	F = cholesky(C; check=false)
+	if issuccess(F)
+		return sum(abs2,t / F.U,dims=2)
+	else
+		return sum(abs2,t * sqrt(Symmetric(pinv(C))),dims=2)
+	end
+
 end
 
 
@@ -80,8 +85,6 @@ end
 
 
 function buildbadpixel(A::CalibrationData{T,N} ; threshold::Real=0.05, estimatedof = false,method::Symbol=:cov) where {T,N}
-
-   # d = vcat(mean.( A.stat),var.( A.stat))
 
     nb_param = length(A.stat)
     numel = prod(size(A))
