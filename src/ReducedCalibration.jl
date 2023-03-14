@@ -73,8 +73,8 @@ struct ReducedCalibration{T<:AbstractFloat,N}
     src::Vector{String}
 
 
-    # good pixels map (true = good pixel)
-    gpm::Array{Bool,N}
+    # valid pixels map (true = valid pixel)
+    vpm::Array{Bool,N}
 
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N}(roi::NTuple{N,DetectorAxis},
@@ -84,11 +84,11 @@ struct ReducedCalibration{T<:AbstractFloat,N}
                                      σ::AbstractArray{T,N},
                                      s::AbstractVector{<:AbstractArray{T,N}},
                                      src::AbstractVector{<:AbstractString};
-                                     gpm::AbstractArray{Bool, N} = FastUniformArray(true, size(roi)),
+                                     vpm::AbstractArray{Bool, N} = FastUniformArray(true, size(roi)),
                                      check::Bool = false
                                      ) where {T<:AbstractFloat,N}
-        checkindices(ReducedCalibration, roi, f, z, g, σ, s, src, gpm)
-        obj = new{T,N}(roi, f, z, g, σ, s, src, gpm)
+        checkindices(ReducedCalibration, roi, f, z, g, σ, s, src, vpm)
+        obj = new{T,N}(roi, f, z, g, σ, s, src, vpm)
         check && checkvalues(obj)
         return obj
     end
@@ -138,7 +138,7 @@ cologlikelihood(obj::ReducedCalibration) = obj.f
 detectorbias(obj::ReducedCalibration) = obj.z
 detectorgain(obj::ReducedCalibration) = obj.g
 detectornoise(obj::ReducedCalibration) = obj.σ
-goodpixelmap(obj::ReducedCalibration) = obj.gpm
+validpixelmap(obj::ReducedCalibration) = obj.vpm
 sources(obj::ReducedCalibration) = obj.s
 sources(obj::ReducedCalibration, k::Integer) = getindex(sources(obj), k)
 sourcesid(obj::ReducedCalibration) = obj.src
@@ -338,7 +338,7 @@ function checkindices(::Type{<:ReducedCalibration},
                       σ::AbstractArray,
                       s::AbstractVector{<:AbstractArray},
                       src::AbstractVector{<:AbstractString},
-                      gpm::AbstractArray) where {N}
+                      vpm::AbstractArray) where {N}
     for i in 1:N
         length(roi[i]) ≥ 1 || argument_error(
             "invalid detector axis length")
@@ -354,7 +354,7 @@ function checkindices(::Type{<:ReducedCalibration},
     axes(z) == inds || dimension_mismatch("`z` has incompatible indices")
     axes(g) == inds || dimension_mismatch("`g` has incompatible indices")
     axes(σ) == inds || dimension_mismatch("`σ` has incompatible indices")
-    axes(gpm) == inds || dimension_mismatch("`gpm` has incompatible indices")
+    axes(vpm) == inds || dimension_mismatch("`vpm` has incompatible indices")
     axes(src) == axes(s) || dimension_mismatch(
         "source terms and names have incompatible indices")
     for k ∈ eachindex(s)
