@@ -6,13 +6,14 @@
   combination of these terms.
 
 - Use *sufficient statistics* to represent multiple calibration data frames
-  acquirred under the same conditions (same enlightenment and same exposure
+  acquired under the same conditions (same enlightenment and same exposure
   time).  As a result, memory occupation can be much reduced and reduction of
   calibration data much faster.
 
 - Activate multi-threading for fitting detector parameters when calling
   `ReducedCalibration` constructor on a `CalibrationData` instance.
 
+- Use `AsType` package.
 
 ## Version 0.2.2
 

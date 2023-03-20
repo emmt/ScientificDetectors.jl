@@ -13,7 +13,7 @@ export
 using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
-using ArrayTools, StructuredArrays
+using AsType, ArrayTools, StructuredArrays
 using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
@@ -273,7 +273,7 @@ end
 function extract!(obj::ObjectiveFunction,
                   cal::CalibrationData{T,N},
                   k::Integer) where {T,N}
-    return extract!(obj, cal, to_type(Int, k))
+    return extract!(obj, cal, as(Int, k))
 end
 function extract!(obj::ObjectiveFunction,
                   cal::CalibrationData{T,N},
@@ -419,7 +419,7 @@ function fit_linear_terms!(obj::ObjectiveFunction{S,T},
                            kwds...) where {S,T<:AbstractFloat}
     # Do a weighted least squares fit on all the linear parameters with the
     # positivity constraint on the source terms.
-    eq = form_normal_equations!(obj, x, to_type(T, eta))
+    eq = form_normal_equations!(obj, x, as(T, eta))
     if nonnegative
         # Solve the normal equations under the constraints that the source
         # terms are nonnegative.
@@ -455,7 +455,7 @@ assumed to be given by the number of samples: ` w[k,l] = n[k,l]`.
 function form_normal_equations!(obj::ObjectiveFunction{S,T},
                                 x::AbstractVector{T},
                                 η::Real = Inf) where {S,T<:AbstractFloat}
-    return form_normal_equations!(obj, x, to_type(T, η))
+    return form_normal_equations!(obj, x, as(T, η))
 end
 
 function form_normal_equations!(obj::ObjectiveFunction{S,T},

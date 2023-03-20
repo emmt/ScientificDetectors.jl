@@ -5,6 +5,7 @@ version = "0.3.0-d"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
+AsType = "ca91d8e0-3195-446d-9999-6c164cca1bdd"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 EasyFITS = "a977f4a2-36a7-4172-89e7-19c2726f82e5"
 LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
