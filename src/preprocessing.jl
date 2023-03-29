@@ -47,7 +47,7 @@ It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
     PreprocessingParameters(cal::ReducedCalibration;
-                            vpm=nothing,
+                            vpm=validpixelsmap(cal),
                             flat=nothing, flatbg=nothing,
                             bg=nothing, Δt=0) -> obj
 

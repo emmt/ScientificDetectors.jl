@@ -15,6 +15,9 @@
 
 - Use `AsType` package.
 
+- Rename "good/bad pixels map" as "valid pixels map" or `vpm`: now `1` means a good pixel.
+  Improve code around it (type parameter, default value, constructors).
+
 ## Version 0.2.2
 
 - Methods `regionofinterest` and `numberofsamples` deprecated in favor of
