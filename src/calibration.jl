@@ -5,7 +5,7 @@ export
     detectorbias,
     detectorgain,
     detectornoise,
-    validpixelmap,
+    validpixelsmap,
     sources,
     sourcesid,
     nsources
@@ -46,7 +46,7 @@ include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
-include("badpixel.jl")
+include("validpixelsmap.jl")
 
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.
@@ -995,15 +995,15 @@ function compute_cΔt!(cΔt::AbstractVector{T},
     return cΔt
 end
 
-ReducedCalibration(dat::CalibrationData; kwds...) =
-    ReducedCalibration(:zgσs, dat; kwds...)
+ReducedCalibration(dat::CalibrationData, args...; kwds...) =
+    ReducedCalibration(:zgσs, dat, args...; kwds...)
 
-ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
-    ReducedCalibration(Val(alg), dat; kwds...)
+ReducedCalibration(alg::Symbol, dat::CalibrationData, args...; kwds...) =
+    ReducedCalibration(Val(alg), dat, args...; kwds...)
 
 function ReducedCalibration(alg::Val{S},
-                            dat::CalibrationData{T,N};
-                            vpm::AbstractArray{Bool, N} = FastUniformArray(true, size(dat)),
+                            dat::CalibrationData{T,N},
+                            vpm::AbstractArray{Bool,N}=default_valid_pixels_map(DetectorAxes(dat));
                             nonnegative::Bool = true,
                             maxval::Real = +Inf,
                             gmin::Real = 0.1,
@@ -1055,8 +1055,8 @@ function ReducedCalibration(alg::Val{S},
                                 inits(T, dims, badpixvalue), #nans(T, dims),  # g
                                 inits(T, dims, badpixvalue), #nans(T, dims),  # σ
                                 [inits(T, dims, badpixvalue) for j in 1:nsrc], #[nans(T, dims) for j in 1:nsrc],  # s
-                                src_names;
-                                vpm=vpm)
+                                src_names,
+                                vpm)
     npixels = prod(dims)
     p = Progress(count(vpm); showspeed=true)
     Threads.@threads for k in 1:npixels

@@ -161,7 +161,7 @@ function read(::Type{ReducedCalibration{T,N}},
     vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
         FastUniformArray(true, dims[1:end-1])
     s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
-    return ReducedCalibration{T}(roi, f, z, g, σ, s, src; vpm=vpm)
+    return ReducedCalibration{T}(roi, f, z, g, σ, s, src, vpm)
 end
 
 function write(io::FitsFile, hdr::FitsHeader,
