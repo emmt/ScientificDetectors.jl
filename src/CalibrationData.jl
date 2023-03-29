@@ -18,10 +18,10 @@ a symbolic name.  The simplest way to indicate this mapping is to call the
 constructor as in the following example:
 
     A = CalibrationData{Float32}(roi,
-                           "DARK"  => :(dark),
-                           "LAMP1" => :(dark + lamp1),
-                           "LAMP2" => :(dark + lamp2),
-                           "LAMP1+LAMP2" => :(dark + lamp1 + lamp2), ...)
+                                 "DARK"  => :(dark),
+                                 "LAMP1" => :(dark + lamp1),
+                                 "LAMP2" => :(dark + lamp2),
+                                 "LAMP1+LAMP2" => :(dark + lamp1 + lamp2), ...)
 
 where there are 4 categories named `"DARK"`, `"LAMP1", `"LAMP2", and
 `"LAMP1+LAMP2" which are relatedby the paired expressions to 3 sources named
@@ -301,8 +301,7 @@ end
 append `x` to vector `A` if not already in `A` and returns `A`.
 
 """
-update_list!(A::AbstractVector{T}, x) where {T} =
-    update_list!(A, convert(T, x)::T)
+update_list!(A::AbstractVector{T}, x) where {T} = update_list!(A, as(T, x))
 
 function update_list!(A::AbstractVector{T}, x::T) where {T}
     @inbounds for i in eachindex(A)
@@ -393,7 +392,7 @@ end
 """
     B = prunecalibration(A::CalibrationData{T,N}) where {T,N}
 
-    Return a new CalibrationData `B` from CalibrationData `A` pruned of empty categories and sources 
+    Return a new CalibrationData `B` from CalibrationData `A` pruned of empty categories and sources
 """
 function prunecalibration(A::CalibrationData{T,N}) where {T,N}
     src_nobs = zeros(length(A.src_index))
@@ -424,7 +423,7 @@ function prunecalibration(A::CalibrationData{T,N}) where {T,N}
 
     ncat=cumsum(existing_cat)
     for (cat, c) ∈ A.cat_index
-        if existing_cat[c] 
+        if existing_cat[c]
             new_cat[cat] = ncat[c]
         end
     end
@@ -432,12 +431,12 @@ function prunecalibration(A::CalibrationData{T,N}) where {T,N}
     # update sources dictionary
     nsrc=cumsum(existing_src)
     for (src, s) ∈ A.src_index
-        if existing_src[s] 
+        if existing_src[s]
             new_src[src] = nsrc[s]
         end
     end
-    
-    
+
+
     # Build instance.
     return CalibrationData{T,N}(
         A.roi,                # region of interest
