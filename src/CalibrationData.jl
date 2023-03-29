@@ -436,7 +436,6 @@ function prunecalibration(A::CalibrationData{T,N}) where {T,N}
         end
     end
 
-
     # Build instance.
     return CalibrationData{T,N}(
         A.roi,                # region of interest

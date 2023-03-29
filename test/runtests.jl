@@ -2,6 +2,8 @@ module TestingScientificDetectors
 
 using Test, ScientificDetectors
 using ScientificDetectors: offset, binning
+using LinearAlgebra # to test other Arrays subtypes
+using StructuredArrays # to test FastUniformArray
 
 @testset "DetectorAxis" begin
     # DetectorAxis
@@ -30,6 +32,74 @@ using ScientificDetectors: offset, binning
     @test DetectorAxes(dims) === roi
     A = Array{T}(undef, dims)
     @test DetectorAxes(A) === roi
+end
+
+@testset "ReducedCalibration constructors" begin
+
+    #TODO some constructors are not tested yet, as the "more complex" ones in ReducedCalibration.jl
+
+    W = 2048
+    H = 1024
+    roi = DetectorAxes((1:W, 1:H))
+
+    # inner
+    @test ReducedCalibration{Float64,2,Array{Bool,2}} == typeof(
+            ReducedCalibration{Float64,2,Array{Bool,2}}(
+                roi,
+                ones(Float64, W, H),
+                Transpose(ones(Float64, H, W)), # test another subtype of AbstractArray
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                [ones(Float64, W, H), ones(Float64, W, H),],
+                ["TOTO", "TATA"],
+                trues(W, H);
+                check = true))
+                
+    # identity
+    redcal = ReducedCalibration{Float64,2,Array{Bool,2}}(
+                roi,
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                [ones(Float64, W, H), ones(Float64, W, H),],
+                ["TOTO", "TATA"],
+                trues(W, H))
+    @test redcal === ReducedCalibration(redcal)
+    @test redcal === ReducedCalibration{Float64}(redcal)
+    @test redcal === ReducedCalibration{Float64,2}(redcal)
+    @test redcal === ReducedCalibration{Float64,2,Array{Bool,2}}(redcal)
+    
+    # promote T (also test the default V and vpm constructors)
+    @test ReducedCalibration{BigFloat,2,FastUniformMatrix{Bool,true}} == typeof(
+        ReducedCalibration(
+                roi,
+                ones(Float64, W, H),
+                ones(Float32, W, H),
+                ones(Float16, W, H),
+                ones(Rational, W, H),
+                [ones(Int32, W, H), ones(BigFloat, W, H),],
+                ["TOTO", "TATA"]))
+                
+    # T and V conversion
+    redcal = ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}}(
+                roi,
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                ones(Float64, W, H),
+                [ones(Float64, W, H), ones(Float64, W, H),],
+                ["TOTO", "TATA"],
+                ScientificDetectors.default_valid_pixels_map(roi))
+    @test ReducedCalibration{Float32,2,Array{Bool,2}} == typeof(
+        ReducedCalibration{Float32,2,Array{Bool,2}}(redcal))
+        
+    # CalibrationData
+    roy = DetectorAxes((1:2, 1:2))
+    cat1 = CalibrationCategory("CAT1", :(cat1))
+    caldat = CalibrationData{Float64}(roy, [cat1])
+    redcal = ReducedCalibration(caldat)
+    @test ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}} == typeof(redcal)
 end
 
 end # module

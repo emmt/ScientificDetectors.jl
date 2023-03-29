@@ -12,6 +12,7 @@ import ..ScientificDetectors:
 using ..Calibration:
     sourcesid,
     sources,
+    validpixelsmap,
     detectorbias,
     detectorgain,
     detectornoise,
@@ -294,17 +295,12 @@ PreprocessingParameters{T,N}(cal::ReducedCalibration{R,N}, args...; kwds...) whe
     PreprocessingParameters{T}(cal, args...; kwds...)
 
 function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
-                                    vpm::Union{Nothing,AbstractArray{Bool,N}} = nothing,
+                                    # FIXME: Check type-stability of `vpm`
+                                    vpm::AbstractArray{Bool,N} = validpixelsmap(cal),
                                     flat::Union{Nothing,Integer,String} = nothing,
                                     flatbg::Union{Nothing,Integer,String} = nothing,
                                     bg::Union{Nothing,Integer,String} = nothing,
                                     Δt::Real=0) where {T<:AbstractFloat,R,N}
-
-
-    # Get valid pixel map. FIXME: Check type-stability
-    if (vpm === nothing)
-        vpm = cal.vpm
-    end
 
     # Get index of flat term and its background.
     jflat = find(cal, flat)

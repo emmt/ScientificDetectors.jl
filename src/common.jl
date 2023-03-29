@@ -160,6 +160,8 @@ function Base.get(::Type{DetectorAxes{N}},
     return ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
 
+default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
+
 #------------------------------------------------------------------------------
 # FITS CARD VALUES
 
