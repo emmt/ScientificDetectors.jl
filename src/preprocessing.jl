@@ -47,11 +47,11 @@ It is also possible to convert reduced calibration data to preprocessing
 parameters:
 
     PreprocessingParameters(cal::ReducedCalibration;
-                            vpm=validpixelsmap(cal),
+                            validpixels=validpixelsmap(cal),
                             flat=nothing, flatbg=nothing,
                             bg=nothing, Δt=0) -> obj
 
-with `cal` an instance of [`ReducedCalibration`](@ref), `vpm` a boolean mask
+with `cal` an instance of [`ReducedCalibration`](@ref), `validpixels` a boolean mask
 indicating the valid pixels (true = valid pixel), `flat` the identifier of the
 flat calibration source, `flatbg` the identifier of the background source for
 the flat, `bg` the identifier of the background source and `Δt` the exposure
@@ -295,8 +295,7 @@ PreprocessingParameters{T,N}(cal::ReducedCalibration{R,N}, args...; kwds...) whe
     PreprocessingParameters{T}(cal, args...; kwds...)
 
 function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
-                                    # FIXME: Check type-stability of `vpm`
-                                    vpm::AbstractArray{Bool,N} = validpixelsmap(cal),
+                                    validpixels::AbstractArray{Bool,N} = validpixelsmap(cal),
                                     flat::Union{Nothing,Integer,String} = nothing,
                                     flatbg::Union{Nothing,Integer,String} = nothing,
                                     bg::Union{Nothing,Integer,String} = nothing,
@@ -322,124 +321,109 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
         error("no time dependent bias specified in calibration data")
 
     # Check arguments.
-    dims = size(cal)
     z = detectorbias(cal)
     g = detectorgain(cal)
     σ = detectornoise(cal)
     s = sources(cal)
-    @assert size(vpm) == dims
-    @assert size(z) == dims
-    @assert size(g) == dims
-    @assert size(σ) == dims
-    @assert size(s[jflat]) == dims
-    if jflatbg != 0
-        @assert size(s[jflatbg]) == dims
-    end
-    if jbg != 0
-        @assert size(s[jbg]) == dims
-    end
 
-    # Compute the flux correction term.  Bad pixels have a[i] = 0.
-    a = Array{T}(undef, dims)
+    # Private functions to check validity of parameters.
+    ispositive(x) = isfinite(x) & (x > zero(x))
+    isnonnegative(x) = isfinite(x) & (x ≥ zero(x))
+
+    # First stage. Compute the flux correction term. Bad pixels will have
+    # a[i] = 0 (this is done in a second stage).
+    a = similar(z)
     sflat = s[jflat]
     if jflatbg != 0
         sflatbg = s[jflatbg]
-        @inbounds for i in eachindex(vpm, a, sflat, sflatbg)
-            val = sflat[i] - sflatbg[i]
-            a[i] = (!vpm[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
+        @inbounds for i in all_indices(validpixels, a, sflat, sflatbg)
+            a[i] = one(T)/(sflat[i] - sflatbg[i])
         end
     else
-        @inbounds for i in eachindex(vpm, a, sflat)
-            val = sflat[i]
-            a[i] = (!vpm[i] | !isfinite(val) | (val ≤ 0)) ? zero(T) : one(T)/val
+        @inbounds for i in all_indices(validpixels, a, sflat)
+            a[i] = one(T)/sflat[i]
         end
     end
 
-    # Compute the bias correction and the variance terms.  Bad pixels have
-    # a[i] = 0, b[i] = 0, q[i] = 0 and r[i] = 1, to have zero precision and
-    # avoid division by zero.
-    b = Array{T}(undef, dims)
-    q = Array{T}(undef, dims)
-    r = Array{T}(undef, dims)
+    # Second stage. Compute the bias correction and the variance terms. Bad
+    # pixels have a[i] = 0, b[i] = 0, q[i] = 0 and r[i] = 1, to have zero
+    # precision and avoid division by zero.
+    b = similar(a)
+    q = similar(a)    
+    r = similar(a)
     if jbg != 0
         sbg = s[jbg]
         dt = T(Δt)
-        @inbounds for i in eachindex(vpm, a, b, g, q, r, σ, sbg)
+        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ, sbg)
             sdt = sbg[i]*dt
             b_i = z[i] + sdt
             q_i = g[i]/a[i]
             r_i = a[i]*(g[i]*σ[i]^2 + sdt)
-            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(q_i) & (q_i ≥ 0)) |
-                !(isfinite(r_i) & (r_i > 0)))
+            if validpixels[i] & ispositive(a[i]) & isfinite(b_i) & isnonnegative(q_i) & ispositive(r_i)
+                b[i] = b_i
+                q[i] = q_i
+                r[i] = r_i
+            else
                 a[i] = zero(T)
                 b[i] = zero(T)
                 q[i] = zero(T)
                 r[i] = one(T)
-            else
-                b[i] = b_i
-                q[i] = q_i
-                r[i] = r_i
             end
         end
     else
-        @inbounds for i in eachindex(vpm, a, b, g, q, r, σ)
+        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ)
             b_i = z[i]
             q_i = g[i]/a[i]
             r_i = a[i]*g[i]*σ[i]^2
-            if ((a[i] ≤ 0) | !isfinite(b_i) | !(isfinite(q_i) & (q_i ≥ 0)) |
-                !(isfinite(r_i) & (r_i > 0)))
+            if validpixels[i] & ispositive(a[i]) & isfinite(b_i) & isnonnegative(q_i) & ispositive(r_i)
+                b[i] = b_i
+                q[i] = q_i
+                r[i] = r_i
+            else
                 a[i] = zero(T)
                 b[i] = zero(T)
                 q[i] = zero(T)
                 r[i] = one(T)
-            else
-                b[i] = b_i
-                q[i] = q_i
-                r[i] = r_i
             end
         end
     end
     return PreprocessingParameters(DetectorAxes(cal), Δt, a, b, q, r)
 end
 
+default_valid_pixels_map(cal::SimpleCalibration) = default_valid_pixels_map(DetectorAxes(cal))
+
 PreprocessingParameters(cal::SimpleCalibration{T}, args...; kwds...) where {T} =
     PreprocessingParameters{T}(cal, args...; kwds...)
 
-function PreprocessingParameters{T}(cal::SimpleCalibration{R,N}
+function PreprocessingParameters{T}(cal::SimpleCalibration{R,N};
+                                    validpixels::AbstractArray{Bool,N} = default_valid_pixels_map(cal)
                                     ) where {T<:AbstractFloat,R,N}
+
+    # Private functions to check validity of parameters.
+    ispositive(x) = isfinite(x) & (x > zero(x))
+    isnonnegative(x) = isfinite(x) & (x ≥ zero(x))
 
     # Get exposure time.
     Δt = exposuretime(cal)
-    (isfinite(Δt) && Δt ≥ 0) || error("exposure time must be nonnegative")
+    isnonnegative(Δt) || error("exposure time must be nonnegative")
 
-    # Check arguments.
-    dims = size(cal)
+    # Compute the variance terms.  Bad pixels have a[i] = 0, b[i] = 0, q[i] = 0
+    # and r[i] = 1, to have zero precision and avoid division by zero.
     a = copy(cal.a)
     b = copy(cal.b)
     g = cal.g
     σ = cal.σ
-    #@assert size(vpm) == dims  #FIXME: argument was undefined
-    @assert size(a) == dims
-    @assert size(b) == dims
-    @assert size(g) == dims
-    @assert size(σ) == dims
-
-    # Compute the variance terms.  Bad pixels have a[i] = 0, b[i] = 0, q[i] = 0
-    # and r[i] = 1, to have zero precision and avoid division by zero.
-    q = Array{T}(undef, dims)
-    r = Array{T}(undef, dims)
-    @inbounds for j in eachindex(#vpm,
-                                 a, b, g, σ, q, r)
-        if (#!vpm[j] ||
-            !isfinite(a[j]) || a[j] ≤ 0 || !isfinite(b[j]) ||
-            !isfinite(g[j]) || g[j] ≤ 0 || !isfinite(σ[j]) || σ[j] ≤ 0)
+    q = similar(a)
+    r = similar(a)
+    @inbounds for j in all_indices(validpixels, a, b, g, σ, q, r)
+        if validpixels[j] & ispositive(a[j]) & isfinite(b[j]) & ispositive(g[j]) & ispositive(σ[j])
+            q[j] = g[j]/a[j]
+            r[j] = a[j]*g[j]*σ[j]^2
+        else
             a[j] = zero(T)
             b[j] = zero(T)
             q[j] = zero(T)
             r[j] = one(T)
-        else
-            q[j] = g[j]/a[j]
-            r[j] = a[j]*g[j]*σ[j]^2
         end
     end
     return PreprocessingParameters(DetectorAxes(cal), Δt, a, b, q, r)
