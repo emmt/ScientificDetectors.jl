@@ -1052,11 +1052,11 @@ function ReducedCalibration(alg::Val{S},
         src_names[val] = key
     end
     out = ReducedCalibration{T}(dat.roi,
-                                fill(badpixelvalue, dims), # f
-                                fill(badpixelvalue, dims), # z
-                                fill(badpixelvalue, dims), # g
-                                fill(badpixelvalue, dims), # σ
-                                [fill(badpixelvalue, dims) for j in 1:nsrc], # s
+                                fill(badvalue, dims), # f
+                                fill(badvalue, dims), # z
+                                fill(badvalue, dims), # g
+                                fill(badvalue, dims), # σ
+                                [fill(badvalue, dims) for j in 1:nsrc], # s
                                 src_names,
                                 validpixels)
     npixels = prod(dims)
