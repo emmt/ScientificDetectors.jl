@@ -32,6 +32,7 @@ using ..ScientificDetectors:
 import ..ScientificDetectors:
     DetectorAxes,
     argument_error,
+    default_valid_pixels_map,
     dimension_mismatch,
     exposuretime
 import Base: push!, merge!
@@ -995,24 +996,26 @@ function compute_cΔt!(cΔt::AbstractVector{T},
     return cΔt
 end
 
-ReducedCalibration(dat::CalibrationData, args...; kwds...) =
-    ReducedCalibration(:zgσs, dat, args...; kwds...)
+default_valid_pixels_map(dat::CalibrationData) = default_valid_pixels_map(DetectorAxes(dat))
 
-ReducedCalibration(alg::Symbol, dat::CalibrationData, args...; kwds...) =
-    ReducedCalibration(Val(alg), dat, args...; kwds...)
+ReducedCalibration(dat::CalibrationData; kwds...) =
+    ReducedCalibration(:zgσs, dat; kwds...)
+
+ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
+    ReducedCalibration(Val(alg), dat; kwds...)
 
 function ReducedCalibration(alg::Val{S},
-                            dat::CalibrationData{T,N},
-                            vpm::AbstractArray{Bool,N}=default_valid_pixels_map(DetectorAxes(dat));
+                            dat::CalibrationData{T,N};
+                            validpixels::AbstractArray{Bool,N} = default_valid_pixels_map(dat),
                             nonnegative::Bool = true,
                             maxval::Real = +Inf,
                             gmin::Real = 0.1,
                             gmax::Real = +Inf,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
-                            badpixvalue::T = T(0),
+                            badpixvalue::Real = zero(T),
                             quiet::Bool = false) where {S,T,N}
-    axes(vpm) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
+    axes(validpixels) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
     (isfinite(gmin) && gmin > 0) || argument_error(
         "value of keyword `gmin` must be finite and positive")
     (isfinite(g) && g ≥ gmin) || argument_error(
@@ -1024,6 +1027,7 @@ function ReducedCalibration(alg::Val{S},
         @warn "You may start Julia as `JULIA_NUM_THREADS=$(Base.Sys.CPU_THREADS) julia`"
     end
 
+    badpixvalue = as(T, badpixelvalue)
     obj = [ObjectiveFunction{S}(dat) for i in 1:nthreads]
     nsub, ncat, nsrc = size(obj[1])
     n = 3 + nsrc
@@ -1042,25 +1046,23 @@ function ReducedCalibration(alg::Val{S},
         end
     end
 
-    inits(::Type{T}, dims::Dims{N}, value::T) where {T<:AbstractFloat,N} =
-        fill!(Array{T,N}(undef, dims), value)
     dims = size(dat.roi)
     src_names = Array{String}(undef, nsrc)
     for (key,val) in dat.src_index
         src_names[val] = key
     end
     out = ReducedCalibration{T}(dat.roi,
-                                inits(T, dims, badpixvalue), #nans(T, dims),  # f
-                                inits(T, dims, badpixvalue), #nans(T, dims),  # z
-                                inits(T, dims, badpixvalue), #nans(T, dims),  # g
-                                inits(T, dims, badpixvalue), #nans(T, dims),  # σ
-                                [inits(T, dims, badpixvalue) for j in 1:nsrc], #[nans(T, dims) for j in 1:nsrc],  # s
+                                fill(badpixelvalue, dims), # f
+                                fill(badpixelvalue, dims), # z
+                                fill(badpixelvalue, dims), # g
+                                fill(badpixelvalue, dims), # σ
+                                [fill(badpixelvalue, dims) for j in 1:nsrc], # s
                                 src_names,
-                                vpm)
+                                validpixels)
     npixels = prod(dims)
-    p = Progress(count(vpm); showspeed=true)
+    p = Progress(count(validpixels); showspeed=true)
     Threads.@threads for k in 1:npixels
-        vpm[k] || continue
+        validpixels[k] || continue
         i = Threads.threadid()
         extract!(obj[i], dat, k)
         copyto!(x[i], xmin[i])
