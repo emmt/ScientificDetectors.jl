@@ -158,10 +158,10 @@ function read(::Type{ReducedCalibration{T,N}},
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
-    bpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
+    vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
         FastUniformArray(true, dims[1:end-1])
     s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
-    return ReducedCalibration{T}(roi, f, z, g, σ, s, src; bpm=bpm)
+    return ReducedCalibration{T}(roi, f, z, g, σ, s, src, vpm)
 end
 
 function write(io::FitsFile, hdr::FitsHeader,
@@ -180,9 +180,9 @@ function write(io::FitsFile, hdr::FitsHeader,
     hdu["FRAME2"] = ("bias", "[ADU] constant bias (z)")
     hdu["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
     hdu["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
-    hdu["FRAME5"] = ("good", "good pixel map (gpm) (1=goodpixel)")
-    for k ∈ eachindex(obj.src)
-        hdu["FRAME$(5+k)"] = (obj.src[k], "[ADU/s]")
+    hdu["FRAME5"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
+    for k ∈ eachindex(data.src)
+        hdu["FRAME$(5+k)"] = (data.src[k], "[ADU/s]")
     end
     for k ∈ 1:nsrc
         hdu["SRC$k"] = data.src[k]
@@ -195,7 +195,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     write(hdu, data.z; first = tick())
     write(hdu, data.g; first = tick())
     write(hdu, data.σ; first = tick())
-    write(hdu, data.bpm; first = tick())
+    write(hdu, data.vpm; first = tick())
     for arr ∈ data.s
         write(hdu, arr; first = tick())
     end

@@ -36,8 +36,8 @@ export
     write!,
     writefits!,
     writefits,
-    buildbadpixel!,
-    buildbadpixel
+    findbadpixels!,
+    findbadpixels
 
 import Base: read, write
 
@@ -64,8 +64,8 @@ import .Calibration:
     CalibrationFrameSampler,
     ReducedCalibration,
     SimpleCalibration,
-    buildbadpixel,
-    buildbadpixel!
+    findbadpixels,
+    findbadpixels!
 
 include("preprocessing.jl")
 import .Preprocessing:
