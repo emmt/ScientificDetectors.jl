@@ -1013,7 +1013,7 @@ function ReducedCalibration(alg::Val{S},
                             gmax::Real = +Inf,
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
-                            badpixvalue::Real = zero(T),
+                            badvalue::Real = zero(T),
                             quiet::Bool = false) where {S,T,N}
     axes(validpixels) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
     (isfinite(gmin) && gmin > 0) || argument_error(
@@ -1027,7 +1027,7 @@ function ReducedCalibration(alg::Val{S},
         @warn "You may start Julia as `JULIA_NUM_THREADS=$(Base.Sys.CPU_THREADS) julia`"
     end
 
-    badpixvalue = as(T, badpixelvalue)
+    badvalue = as(T, badvalue)
     obj = [ObjectiveFunction{S}(dat) for i in 1:nthreads]
     nsub, ncat, nsrc = size(obj[1])
     n = 3 + nsrc
