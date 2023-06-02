@@ -13,7 +13,7 @@ export
 using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
-using AsType, ArrayTools, StructuredArrays
+using TypeUtils, ArrayTools, StructuredArrays
 using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:

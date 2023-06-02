@@ -13,7 +13,7 @@
 - Activate multi-threading for fitting detector parameters when calling
   `ReducedCalibration` constructor on a `CalibrationData` instance.
 
-- Use `AsType` package.
+- Use `TypeUtils` package.
 
 - Rename "good/bad pixels map" as "valid pixels map" or `vpm`: now `1` means a good pixel.
   Improve code around it (type parameter, default value, constructors).
@@ -24,5 +24,5 @@
   `DetectorAxes` and `nobs` (from `StatsBase`).  The deprecated methods are not
   exported.
 
-- Rename preprocessing parameters `p` and `q` (too confusing) as
+- Rename pre-processing parameters `p` and `q` (too confusing) as
   `q` and `r` respectively.
