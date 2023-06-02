@@ -19,10 +19,10 @@ StructuredArrays = "2e8cd123-6858-488d-b42d-068777248635"
 TypeUtils = "c3b1956e-8857-4d84-9b79-890df85b1e67"
 
 [compat]
-ArrayTools = "0.2.3"
-EasyFITS = "0.5.2"
-MultivariateOnlineStatistics = "0.2.1"
-StructuredArrays = "0.2.5"
+ArrayTools = "≥ 0.2.3"
+EasyFITS = "≥ 0.5.2"
+MultivariateOnlineStatistics = "≥ 0.2.1"
+StructuredArrays = "≥ 0.2.5"
 TypeUtils = "≥ 0.2"
 julia = "1.6"
 
