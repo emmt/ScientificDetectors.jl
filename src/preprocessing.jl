@@ -7,7 +7,8 @@ import ..ScientificDetectors:
     ReducedCalibration,
     exposuretime,
     process!,
-    process
+    process,
+    default_valid_pixels_map
 
 using ..Calibration:
     sourcesid,
@@ -349,7 +350,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     # pixels have a[i] = 0, b[i] = 0, q[i] = 0 and r[i] = 1, to have zero
     # precision and avoid division by zero.
     b = similar(a)
-    q = similar(a)    
+    q = similar(a)
     r = similar(a)
     if jbg != 0
         sbg = s[jbg]
