@@ -57,6 +57,12 @@ yields the detector geometry settings for object `B` (note the plural) as an
 `N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
 detector.
 
+Call the `range` function as follows to retrieve the indices along `k`-th
+dimension of array `A` of the first physical pixels for the macro-pixels
+defined by for detector axes `R`:
+
+    range(A, R, k)
+
 """
 struct DetectorAxis
     # Along the considered dimension:
@@ -81,6 +87,18 @@ DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
     step(R) > 0 || argument_error("step must be positive")
     DetectorAxis(length(R), offset(R), binning(R), step(R))
 end
+
+function Base.range(A::AbstractArray, R::DetectorAxis, k::Integer)
+   origin = as(Int, first(axes(A, k))) + offset(R)
+    return origin : step(R) : origin + step(R)*(length(R) - 1)
+end
+
+function Base.AbstractUnitRange(r::AbstractUnitRange{<:Integer,<:Integer}, x::DetectorAxis)
+    # NOTE: yields the index in physical array representing the detector of the first
+    # physical pixel in each macro-pixel along a dimension.
+    return first(r) + offset(x) : step(x) : AbstractUnitRange(axes(A, k), x)
+end
+
 
 # Accessors.
 Base.length(A::DetectorAxis) = getfield(A, :len)
