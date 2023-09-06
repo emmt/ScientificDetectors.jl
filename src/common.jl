@@ -9,22 +9,36 @@ is an alias for:
 const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
 
 """
-    A = DetectorAxis(len; off=0, bin=1, step=1)
+    R = DetectorAxis(len; off=0, bin=1, step=1)
 
-builds an instance `A` of `DetectorAxis` describing a detector axis with `len`
-samples starting at offset `off` with respect to the corresponding sensor egde
-and with a binning factor `bin`, and sampling `step`. The offset `off`, the
-binning factor `bin`, and the sampling `step` are in units of sensor samples
-(e.g., *pixels*), the length `len` is in units of macro-samples (i.e., `bin`
-sensor samples each).
+builds an instance `R` of `DetectorAxis` describing a detector axis with `len`
+pixels or macro-pixels corresponding to physical pixels starting at offset
+`off` with respect to the corresponding sensor egde and with a binning factor
+`bin`, and sampling `step`. The offset `off`, the binning factor `bin`, and the
+sampling `step` are in units of sensor samples (e.g., *pixels*), the length
+`len` is in units of macro-samples (i.e., `bin` sensor samples each). The
+binning factor `bin` is the number of physical pixels in a macro-pixel along
+the dimension.
 
-Basic methods (`A` is an instance of `DetectorAxis`, `ROI` is a tuple of
+This is illustrated below with `x` and `y` denoting the physical pixels of
+respectively the 1st and 2nd macro-pixels for detector axis parameters `off =
+4`, `bin = 2`, and `stp = 3`:
+
+```
+ [ ] [ ] [ ] [ ] [x] [x] [ ] [y] [y] [ ] [...]
+|<------------->|<----->|   |<----->|
+       off      |  bin  |   |  bin  |
+                |<--------->|
+                     stp
+```
+
+Basic methods (`R` is an instance of `DetectorAxis`, `ROI` is a tuple of
 `DetectorAxis`):
 
-    length(A)    # the length `len`
-    offset(A)    # the offset `off`
-    binning(A)   # the binning factor `bin`
-    step(A)      # the sampling step in pixels `step`
+    length(R)    # the length `len`
+    offset(R)    # the offset `off`
+    binning(R)   # the binning factor `bin`
+    step(R)      # the sampling step in pixels `step`
     size(ROI)    # the size of ROI
     size(ROI, i) # the length of the i-th dimension of ROI
 
