@@ -3,3 +3,4 @@
 *.fts     binary
 *.jpg     binary
 *.pdf     binary
+*.gz      binary
