@@ -93,7 +93,7 @@ function Base.range(A::AbstractArray, R::DetectorAxis, k::Integer)
     return origin : step(R) : origin + step(R)*(length(R) - 1)
 end
 
-function Base.AbstractUnitRange(r::AbstractUnitRange{<:Integer,<:Integer}, x::DetectorAxis)
+function Base.AbstractUnitRange(r::AbstractUnitRange{<:Integer}, x::DetectorAxis)
     # NOTE: yields the index in physical array representing the detector of the first
     # physical pixel in each macro-pixel along a dimension.
     return first(r) + offset(x) : step(x) : AbstractUnitRange(axes(A, k), x)
