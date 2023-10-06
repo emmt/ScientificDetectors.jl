@@ -2,6 +2,7 @@ module TestingScientificDetectors
 
 using Test, ScientificDetectors
 using ScientificDetectors: offset, binning
+using EasyFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 
@@ -54,7 +55,7 @@ end
                 ["TOTO", "TATA"],
                 trues(W, H);
                 check = true))
-                
+
     # identity
     redcal = ReducedCalibration{Float64,2,Array{Bool,2}}(
                 roi,
@@ -69,7 +70,7 @@ end
     @test redcal === ReducedCalibration{Float64}(redcal)
     @test redcal === ReducedCalibration{Float64,2}(redcal)
     @test redcal === ReducedCalibration{Float64,2,Array{Bool,2}}(redcal)
-    
+
     # promote T (also test the default V and vpm constructors)
     @test ReducedCalibration{BigFloat,2,FastUniformMatrix{Bool,true}} == typeof(
         ReducedCalibration(
@@ -80,7 +81,7 @@ end
                 ones(Rational, W, H),
                 [ones(Int32, W, H), ones(BigFloat, W, H),],
                 ["TOTO", "TATA"]))
-                
+
     # T and V conversion
     redcal = ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}}(
                 roi,
@@ -93,13 +94,104 @@ end
                 ScientificDetectors.default_valid_pixels_map(roi))
     @test ReducedCalibration{Float32,2,Array{Bool,2}} == typeof(
         ReducedCalibration{Float32,2,Array{Bool,2}}(redcal))
-        
+
     # CalibrationData
     roy = DetectorAxes((1:2, 1:2))
     cat1 = CalibrationCategory("CAT1", :(cat1))
     caldat = CalibrationData{Float64}(roy, [cat1])
     redcal = ReducedCalibration(caldat)
     @test ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}} == typeof(redcal)
+end
+
+
+@testset "Test on small IRDIS FITS files" begin
+
+    # !! update this list if you modify the data test files !!
+    backs_filepaths = map(f -> "test/data/" * f,
+        ["back_1s.fits.gz", "back_8s.fits.gz", "back_96s.fits.gz"])
+    flats_filepaths = map(f -> "test/data/" * f,
+        ["flat_1s.fits.gz", "flat_3s.fits.gz", "flat_5s.fits.gz"])
+    science_filepath = "test/data/science_96s.fits.gz"
+    goal_reduced_calibdata_filepath = "test/data/goal_reduced_calibdata.fits.gz"
+    goal_reduced_science_filepath   = "test/data/goal_reduced_science_96s.fits.gz"
+
+    # ensuring resources files are present
+    for file in [ backs_filepaths ; flats_filepaths ; science_filepath ;
+                  goal_reduced_calibdata_filepath ; goal_reduced_calibdata_filepath ]
+        isfile(file) || error("Test set misses file: \"$file\".")
+    end
+
+    # CalibrationData
+    local roi, cats, calibdata
+    typefloat = FitsFile(f -> f[1].data_eltype, science_filepath)
+    @testset "CalibrationData" begin
+        @test_nowarn roi = FitsFile(f -> DetectorAxes(f[1].data_size[1:2]), science_filepath)
+        @test_nowarn cats = [
+            CalibrationCategory("BACK", :back), CalibrationCategory("FLAT", :(back + flat)) ]
+        @test_nowarn calibdata = CalibrationData{typefloat}(roi, cats)
+        for (catname, filepaths) in [ ("BACK", backs_filepaths), ("FLAT", flats_filepaths) ]
+            for filepath in filepaths
+                FitsFile(filepath) do fitsfile
+                    hdu = fitsfile[1]
+                    realdit = typefloat(hdu["ESO DET SEQ1 REALDIT"].float)
+                    cube = read(hdu, (:,:,:))
+                    local sampler
+                    @test_nowarn sampler = CalibrationFrameSampler(cube, catname, realdit; roi=roi)
+                    @test_nowarn push!(calibdata, sampler)
+                end
+            end
+        end
+        src_index = calibdata.src_index
+        cat_index = calibdata.cat_index
+        @test length(src_index) == 2
+        @test haskey(src_index, "back")
+        @test haskey(src_index, "flat")
+        @test length(cat_index) == 2
+        @test haskey(cat_index, "BACK")
+        @test haskey(cat_index, "FLAT")
+        @test calibdata.src_to_cat[cat_index["BACK"], src_index["back"]] == 1
+        @test calibdata.src_to_cat[cat_index["FLAT"], src_index["back"]] == 1
+        @test calibdata.src_to_cat[cat_index["BACK"], src_index["flat"]] == 0
+        @test calibdata.src_to_cat[cat_index["FLAT"], src_index["flat"]] == 1
+        #TODO: more tests when pull request for CalibrationData IO will be merged
+    end
+
+    # ReducedCalibration
+    local reduced_calibdata
+    @testset "ReducedCalibration" begin
+        local firstvalidpixels
+        @test_nowarn firstvalidpixels = findbadpixels(calibdata)
+        reduced_calibdata = ReducedCalibration(calibdata;validpixels=firstvalidpixels)
+        @test reduced_calibdata isa ReducedCalibration
+        @test_nowarn findbadpixels!(reduced_calibdata)
+
+        goal_reduced_calibdata = read(ReducedCalibration, goal_reduced_calibdata_filepath)
+        @test reduced_calibdata.roi == goal_reduced_calibdata.roi
+        @test count(xor.(reduced_calibdata.vpm, goal_reduced_calibdata.vpm)) <= 16
+
+        @test reduced_calibdata.f ≈ goal_reduced_calibdata.f
+        @test reduced_calibdata.g ≈ goal_reduced_calibdata.g
+        @test reduced_calibdata.z ≈ goal_reduced_calibdata.z
+        @test reduced_calibdata.σ ≈ goal_reduced_calibdata.σ
+        @test length(reduced_calibdata.src) == length(goal_reduced_calibdata.src)
+        for f in 1:length(reduced_calibdata.src)
+            @test reduced_calibdata.s[f] ≈ goal_reduced_calibdata.s[f]
+        end
+    end
+
+    # reduced science
+    # we assume that science has NAXIS3 == 1
+    @testset "PreprocessingParameters & reduce science" begin
+        science_dit = FitsFile(f->typefloat(f[1]["ESO DET SEQ1 REALDIT"].float), science_filepath)
+        science_matrix       = readfits(Matrix{typefloat}, science_filepath, :,:,1)
+        goal_reduced_science = readfits(goal_reduced_science_filepath)
+        local ppp, weights, reduced_data
+        @test_nowarn ppp = PreprocessingParameters(
+            reduced_calibdata; flat="flat", bg="back", Δt=science_dit)
+        @test_nowarn (weights, reduced_data) = process(ppp, science_matrix)
+        @test reduced_data ≈ goal_reduced_science[:,:,1]
+        @test weights      ≈ goal_reduced_science[:,:,2]
+    end
 end
 
 end # module
