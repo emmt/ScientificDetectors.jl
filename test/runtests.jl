@@ -194,4 +194,30 @@ end
     end
 end
 
+@testset "issubset DetectorAxis DetectorAxes" begin
+    
+    @test  issubset(DetectorAxis(10), DetectorAxis(10))
+    @test  issubset(DetectorAxis(9),  DetectorAxis(10))
+    @test !issubset(DetectorAxis(11), DetectorAxis(10))
+    @test  issubset(DetectorAxis(0),  DetectorAxis(0))
+    @test  issubset(DetectorAxis(1),  DetectorAxis(1))
+    
+    @test !issubset(DetectorAxis(10; off=1), DetectorAxis(10; off=2))
+    @test  issubset(DetectorAxis(10; off=2), DetectorAxis(10; off=2))
+    @test !issubset(DetectorAxis(10; off=3), DetectorAxis(10; off=2))
+    @test  issubset(DetectorAxis(9;  off=3), DetectorAxis(10; off=2))
+    
+    @test  issubset(DetectorAxis(6; off=0, step=2),  DetectorAxis(12; off=0, step=1))
+    @test  issubset(DetectorAxis(6; off=0, step=4),  DetectorAxis(12; off=0, step=2))
+    @test  issubset(DetectorAxis(3; off=0, step=27), DetectorAxis(27; off=0, step=3))
+    
+    @test  issubset(DetectorAxis(6; off=1, step=2),  DetectorAxis(12; off=0, step=1))
+    @test !issubset(DetectorAxis(6; off=2, step=2),  DetectorAxis(12; off=0, step=1))
+    @test  issubset(DetectorAxis(5; off=2, step=2),  DetectorAxis(12; off=0, step=1))
+    @test  issubset(DetectorAxis(5; off=3, step=2),  DetectorAxis(12; off=0, step=1))
+    @test !issubset(DetectorAxis(5; off=4, step=2),  DetectorAxis(12; off=0, step=1))
+    @test  issubset(DetectorAxis(4; off=4, step=2),  DetectorAxis(12; off=0, step=1))
+end
+
+
 end # module

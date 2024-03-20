@@ -48,6 +48,7 @@ include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
+include("CalibrationCatsFiles.jl")
 
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.
