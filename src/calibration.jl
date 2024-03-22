@@ -18,6 +18,8 @@ using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
     storage
+using EasyFITS
+using YAML
 using StructuredArrays
 using ..ScientificDetectors
 using ..ScientificDetectors:
@@ -28,7 +30,10 @@ using ..ScientificDetectors:
     getfields,
     identifier,
     nth,
-    offset
+    offset,
+    issequentiable,
+    sequence
+    
 import ..ScientificDetectors:
     DetectorAxes,
     argument_error,
@@ -49,6 +54,7 @@ include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 include("CalibrationSampleStatistics.jl")
+include("CalibrationDataFromYAML.jl")
 
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.

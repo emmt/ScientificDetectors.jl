@@ -45,7 +45,7 @@ using Statistics, StatsBase, Distributions
 using MultivariateOnlineStatistics
 using ArrayTools, StructuredArrays
 using EasyFITS
-using EasyFITS: hduname, throw_file_already_exists
+using EasyFITS: hduname, throw_file_already_exists, FitsImageHDU
 import EasyFITS: write!, readfits, writefits, writefits!
 
 function process end
