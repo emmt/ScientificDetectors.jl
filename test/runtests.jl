@@ -1,7 +1,7 @@
 module TestingScientificDetectors
 
 using Test, ScientificDetectors
-using ScientificDetectors: offset, binning
+using ScientificDetectors: offset, binning, issequentiable, sequence
 using EasyFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
@@ -192,6 +192,78 @@ end
         @test reduced_data ≈ goal_reduced_science[:,:,1]
         @test weights      ≈ goal_reduced_science[:,:,2]
     end
+end
+
+@testset "issequentiable DetectorAxis DetectorAxes" begin
+
+    # lengths
+    @test  issequentiable(DetectorAxis(10), DetectorAxis(10)) # same size
+    @test  issequentiable(DetectorAxis(10),  DetectorAxis(9)) # b shorter than a
+    @test !issequentiable(DetectorAxis(10), DetectorAxis(11)) # b longer than a
+    @test  issequentiable(DetectorAxis(0),  DetectorAxis(0)) # small values
+    @test  issequentiable(DetectorAxis(1),  DetectorAxis(1))
+
+    # offsets and lengths
+    @test !issequentiable(DetectorAxis(10; off=2), DetectorAxis(10; off=1)) # b starts before a
+    @test  issequentiable(DetectorAxis(10; off=2), DetectorAxis(10; off=2)) # b starts likes a
+    @test !issequentiable(DetectorAxis(10; off=2), DetectorAxis(10; off=3)) # b ends after a
+    # b starts after a but is less long than a
+    @test  issequentiable(DetectorAxis(10; off=2), DetectorAxis(9; off=3))
+
+    # steps and lengths
+    @test  issequentiable(DetectorAxis(12; step=1), DetectorAxis(6; step=2))
+    # a.stp multiple of b.stp
+    @test  issequentiable(DetectorAxis(12; step=2), DetectorAxis(6; step=4))
+    @test  issequentiable(DetectorAxis(27; step=3), DetectorAxis(3; step=27))
+
+    # steps and offsets
+    # b has a step and offset but does not end after a
+    @test  issequentiable(DetectorAxis(12; off=0, step=1), DetectorAxis(6; off=1, step=2))
+    # b has a step and offset and does end after a
+    @test !issequentiable(DetectorAxis(12; off=0, step=1), DetectorAxis(6; off=2, step=2))
+    # b has a step and offset and is shorter than a
+    @test  issequentiable(DetectorAxis(12; off=0, step=1),  DetectorAxis(5; off=2, step=2))
+    @test  issequentiable(DetectorAxis(12; off=0, step=1),  DetectorAxis(5; off=3, step=2))
+    @test !issequentiable(DetectorAxis(12; off=0, step=1),  DetectorAxis(5; off=4, step=2))
+    @test  issequentiable(DetectorAxis(12; off=0, step=1),  DetectorAxis(4; off=4, step=2))
+    # a.stp multiple of b.stp but b.offset makes it wrong
+    @test !issequentiable(DetectorAxis(8; off=0, step=2),  DetectorAxis(4;  off=1, step=2))
+    # a.stp multiple of b.stp and difference of offset fits with a.stp
+    @test  issequentiable(DetectorAxis(8; off=1, step=2),  DetectorAxis(4;  off=3, step=2))
+
+    # binning
+    @test  issequentiable(DetectorAxis(8; bin=1),  DetectorAxis(4; bin=1))
+    @test  issequentiable(DetectorAxis(8; bin=2),  DetectorAxis(4; bin=2))
+    @test  issequentiable(DetectorAxis(8; bin=1),  DetectorAxis(4; bin=2))
+    @test !issequentiable(DetectorAxis(8; bin=2),  DetectorAxis(4; bin=1))
+
+    # DetectorAxes
+    @test  issequentiable( (DetectorAxis(10), DetectorAxis(12; step=1) ), # good
+                           (DetectorAxis(5),  DetectorAxis(6; step=2)  ))
+    @test !issequentiable( (DetectorAxis(10), DetectorAxis(12; step=1) ), # fails on first
+                           (DetectorAxis(20), DetectorAxis(6; step=2)  ))
+    @test !issequentiable( (DetectorAxis(10), DetectorAxis(12; step=1) ), # fails on second
+                           (DetectorAxis(5),  DetectorAxis(6; step=12) ))
+end
+
+@testset "combine DetectorAxis DetectorAxes" begin
+
+    # DetectorAxis
+    array = collect(1:10)
+    a = DetectorAxis(5; off=1, step=2, bin=1)
+    b = DetectorAxis(3; off=1, step=4, bin=1)
+    array_after_a = array[range(array,a,1)]
+    @test array_after_a[range(array_after_a, sequence(a,b), 1)] == array[range(array,b,1)]
+
+    # DetectorAxes
+    array = reshape(collect(1:100), 10, 10)
+    a = DetectorAxes(DetectorAxis(5; off=1, step=2, bin=1), DetectorAxis(8))
+    b = DetectorAxes(DetectorAxis(3; off=1, step=4, bin=1), DetectorAxis(4))
+    array_after_a = array[ range(array,a[1],1), range(array,a[2],2) ]
+    @test array_after_a[ range(array_after_a, sequence(a,b)[1], 1),
+                         range(array_after_a, sequence(a,b)[2], 2)] == array[ range(array,b[1],1) ,
+                                                                              range(array,b[2],2) ]
+
 end
 
 end # module
