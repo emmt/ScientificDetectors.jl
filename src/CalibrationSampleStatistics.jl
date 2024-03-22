@@ -17,7 +17,7 @@ struct CalibrationSampleStatistics{T<:Real,N}
 end
 
 function Base.push!(A::CalibrationData{T,N},
-                    x::CalibrationDataStats{<:Real,N}) where {T<:AbstractFloat,N}
+                    x::CalibrationSampleStatistics{<:Real,N}) where {T<:AbstractFloat,N}
                     
     # Extract and check fields.
     cat = x.catname

@@ -195,49 +195,50 @@ end
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
 
 """
-    isbsubset(a::DetectorAxis, b::DetectorAxis) -> Bool
+    issequentiable(a::DetectorAxis, b::DetectorAxis) -> Bool
 
-For two `DetectorAxis` addressing a same data array, returns `true` if 
-every pixel addressed by `a` is also addressed by `b`.
+For two `DetectorAxis` addressing a same data array, returns `true` if after applying `a` on the
+array, we still have every pixel needed by `b`.
 
-To return `true`, binning of `b` must either be `1` or equal to binning of `a`.
+To return `true`, binning of `a` must either be `1` or equal to binning of `b`.
 """
-function Base.issubset(a::DetectorAxis, b::DetectorAxis)
+function issequentiable(a::DetectorAxis, b::DetectorAxis)
 
     # lower index
-    a.off ≥ b.off || return false
+    b.off ≥ a.off || return false
 
     # upper index
     last_a = a.off + a.stp * (a.len - 1)
     last_b = b.off + b.stp * (b.len - 1)
-    last_a ≤ last_b || return false
+    last_b ≤ last_a || return false
 
     # steps
-    iszero(a.stp % b.stp)           || return false
-    iszero((a.off - b.off) % b.stp) || return false
+    iszero(b.stp % a.stp)           || return false
+    iszero((b.off - a.off) % a.stp) || return false
 
     # binning
-    b.bin == 1 || a.bin == b.bin || return false
+    a.bin == 1 || a.bin == b.bin || return false
 end
 
 """
-    isbsubset(a::DetectorAxes{N}, b::DetectorAxes{N}) -> Bool
-Call `issubset` for every `DetectorAxis`.
+    issequentiable(a::DetectorAxes{N}, b::DetectorAxes{N}) -> Bool
+Call `issequentiable` for every `DetectorAxis`.
 """
-function Base.issubset(a::DetectorAxes{N}, b::DetectorAxes{N}) where {N}
-    all(i -> issubset(a[i], b[i]), 1:length(a))
+function issequentiable(a::DetectorAxes{N}, b::DetectorAxes{N}) where {N}
+    all(i -> issequentiable(a[i], b[i]), 1:length(a))
 end
 
 """
-    combine(a::DetectorAxis, b::DetectorAxis) -> DetectorAxis
+    sequence(a::DetectorAxis, b::DetectorAxis) -> DetectorAxis
 
-Returns DetectorAxis `b`, as if DetectorAxis `a` has already been "applied" to some array.
+For two `DetectorAxis` `a` and `b` addressing a same data array, returns a modified `b`,
+as if `a` had already been applied to the array.
 
-Useful when you possess an array which has already been reduced by `DetectorAxis` `a`, and you
-want to reduce it with `DetectorAxis` `b`, but `b` was meant for the full array, not the
-reduced array.
+In other terms, if `array_after_a = array[range(array,a,1)]`,
+then `array_after_a[range(array_after_a, sequence(a,b), 1)]`
+is equal to `array[range(array,b,1)]`.
 
-Briefly, `range( range(array,a,1), combine(a,b), 1)` is equal to `range(array,b,1)`.
+This function errors when `issequentiable(a,b)` is `false`.
 
 # Examples
 ```
@@ -245,28 +246,28 @@ julia> array = collect(1:10)
 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 julia> a = DetectorAxis(5; off=1, step=2, bin=1);
-julia> range(array, a, 1)
+julia> range(array,a,1)
 2:2:10
-julia> array_reduced = array[range(array, a, 1)]
+julia> array_after_a = array[range(array,a,1)]
 [2, 4, 6, 8, 10]
 
 julia> b = DetectorAxis(3; off=1, step=4, bin=1);
-julia> range(array, b, 1)
+julia> range(array,b,1)
 2:4:10
-julia> array[range(array, b, 1)]
+julia> array[range(array,b,1)]
 [2, 6, 10]
 
-julia> combine(a, b)
+julia> sequence(a,b)
 DetectorAxis(3; off=0, bin=1, step=2)
-julia> range(array_reduced, combine(a,b), 1)
+julia> range(array_after_a, sequence(a,b), 1)
 1:2:5
-julia> array_reduced[ range(array_reduced, combine(a,b), 1) ]
+julia> array_after_a[ range(array_after_a, sequence(a,b), 1) ]
 [2, 6, 10]
 ```
 """
-function combine(a::DetectorAxis, b::DetectorAxis)
+function sequence(a::DetectorAxis, b::DetectorAxis)
 
-    issubset(b, a) || argument_error( "`b` is not a subset of `a`: `$b: ⊈ $a`.")
+    issequentiable(a, b) || argument_error( "`a` is not sequentiable with `b`.")
     # after this, either `a.bin == b.bin` or `a.bin == 1`
     # also `a.stp`is a multiple of `b.stp`
 
@@ -279,11 +280,11 @@ function combine(a::DetectorAxis, b::DetectorAxis)
 end
 
 """
-    combine(a::DetectorAxes{N}, b::DetectorAxes{N}) -> DetectorAxes{N}
-Call `combine` for every `DetectorAxis`.
+    sequence(a::DetectorAxes{N}, b::DetectorAxes{N}) -> DetectorAxes{N}
+Call `sequence` for every `DetectorAxis`.
 """
-function combine(a::DetectorAxes{N}, b::DetectorAxes{N}) where {N}
-    ntuple(d -> combine(a[d], b[d]), N)
+function sequence(a::DetectorAxes{N}, b::DetectorAxes{N}) where {N}
+    ntuple(d -> sequence(a[d], b[d]), N)
 end
 
 
