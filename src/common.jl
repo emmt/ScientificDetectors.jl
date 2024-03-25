@@ -194,6 +194,49 @@ end
 
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
 
+function issubset(a::DetectorAxis, b::DetectorAxis)
+    # true if every pixel needed by a, is present in b
+    # false else
+end
+
+function issubset(a::DetectorAxes, b::DetectorAxes)
+    # true if same number of axes, and if every DetectorAxis respect issubset
+    # false else
+end
+
+function Base.getindex(A::AbstractArray{T,N}, inds::DetectorAxes{N}) where {T,N}
+    # return a new Array, containing every pixel adressed by `inds`
+    # FAIL if there is a binning > 1
+end
+
+# we usually don't know the size of the last axis of the detector, i.e the "frames" axis
+# so we automatically fill it from `A`
+function Base.getindex(A::AbstractArray{T,N}, inds::DetectorAxes{M}) where {T,N,M}
+    # if N == M + 1
+    # we add a final `DetectorAxis(axes(A,N))`
+    # and we call `getindex` again
+end
+
+Base.getindex(A::AbstractArray, inds::DetectorAxis...) = Base.getindex(A, inds)
+
+# for a given `DetectorAxis` `A` and another one `B`,
+# computes the `DetectorAxis` `A[B]`
+# such that for any vector `V`,
+# the vector `V[B]` is equal to the vector `V[A][A[B]]`
+function Base.getindex(A::DetectorAxis, B::DetectorAxis)
+    # I suggest to always call `issubset(B,A)` here,
+    # to ensure the operation is possible/ and correct
+end
+
+function Base.getindex(A::DetectorAxes, B::DetectorAxes)
+    # same as for DetectorAxis, but checks that A and B has same number of axes
+end
+
+function Base.view(A::AbstractArray, inds::DetectorAxes)
+    # similar as getindex(Array,DetectorAxes) but returns a view
+end
+
+
 #------------------------------------------------------------------------------
 # FITS CARD VALUES
 
