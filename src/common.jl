@@ -194,46 +194,111 @@ end
 
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
 
-function issubset(a::DetectorAxis, b::DetectorAxis)
-    # true if every pixel needed by a, is present in b
-    # false else
+function Base.getindex(A::AbstractArray{T,N}, D::DetectorAxes{N}) where {T,N}
+    any(d -> d.bin > 1, D) && argument_error(
+        "When binning > 1, you must provide a binning function.")
+    A[ (range(A,D[k],k) for k in 1:N)... ]
 end
 
-function issubset(a::DetectorAxes, b::DetectorAxes)
-    # true if same number of axes, and if every DetectorAxis respect issubset
-    # false else
+function Base.getindex(A::AbstractArray{T,M}, D::DetectorAxes{N}) where {T,M,N}
+    dimension_mismatch("Data array and DetectorAxes must have the same number of axes.")
 end
 
-function Base.getindex(A::AbstractArray{T,N}, inds::DetectorAxes{N}) where {T,N}
-    # return a new Array, containing every pixel adressed by `inds`
-    # FAIL if there is a binning > 1
+function Base.getindex(A::AbstractArray{T,N}, D::DetectorAxes{N},
+                       binfunc::Function, output_eltype::Type{O}=T) where {T,N,O}
+    ranges     = ntuple(k -> range(A,D[k],k), N)
+    cartesians = CartesianIndices(ranges)
+    R          = Array{O,N}(undef, map(length, ranges))
+    map!(R, cartesians) do I
+        # I is the lower corner of the binning region, and J is the upper corner
+        J = ntuple(k -> I[k] + D[k].bin - 1, N)
+        binfunc(A, I, J)
+    end
+    R # by declaring R explicitly we ensured that eltype(R) == O
 end
 
-# we usually don't know the size of the last axis of the detector, i.e the "frames" axis
-# so we automatically fill it from `A`
-function Base.getindex(A::AbstractArray{T,N}, inds::DetectorAxes{M}) where {T,N,M}
-    # if N == M + 1
-    # we add a final `DetectorAxis(axes(A,N))`
-    # and we call `getindex` again
+function Base.view(A::AbstractArray{T,N}, D::DetectorAxes{N}) where {T,N}
+    any(d -> d.bin > 1, D) && argument_error("Cannot set a view when binning > 1.")
+    view(A, ntuple(k -> range(A,D[k],k), N))
 end
 
-Base.getindex(A::AbstractArray, inds::DetectorAxis...) = Base.getindex(A, inds)
+function Base.view(A::AbstractArray{T,M}, D::DetectorAxes{N}) where {T,M,N}
+    dimension_mismatch("Data array and DetectorAxes must have the same number of axes.")
+end
 
-# for a given `DetectorAxis` `A` and another one `B`,
-# computes the `DetectorAxis` `A[B]`
-# such that for any vector `V`,
-# the vector `V[B]` is equal to the vector `V[A][A[B]]`
+"""
+    issubset(A::DetectorAxis, B::DetectorAxis) -> Bool
+
+return `true` if every pixel needed by `A` is kept by `B`.
+
+To return `true`, `B` must have binning equal to `1`, because we don't know if
+the binning function is the same for `A` and `B`.
+"""
+function Base.issubset(A::DetectorAxis, B::DetectorAxis)
+
+    lowest_index_check = A.off ≥ B.off
+
+    uppest_A = A.off + A.stp * (A.len - 1)
+    uppest_B = B.off + B.stp * (B.len - 1)
+    uppest_index_check = uppest_A ≤ uppest_B
+
+    frequence_check = iszero(A.stp % B.stp)
+    phase_check = iszero((A.off - B.off) % B.stp)
+
+    bin_check = (B.bin == 1)
+
+    lowest_index_check & uppest_index_check & frequence_check & phase_check & bin_check
+end
+
+function Base.issubset(A::DetectorAxes{N}, B::DetectorAxes) where {N}
+    N == length(B) && reduce(&, ntuple(k -> issubset(A[k],B[k]), N))
+end
+
+"""
+    getindex(A::DetectorAxis, B::DetectorAxis) -> DetectorAxis
+
+See help of `getindex(DetectorAxes, DetectorAxes)`.
+
+This function assumes that `B ⊆ A`, you should check it. In particular binning of `A` must be 1.
+"""
 function Base.getindex(A::DetectorAxis, B::DetectorAxis)
-    # I suggest to always call `issubset(B,A)` here,
-    # to ensure the operation is possible/ and correct
+    DetectorAxis(B.len ;
+                 off  = B.off - A.off,
+                 step = B.stp ÷ A.stp,
+                 bin  = B.bin)
 end
 
-function Base.getindex(A::DetectorAxes, B::DetectorAxes)
-    # same as for DetectorAxis, but checks that A and B has same number of axes
-end
+"""
+    getindex(A::DetectorAxes, B::DetectorAxes) -> DetectorAxes
 
-function Base.view(A::AbstractArray, inds::DetectorAxes)
-    # similar as getindex(Array,DetectorAxes) but returns a view
+For two `DetectorAxes` `A` and `B` addressing a same data array, returns a modified `B`,
+usable on an array already processed by `A`.
+
+In other terms, `myarray[B]` is equal to `myarray[A][A[B]]`.
+
+This function assumes that `B ⊆ A`, you should check it.
+
+# Examples
+```
+julia> myarray = collect(1:10)
+[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+julia> A = (DetectorAxis(5; off=1, step=2),);
+julia> myarray[A]
+[2, 4, 6, 8, 10]
+
+julia> B = (DetectorAxis(3; off=1, step=4),);
+julia> myarray[B]
+[2, 6, 10]
+
+julia> A[B]
+DetectorAxis(3; off=0, bin=1, step=2)
+julia> myarray[A][A[B]]
+[2, 6, 10]
+```
+"""
+function Base.getindex(A::DetectorAxes{N}, B::DetectorAxes{N}) where {N}
+    ntuple(k -> Base.getindex(A[k], B[k]), N)
 end
 
 
