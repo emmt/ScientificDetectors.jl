@@ -30,9 +30,7 @@ using ..ScientificDetectors:
     getfields,
     identifier,
     nth,
-    offset,
-    issequentiable,
-    sequence
+    offset
     
 import ..ScientificDetectors:
     DetectorAxes,

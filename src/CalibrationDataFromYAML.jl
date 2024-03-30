@@ -87,8 +87,8 @@ function reader_fits_FitsImageHDU(::Type{T},
         if hduroi == roi
             read(Array{T}, hdu)
 
-        elseif issequentiable(hduroi, roi)
-            seqroi = sequence(hduroi, roi)
+        elseif roi ⊆ hduroi
+            seqroi = hduroi[roi]
             #TODO: implement binning > 1
             all(ax -> ax.bin == 1, seqroi) || error("binning > 1 not implemented yet")
             # converting DetectorAxes to SubArrayIndices
@@ -153,15 +153,15 @@ function reader_fits_SampleStatistics(::Type{T},
             # data has already the asked ROI
             samplestats
             
-        elseif issequentiable(samplestats.roi, roi)
-            seqroi = sequence(samplestats.roi, roi)
+        elseif roi ⊆ samplestats.roi
+            seqroi = samplestats.roi[roi]
             #TODO: implement binning > 1
             all(ax -> ax.bin == 1, seqroi) || error("binning > 1 not implemented yet")
             # converting DetectorAxes to SubArrayIndices
             indices = ntuple(d -> range([], seqroi[d], d), N)
             new_stats_s = map(array -> view(array, indices), samplestats.stat.s)
             newstats = OnlineStatistics{T,N}(new_stats_s, samplestats.stat.n)
-            # careful: we register `roi` and not `seqroi`, see function `sequence`
+            # careful: we register `roi` and not `seqroi`
             samplestats = SampleStatistics(newstats, samplestats.Δt, roi)
         else
             dimension_mismatch(string(
