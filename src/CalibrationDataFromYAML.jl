@@ -1,4 +1,4 @@
-function CalibrationData{T}(yml::Union{Dict{Any,Any},AbstractString};
+function CalibrationData{T}(yml::Union{Dict,AbstractString};
                             basedir::AbstractString=pwd(),
                             reader::Function=reader_fits,
                             verb::Bool=false) where {T<:AbstractFloat}
@@ -53,7 +53,7 @@ function reader_fits(::Type{T},
         hdu = fitsfile[datahduindex]
         
         if hdu isa FitsImageHDU
-            if haskey(hdu, "HDUNAME") && hdu["HDUNAME"] == hduname(SampleStatistics)
+            if haskey(hdu, "HDUNAME") && hdu["HDUNAME"] == EasyFITS.hduname(SampleStatistics)
                 reader_fits_SampleStatistics(T, hdu, categoryname, Δt, roi)
             else
                 reader_fits_FitsImageHDU(T, hdu, categoryname, Δt, roi)
