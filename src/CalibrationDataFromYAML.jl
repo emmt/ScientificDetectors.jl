@@ -1,9 +1,11 @@
-function CalibrationData{T}(yaml_filepath::AbstractString;
+function CalibrationData{T}(yml::Union{Dict{Any,Any},AbstractString};
                             basedir::AbstractString=pwd(),
                             reader::Function=reader_fits,
                             verb::Bool=false) where {T<:AbstractFloat}
 
-    yml = YAML.load_file(yaml_filepath)
+    if yml isa AbstractString
+        yml = YAML.load_file(yml)
+    end
    
     roi = DetectorAxes(
         DetectorAxis(ax["length"]; off=ax["offset"], bin=ax["bin"], step=ax["step"])
