@@ -11,7 +11,7 @@ function CalibrationData{T}(yml::Union{Dict,AbstractString};
         DetectorAxis(ax["length"]; off=ax["offset"], bin=ax["bin"], step=ax["step"])
         for ax in yml["roi"])
     
-    cats = [
+    cats = CalibrationCategory[
         CalibrationCategory(catname, Meta.parse(cat["sources"]))
         for (catname, cat) in yml["categories"] ]
     

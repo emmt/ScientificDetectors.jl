@@ -100,11 +100,12 @@ end
 function findbadpixels(calib::CalibrationData{T,N};
                        threshold::Real = default_bad_pixels_threshold,
                        estimatedof = false,
-                       method::Symbol = :cov) where {T,N}
+                       method::Symbol = :cov,
+                       init_vpm ::Union{AbstractArray,Nothing} = nothing) where {T,N}
 
     nb_param = length(calib.stat)
     numel = prod(size(calib))
-    vpm = trues(size(calib))
+    vpm = isnothing(init_vpm) ? trues(size(calib)) : copy(init_vpm)
 
     d = zeros(numel, nb_param)
     @inbounds for i in 1:nb_param
