@@ -210,9 +210,9 @@ function Base.getindex(A::AbstractArray{T,N}, D::DetectorAxes{N},
     cartesians = CartesianIndices(ranges)
     R          = Array{O,N}(undef, map(length, ranges))
     map!(R, cartesians) do I
-        # I is the lower corner of the binning region, and J is the upper corner
-        J = ntuple(k -> I[k] + D[k].bin - 1, N)
-        binfunc(A, I, J)
+        # I is the lower corner of the bin region
+        binregion = CartesianIndices( I[k]:1:(I[k] + D[k].bin - 1) for k in 1:N )
+        binfunc(A, binregion)
     end
     R # by declaring R explicitly we ensured that eltype(R) == O
 end
@@ -250,8 +250,16 @@ function Base.issubset(A::DetectorAxis, B::DetectorAxis)
     lowest_index_check & uppest_index_check & frequence_check & phase_check & bin_check
 end
 
-function Base.issubset(A::DetectorAxes{N}, B::DetectorAxes) where {N}
-    N == length(B) && reduce(&, ntuple(k -> issubset(A[k],B[k]), N))
+"""
+    issubset(A::DetectorAxes, B::DetectorAxes) -> Bool
+
+return `true` if every pixel needed by `A` is kept by `B`.
+
+To return `true`, `B` must have binnings equal to `1`, because we don't know if
+the binning function is the same for `A` and `B`.
+"""
+function Base.issubset(A::DetectorAxes{N}, B::DetectorAxes{M}) where {N,M}
+    N == M && reduce(&, ntuple(k -> issubset(A[k],B[k]), N))
 end
 
 """
@@ -276,7 +284,7 @@ usable on an array already processed by `A`.
 
 In other terms, `myarray[B]` is equal to `myarray[A][A[B]]`.
 
-This function assumes that `B ⊆ A`, you should check it.
+This function assumes that `B ⊆ A`, you should check it. In particular binnings of `A` must be 1.
 
 # Examples
 ```
