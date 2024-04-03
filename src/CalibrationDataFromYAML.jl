@@ -53,7 +53,7 @@ function reader_fits(::Type{T},
         hdu = fitsfile[datahduindex]
         
         if hdu isa FitsImageHDU
-            if haskey(hdu, "HDUNAME") && hdu["HDUNAME"] == EasyFITS.hduname(SampleStatistics)
+            if hdu.hduname == EasyFITS.hduname(SampleStatistics)[1]
                 reader_fits_SampleStatistics(T, hdu, categoryname, Δt, roi)
             else
                 reader_fits_FitsImageHDU(T, hdu, categoryname, Δt, roi)
@@ -143,7 +143,7 @@ function reader_fits_SampleStatistics(::Type{T},
     # to avoid reading everything by default
     samplestats = read(SampleStatistics{T}, hdu)
     
-    samplestats.Δt == Δt || error(string(
+    isapprox(samplestats.Δt, Δt; atol=0.01) || error(string(
         "Incompatible exposure times for file \"$(hdu.file.path)\" HDU \"$(hdu.number)\", ",
         "file's Δt is `$(samplestats.Δt)` whereas asked one is `$Δt`."))
     

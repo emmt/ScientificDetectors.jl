@@ -20,7 +20,7 @@ function Base.push!(A::CalibrationData{T,N},
                     x::CalibrationSampleStatistics{<:Real,N}) where {T<:AbstractFloat,N}
                     
     # Extract and check fields.
-    cat = x.catname
+    cat = x.categoryname
     haskey(A.cat_index, cat) || argument_error(
         "category\"", cat, "\" does not exists in calibration data")
     Δt = exposuretime(x.samplestats)
