@@ -143,7 +143,8 @@ function reader_fits_SampleStatistics(::Type{T},
     # to avoid reading everything by default
     samplestats = read(SampleStatistics{T}, hdu)
     
-    isapprox(samplestats.Δt, Δt; atol=0.01) || error(string(
+    #TODO: improve approximative comparison of exptimes ?
+    isapprox(samplestats.Δt, Δt; atol=0.1) || @error(string(
         "Incompatible exposure times for file \"$(hdu.file.path)\" HDU \"$(hdu.number)\", ",
         "file's Δt is `$(samplestats.Δt)` whereas asked one is `$Δt`."))
     
