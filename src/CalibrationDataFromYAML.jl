@@ -143,11 +143,6 @@ function reader_fits_SampleStatistics(::Type{T},
     # to avoid reading everything by default
     samplestats = read(SampleStatistics{T}, hdu)
     
-    #TODO: improve approximative comparison of exptimes ?
-    isapprox(samplestats.Δt, Δt; atol=0.1) || @error(string(
-        "Incompatible exposure times for file \"$(hdu.file.path)\" HDU \"$(hdu.number)\", ",
-        "file's Δt is `$(samplestats.Δt)` whereas asked one is `$Δt`."))
-    
     # if needed, cut `samplestats` to `roi`
     samplestats =
         if samplestats.roi == roi
@@ -163,7 +158,7 @@ function reader_fits_SampleStatistics(::Type{T},
             new_stats_s = map(array -> view(array, indices), samplestats.stat.s)
             newstats = OnlineStatistics{T,N}(new_stats_s, samplestats.stat.n)
             # careful: we register `roi` and not `seqroi`
-            samplestats = SampleStatistics(newstats, samplestats.Δt, roi)
+            samplestats = SampleStatistics(newstats, Δt, roi)
         else
             dimension_mismatch(string(
                 "File \"$(hdu.file.path)\" HDU \"$(hdu.number)\" has already been ",
