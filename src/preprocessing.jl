@@ -362,7 +362,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     b = similar(a)
     q = similar(a)
     r = similar(a)
-    if bg !== nothing && jbg != 0
+    if jbg != 0
         sbg = s[jbg]
         dt = T(Δt)
         @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ, sbg)
@@ -382,7 +382,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
             end
         end
     elseif manualbg !== nothing
-        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ, manualbg)
+        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ)
             sdt = manualbg[i] - z[i]
             b_i = manualbg[i]
             q_i = g[i]/a[i]
