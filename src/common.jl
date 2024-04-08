@@ -240,13 +240,12 @@ end
 
 return `true` if every pixel needed by `A` is kept by `B`.
 
-To return `true`, `B` must have binning equal to `1`, because we don't know if
-the binning function is the same for `A` and `B`.
+To return `true`, `B` must have binning equal to `1`, or equal to binning of `A`.
 """
 function Base.issubset(A::DetectorAxis, B::DetectorAxis)
     (#= first offset =# A.off ≥ B.off) &
-    (#=  last offset =# A.off + A.stp * (A.len - 1) ≤ B.off + B.stp * (B.len - 1)) &
-    (#=      binning =# isone(B.bin)) &
+    (#=  last offset =# A.off + A.stp * (A.len - 1) + A.bin ≤ B.off + B.stp * (B.len - 1) + B.bin) &
+    (#=      binning =# isone(B.bin) | (A.bin == B.bin)) &
     (!iszero(B.stp) && ((#= frequence =# iszero(A.stp % B.stp)) &
                         (#=     phase =# iszero((A.off - B.off) % B.stp))))
 end
@@ -256,8 +255,7 @@ end
 
 return `true` if every pixel needed by `A` is kept by `B`.
 
-To return `true`, `B` must have binnings equal to `1`, because we don't know if
-the binning function is the same for `A` and `B`.
+To return `true`, `B` must have binning equal to `1`, or equal to binning of `A`.
 """
 function Base.issubset(A::DetectorAxes{M}, B::DetectorAxes{N}) where {N,M}
     (M == N) && mapreduce(issubset, &, A, B; init=true)
@@ -270,7 +268,7 @@ function Base.getindex(A::DetectorAxis, B::DetectorAxis)
     DetectorAxis(B.len ;
                  off  = B.off - A.off,
                  step = B.stp ÷ A.stp,
-                 bin  = B.bin)
+                 bin  = isone(A.bin) ? B.bin : 1)
 end
 
 
