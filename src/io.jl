@@ -48,18 +48,18 @@ writefits!(path::AbstractString, obj::WritableData; kwds...) =
 
 function writefits(path::AbstractString, obj::WritableData;
                    overwrite::Bool=false, kwds...)
-    (overwrite == false && exists(path)) &&
-        throw_file_already_exists(path, "call `write!` or use `overwrite=true`")
-    FitsIO(path, (overwrite ? "w!" : "w")) do io
+    (overwrite == false && isfile(path)) && error(
+        "file \"$path\" already exists, call `write!` or use `overwrite=true`")
+    FitsFile(path, (overwrite ? "w!" : "w")) do io
         write(io, obj; kwds...)
     end
 end
 
-write(io::FitsIO, obj::WritableData; kwds...) =
+write(io::FitsFile, obj::WritableData; kwds...) =
     write(io, obj, FitsHeader(; kwds...))
 
 function readfits(::Type{T}, path::AbstractString) where {T<:WritableData}
-    FitsIO(path, "r") do io
+    FitsFile(path, "r") do io
         return read(T, io)
     end
 end
@@ -72,7 +72,7 @@ end
 # Extend EasyFITS method to provide HDU name and revision number.
 hduname(::Type{<:ReducedCalibration}) = ("REDUCED-DETECTOR-CALIBRATION", 2)
 
-function read(::Type{T}, io::FitsIO) where {T<:ReducedCalibration}
+function read(::Type{T}, io::FitsFile) where {T<:ReducedCalibration}
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(hdu -> get(String, hdu, "HDUNAME", nothing) == name, io)
@@ -131,7 +131,7 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:ReducedCalibration}
     return T(roi, f, z, g, σ, c, cat)
 end
 
-function write(io::FitsIO, obj::ReducedCalibration{T,N},
+function write(io::FitsFile, obj::ReducedCalibration{T,N},
                hdr::FitsHeader) where {T,N}
     # Create data array.
     dims = size(obj)
@@ -168,7 +168,7 @@ end
 # Extend EasyFITS method to provide HDU name and revision number.
 hduname(::Type{<:SimpleCalibration}) = ("SIMPLE-DETECTOR-CALIBRATION", 1)
 
-function read(::Type{T}, io::FitsIO) where {T<:SimpleCalibration}
+function read(::Type{T}, io::FitsFile) where {T<:SimpleCalibration}
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(hdu -> get(String, hdu, "HDUNAME", nothing) == name, io)
@@ -221,7 +221,7 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:SimpleCalibration}
     return T(roi, Δt, f, a, b, g, σ)
 end
 
-function write(io::FitsIO, obj::SimpleCalibration{T,N},
+function write(io::FitsFile, obj::SimpleCalibration{T,N},
                hdr::FitsHeader) where {T,N}
     # Create data array.
     dims = size(obj)
@@ -254,7 +254,7 @@ end
 hduname(::Type{<:PreprocessingParameters}) =
     ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
 
-function read(::Type{T}, io::FitsIO) where {T<:PreprocessingParameters}
+function read(::Type{T}, io::FitsFile) where {T<:PreprocessingParameters}
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(hdu -> get(String, hdu, "HDUNAME", nothing) == name, io)
@@ -306,7 +306,7 @@ function read(::Type{T}, hdu::FitsImageHDU) where {T<:PreprocessingParameters}
     return T(roi, Δt, a, b, q, r)
 end
 
-function write(io::FitsIO, obj::PreprocessingParameters{T,N},
+function write(io::FitsFile, obj::PreprocessingParameters{T,N},
                hdr::FitsHeader) where {T,N}
     # Create data array.
     dims = size(obj)
@@ -395,7 +395,7 @@ the variance.
 
 """ _read1
 
-function read(::Type{T}, io::FitsIO) where {T<:SampleStatistics}
+function read(::Type{T}, io::FitsFile) where {T<:SampleStatistics}
     for i in 1:length(io)
         hdu = io[i]
         tup = _read1(T, hdu)
@@ -453,7 +453,7 @@ function _read1(::Type{T}, obj::FitsHDU) where{T<:SampleStatistics}
     end
 
     # Maybe old format, only in primary HDU.
-    if !isprimary(obj)
+    if isone(obj.number)
         return nothing
     end
     samples = get(obj, "SAMPLES", nothing)
@@ -503,7 +503,7 @@ function _read2(::Type{T}, obj::FitsImageHDU,
     return T(avg, std, samples, Δt, roi)
 end
 
-function write(io::FitsIO, obj::SampleStatistics{T,N},
+function write(io::FitsFile, obj::SampleStatistics{T,N},
                hdr::FitsHeader) where {T,N}
     # Create data array.
     dims = size(obj)

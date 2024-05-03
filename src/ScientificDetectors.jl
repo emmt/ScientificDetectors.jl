@@ -41,7 +41,6 @@ using Statistics, StatsBase
 using MultivariateOnlineStatistics
 using ArrayTools
 using EasyFITS
-using EasyFITS: exists, isprimary, throw_file_already_exists
 import EasyFITS: write!, hduname, readfits, writefits, writefits!
 
 function process end

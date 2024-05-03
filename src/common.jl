@@ -33,7 +33,7 @@ Other methods:
     merge!(dst, ROI)               # set detector axes of `dst`
 
 here the source `src` and the destination `dst` can be instances of
-`FitsHeader` or `FitsImage`, `ROI` is a vector or a tuple of `DetectorAxis`.
+`FitsHeader`, `ROI` is a vector or a tuple of `DetectorAxis`.
 
     DetectorAxes(B)
 
@@ -114,8 +114,7 @@ function Base.merge!(dst::FitsHeader,
     return dst
 end
 
-function Base.get(::Type{DetectorAxis}, i::Integer,
-                  src::Union{FitsHeader,FitsImage})
+function Base.get(::Type{DetectorAxis}, i::Integer, src::FitsHeader)
     @assert 1 ≤ i
     sfx = string(i)
     len = src["NAXIS"*sfx]
@@ -124,8 +123,7 @@ function Base.get(::Type{DetectorAxis}, i::Integer,
     return DetectorAxis(len, off, bin)
 end
 
-function Base.get(::Type{Vector{DetectorAxis}},
-                  src::Union{FitsHeader,FitsImage})
+function Base.get(::Type{Vector{DetectorAxis}}, src::FitsHeader)
     n = src["NAXIS"]
     res = Vector{DetectorAxis}(undef, n)
     for i in 1:n
@@ -134,8 +132,7 @@ function Base.get(::Type{Vector{DetectorAxis}},
     return res
 end
 
-function Base.get(::Type{DetectorAxes{N}},
-                  src::Union{FitsHeader,FitsImage}) where {N}
+function Base.get(::Type{DetectorAxes{N}}, src::FitsHeader) where {N}
     ntuple(i -> get(DetectorAxis, i, src), Val(N))
 end
 
