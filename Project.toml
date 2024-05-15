@@ -23,7 +23,7 @@ ArrayTools = "0.2.3, 0.3"
 EasyFITS = "0.5.2"
 MultivariateOnlineStatistics = "0.2.1"
 StructuredArrays = "0.2.5"
-TypeUtils = "0.2, 0.3"
+TypeUtils = "0.2, 0.3, 1"
 julia = "1.6"
 
 [extras]
