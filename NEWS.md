@@ -1,5 +1,9 @@
 # User visible changes in `ScientificDetectors` package
 
+## Version v0.3.5
+
+- Update compatibility for `EasyFITS`.
+
 ## Version v0.3.4
 
 - Update compatibility for `TypeUtils`.
