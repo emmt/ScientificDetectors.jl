@@ -170,7 +170,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     # Create HDU.
     dims = size(data)
     nsrc = length(data.s)
-    hdu = write(io, FitsImageHDU{T}, dims..., 5 + nsrc)::FitsImageHDU{T,N+1}
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 5 + nsrc)
 
     # Write header.
     name, vers = hduname(data)
@@ -392,7 +392,7 @@ function write(io::FitsFile, hdr::FitsHeader,
                data::SimpleCalibration{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
-    hdu = write(io, FitsImageHDU{T}, dims..., 5)::FitsImageHDU{T,N+1}
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 5)
 
     # Write header.
     name, vers = hduname(data)
@@ -479,7 +479,7 @@ function write(io::FitsFile, hdr::FitsHeader,
                data::PreprocessingParameters{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
-    hdu = write(io, FitsImageHDU{T}, dims..., 4)::FitsImageHDU{T,N+1}
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 4)
 
     # Write header.
     name, vers = hduname(data)
@@ -665,7 +665,7 @@ function write(io::FitsFile, hdr::FitsHeader,
                data::SampleStatistics{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
-    hdu = write(io, FitsImageHDU{T}, dims..., 2)::FitsImageHDU{T,N+1}
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 2)
 
     # Write header.
     name, vers = hduname(data)

@@ -1,5 +1,19 @@
 # User visible changes in `ScientificDetectors` package
 
+## Version v0.3.5
+
+- Update compatibility for `EasyFITS`.
+
+## Version v0.3.4
+
+- Update compatibility for `TypeUtils`.
+
+## Version v0.3.3
+
+## Version v0.3.2
+
+## Version v0.3.1
+
 ## Version v0.3.0
 
 - Introduce source terms.  The enlightenment in each calibration is a linear

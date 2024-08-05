@@ -1,7 +1,7 @@
 name = "ScientificDetectors"
 uuid = "7137afbe-ade3-4903-9296-05966c540d95"
 authors = ["Éric Thiébaut <eric.thiebaut@univ-lyon1.fr>"]
-version = "0.3.3"
+version = "0.3.5"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
@@ -22,10 +22,10 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
-EasyFITS = "0.5.2"
+EasyFITS = "0.6"
 MultivariateOnlineStatistics = "0.2.1"
 StructuredArrays = "0.2.5"
-TypeUtils = "0.2, 0.3"
+TypeUtils = "0.2, 0.3, 1"
 julia = "1.6"
 
 [extras]
