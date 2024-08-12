@@ -53,8 +53,8 @@ function reader_fits(::Type{T},
         hdu = fitsfile[datahduindex]
         
         if hdu isa FitsImageHDU
-            if hdu.hduname == EasyFITS.hduname(SampleStatistics)[1]
-                reader_fits_SampleStatistics(T, hdu, categoryname, Δt, roi)
+            if hdu.hduname == EasyFITS.hduname(ImageStat)[1]
+                reader_fits_ImageStat(T, hdu, categoryname, Δt, roi)
             else
                 reader_fits_FitsImageHDU(T, hdu, categoryname, Δt, roi)
             end
@@ -80,7 +80,7 @@ function reader_fits_FitsImageHDU(::Type{T},
     "HDU has $(hdu.data_ndims) dimensions whereas provided ROI has $N dimensions. ",
     "ROI must address every axis of the HDU, except the last one, which is the frames axis. ",
     "However it is tolerated that an HDU with only 1 frame has no frame axis."))
-    
+        
     hduroi = get(DetectorAxes{N}, hdu)
 
     data =
@@ -89,10 +89,13 @@ function reader_fits_FitsImageHDU(::Type{T},
 
         elseif roi ⊆ hduroi
             seqroi = hduroi[roi]
+            
             #TODO: implement binning > 1
-            all(ax -> ax.bin == 1, seqroi) || error("binning > 1 not implemented yet")
+            all(axis -> axis.bin == 1, seqroi) || error("binning > 1 not implemented yet")
+            
+            # read only necessary data
             # converting DetectorAxes to SubArrayIndices
-            indices = ntuple(d -> range([], seqroi[d], d), N)
+            indices = ntuple(d -> range([],seqroi[d],d), N)
             # adding frame dimension if present in the HDU (it is nearly always the case)
             if hdu.data_ndims == N+1
                 indices = (indices..., Colon())
@@ -101,11 +104,11 @@ function reader_fits_FitsImageHDU(::Type{T},
             
         else
             dimension_mismatch(string(
-                "File \"$(hdu.file.path)\" HDU \"$(hdu.number)\" has already been ",
-                "cut by ROI `$hduroi`, which is incompatible with asked ROI `$roi`."))
+                "File \"$(hdu.file.path)\" HDU \"$(hdu.number)\" has dimensions `$hduroi` ",
+                "which is incompatible with asked ROI `$roi`."))
         end
     
-    iterator = 
+    iterator =
         if ndims(data) == N
             CalibrationDataFrame{T,N}(categoryname, Δt, data; roi=roi)
             
@@ -116,7 +119,7 @@ function reader_fits_FitsImageHDU(::Type{T},
             elseif size(data,N+1) > 1
                 CalibrationFrameSampler(data, categoryname, Δt; roi=roi)
             else
-                error("frame axis is present but there is no frames")
+                dimension_mismatch("frame axis is present but there is no frames")
             end
             
         else
@@ -127,11 +130,11 @@ function reader_fits_FitsImageHDU(::Type{T},
 end
 
 
-function reader_fits_SampleStatistics(::Type{T},
-                                      hdu::FitsImageHDU,
-                                      categoryname::AbstractString,
-                                      Δt::Real,
-                                      roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
+function reader_fits_ImageStat(::Type{T},
+                               hdu::FitsImageHDU,
+                               categoryname::AbstractString,
+                               Δt::Real,
+                               roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
 
     hdu.data_ndims == N+1 || dimension_mismatch(string(
         "For file \"$(hdu.file.path)\" HDU \"$(hdu.number)\", ",
@@ -139,33 +142,36 @@ function reader_fits_SampleStatistics(::Type{T},
         "ROI must address every axis of the HDU, except the last one, which is the ",
         "statistics axis."))
 
-    #TODO: add a method to read a portion of a SampleStatistics HDU,
-    # to avoid reading everything by default
-    samplestats = read(SampleStatistics{T}, hdu)
+    imagestat = read(ImageStat{T,N}, hdu)
+    
+    Δt ≈ exposuretime(imagestat) || @error string(
+        "Exposure times are different between the one given in the YAML `$Δt` ",
+        "and the one found in SampleStatistics HDU of the file `$(exposuretime(imagestat))`.")
     
     # if needed, cut `samplestats` to `roi`
-    samplestats =
-        if samplestats.roi == roi
+    imagestat =
+        if roi == DetectorAxes(imagestat)
             # data has already the asked ROI
-            samplestats
+            imagestat
             
-        elseif roi ⊆ samplestats.roi
-            seqroi = samplestats.roi[roi]
+        elseif roi ⊆ DetectorAxes(imagestat)
+            seqroi = DetectorAxes(imagestat)[roi]
+            
             #TODO: implement binning > 1
-            all(ax -> ax.bin == 1, seqroi) || error("binning > 1 not implemented yet")
-            # converting DetectorAxes to SubArrayIndices
-            indices = ntuple(d -> range([], seqroi[d], d), N)
-            new_stats_s = map(array -> view(array, indices), samplestats.stat.s)
-            newstats = OnlineStatistics{T,N}(new_stats_s, samplestats.stat.n)
-            # careful: we register `roi` and not `seqroi`
-            samplestats = SampleStatistics(newstats, Δt, roi)
+            all(axis -> axis.bin == 1, seqroi) || error("binning > 1 not implemented yet")
+            
+            moment1 = samplestats.stat.s[1][seqroi]
+            moment2 = samplestats.stat.s[2][seqroi]
+            newstat = OnlineStatistics{T,N}((moment1, moment2), nobs(imagestat))
+            # careful: we must register `roi` and not `seqroi`.
+            ImageStat{T,N}(Δt, newstat, roi)
         else
             dimension_mismatch(string(
-                "File \"$(hdu.file.path)\" HDU \"$(hdu.number)\" has already been ",
-                "cut by ROI `$(samplestats.roi)`, which is incompatible with asked ROI `$roi`."))
+                "File \"$(hdu.file.path)\" HDU \"$(hdu.number)\" has dimensions ",
+                "`$(DetectorAxes(imagestat))` which is incompatible with asked ROI `$roi`."))
         end
     
-    CalibrationSampleStatistics{T,N}(categoryname, samplestats)
+    CalibrationDataStat{T,N}(categoryname, imagestat)
 end
 
 

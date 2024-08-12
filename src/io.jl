@@ -9,7 +9,8 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 CalibrationData{T,N},
                                 ReducedCalibration{T,N},
                                 SampleStatistics{T,N},
-                                SimpleCalibration{T,N}}
+                                SimpleCalibration{T,N},
+                                ImageStat{T,N}}
 
 # HDU name and revision number only depend on the type of our objects..
 EasyFITS.hduname(data::WritableData) = hduname(typeof(data))
@@ -91,12 +92,12 @@ read detector calibration parameters or preprocessing parameters
 from source `src` (a file name or a FITS file instance).
 
 """
-read(T::Type{<:WritableData}, filename::AbstractString) =
-    readfits(T, filename)
+read(T::Type{<:WritableData}, filename::AbstractString; kwds...) =
+    readfits(T, filename; kwds...)
 
-readfits(T::Type{<:WritableData}, filename::AbstractString) =
+readfits(T::Type{<:WritableData}, filename::AbstractString; kwds...) =
     FitsFile(filename, "r") do io
-        read(T, io)
+        read(T, io; kwds...)
     end
 
 #------------------------------------------------------------------------------
@@ -682,3 +683,46 @@ function write(io::FitsFile, hdr::FitsHeader,
     write(hdu, std( data); first = tick())
     return io
 end
+
+
+#------------------------------------------------------------------------------
+#
+# I/O methods for `ImageStat`.
+#
+function read(::Type{ImageStat{T,N}}, hdu::FitsImageHDU) where {T<:AbstractFloat,N}
+    hdu.hduname == EasyFITS.hduname(ImageStat)[1] || error("Not declared as an ImageStat HDU")
+    hdu.data_ndims == N+1 || dimension_mismatch("HDU has wrong number of dimensions")
+    hdu.data_size[N+1] == 2 || dimension_mismatch("Number of moments must be 2")
+
+    Δt = hdu["EXPTIME"].float
+    n  = hdu["NSAMPLES"].integer
+
+    moment1 = read(Array{T,N}, hdu, ntuple(d->Colon(),N)..., 1)
+    moment2 = read(Array{T,N}, hdu, ntuple(d->Colon(),N)..., 2)
+    stat = OnlineStatistics{T,N}((moment1, moment2), n)
+
+    roi = get(DetectorAxes{N}, hdu)
+
+    ImageStat{T,N}(Δt, stat, roi)
+end
+
+function write(io::FitsFile, hdr::FitsHeader, data::ImageStat{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data.stat)
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 2)
+
+    # Write header.
+    merge!(hdu, hdr) # write user header first, so our keywords overwrite his
+    hdu["HDUNAME"]  = (hduname(data)[1], "image statistics")
+    hdu["HDUVERS"]  = (hduname(data)[2], "version of this format")
+    hdu["EXPTIME"]  = (exposuretime(data), "[s] exposure time")
+    hdu["NSAMPLES"] = (nobs(data), "number of samples")
+    merge!(hdu, DetectorAxes(data))
+
+    # Write data.
+    tick = Ticker(1, prod(dims))
+    write(hdu, data.stat.s[1]; first = tick())
+    write(hdu, data.stat.s[2]; first = tick())
+    return io
+end
+

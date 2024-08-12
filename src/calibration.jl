@@ -48,10 +48,10 @@ const Colons{N} = NTuple{N,Colon}
 include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
+include("CalibrationDataStat.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
-include("CalibrationSampleStatistics.jl")
 include("CalibrationDataFromYAML.jl")
 
 #------------------------------------------------------------------------------
