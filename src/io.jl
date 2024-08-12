@@ -690,9 +690,9 @@ end
 # I/O methods for `ImageStat`.
 #
 function read(::Type{ImageStat{T,N}}, hdu::FitsImageHDU) where {T<:AbstractFloat,N}
-    hdu.hduname == EasyFITS.hduname(ImageStat)[1] || error("Not declared as an ImageStat HDU")
     hdu.data_ndims == N+1 || dimension_mismatch("HDU has wrong number of dimensions")
     hdu.data_size[N+1] == 2 || dimension_mismatch("Number of moments must be 2")
+    hdu.hduname == EasyFITS.hduname(ImageStat)[1] || @warn "Not declared as an ImageStat HDU"
 
     Δt = hdu["EXPTIME"].float
     n  = hdu["NSAMPLES"].integer
