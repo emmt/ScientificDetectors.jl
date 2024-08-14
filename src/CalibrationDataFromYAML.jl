@@ -1,4 +1,4 @@
-function CalibrationData{T}(yml::Union{Dict,AbstractString};
+function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
                             basedir::AbstractString=pwd(),
                             reader::Function=reader_fits,
                             verb::Bool=false) where {T<:AbstractFloat}
@@ -148,11 +148,11 @@ function reader_fits_ImageStat(::Type{T},
         "Exposure times are different between the one given in the YAML `$Δt` ",
         "and the one found in SampleStatistics HDU of the file `$(exposuretime(imagestat))`.")
     
-    # if needed, cut `samplestats` to `roi`
-    imagestat =
+    # if needed, cut `imagestat` to `roi`
+    stat =
         if roi == DetectorAxes(imagestat)
             # data has already the asked ROI
-            imagestat
+            imagestat.stat
             
         elseif roi ⊆ DetectorAxes(imagestat)
             seqroi = DetectorAxes(imagestat)[roi]
@@ -160,18 +160,16 @@ function reader_fits_ImageStat(::Type{T},
             #TODO: implement binning > 1
             all(axis -> axis.bin == 1, seqroi) || error("binning > 1 not implemented yet")
             
-            moment1 = samplestats.stat.s[1][seqroi]
-            moment2 = samplestats.stat.s[2][seqroi]
-            newstat = OnlineStatistics{T,N}((moment1, moment2), nobs(imagestat))
-            # careful: we must register `roi` and not `seqroi`.
-            ImageStat{T,N}(Δt, newstat, roi)
+            moment1 = imagestat.stat.s[1][seqroi]
+            moment2 = imagestat.stat.s[2][seqroi]
+            OnlineStatistics{T,N}((moment1, moment2), nobs(imagestat))
         else
             dimension_mismatch(string(
                 "File \"$(hdu.file.path)\" HDU \"$(hdu.number)\" has dimensions ",
                 "`$(DetectorAxes(imagestat))` which is incompatible with asked ROI `$roi`."))
         end
     
-    CalibrationDataStat{T,N}(categoryname, imagestat)
+    CalibrationDataStat{T,N}(categoryname, Δt, stat, roi)
 end
 
 

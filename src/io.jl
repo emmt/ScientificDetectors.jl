@@ -706,6 +706,12 @@ function read(::Type{ImageStat{T,N}}, hdu::FitsImageHDU) where {T<:AbstractFloat
     ImageStat{T,N}(Δt, stat, roi)
 end
 
+function read(::Type{ImageStat}, hdu::FitsImageHDU)
+    T = hdu.data_eltype
+    N = hdu.data_ndims - 1  # last dimension is for mean and variance data
+    read(ImageStat{T,N}, hdu)
+end
+
 function write(io::FitsFile, hdr::FitsHeader, data::ImageStat{T,N}) where {T,N}
     # Create HDU.
     dims = size(data.stat)
