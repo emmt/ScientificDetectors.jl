@@ -216,7 +216,7 @@ function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where 
 
     # Create Primary HDU which contains roi, and statistics values
     dims = size(data.roi)
-    statshdu ::FitsImageHDU{T,N+2} = write(io, FitsImageHDU{T}, dims..., 2, length(data.stat))
+    statshdu = FitsImageHDU{T,N+2}(io, dims..., 2, length(data.stat))
     # `2` is for means and variances statistics
     # `length(data.stat)` is for the number of (cat,Δt) entries
 
@@ -242,7 +242,7 @@ function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where 
     realdits  ::Vector{T}                         = map(x -> x.first[2], statindex)
     nsamples  ::Vector{Int}                       = [ stat.n for stat in data.stat ]
     longestcatname ::Int = maximum(length.(catnames))
-    keyshdu ::FitsTableHDU = write(io, FitsTableHDU,
+    keyshdu = FitsTableHDU(io,
         :catname => (String, longestcatname),
         :realdit => T,
         :nsamples => Int)
@@ -256,7 +256,7 @@ function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where 
 
     # image HDU which contains `data.src_to_cat`
     dims = (length(data.cat_index), length(data.src_index))
-    srctocathdu ::FitsImageHDU{T,2} = write(io, FitsImageHDU{T}, dims...)
+    srctocathdu = FitsImageHDU{T,2}(io, dims...)
     name, vers = ("DETECTOR-CALIBRATION-DATA-SRC-TO-CAT", 1)
     srctocathdu["EXTNAME"]  = "src to cat"
     srctocathdu["HDUNAME"]  = (name, "src to cat matrix of detector calibration data")
@@ -265,7 +265,7 @@ function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where 
 
     # table HDU which contains `data.cat_index`
     cat_index = map(p->p[1], sort(collect(data.cat_index) ; by=p->p[2]))
-    catindexhdu ::FitsTableHDU = write(io, FitsTableHDU, :cat_index => (String, longestcatname))
+    catindexhdu = FitsTableHDU(io, :cat_index => (String, longestcatname))
     name, vers = ("DETECTOR-CALIBRATION-DATA-CAT-INDEX", 1)
     catindexhdu["EXTNAME"]  = "cat index"
     catindexhdu["HDUNAME"]  = (name, "cat index of detector calibration data")
@@ -275,7 +275,7 @@ function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where 
     # table HDU which contains `data.src_index`
     src_index = map(p->p[1], sort(collect(data.src_index) ; by=p->p[2]))
     longestsrcname ::Int = maximum(length.(src_index))
-    srcindexhdu ::FitsTableHDU = write(io, FitsTableHDU, :src_index => (String, longestsrcname))
+    srcindexhdu = FitsTableHDU(io, :src_index => (String, longestsrcname))
     name, vers = ("DETECTOR-CALIBRATION-DATA-SRC-INDEX", 1)
     srcindexhdu["EXTNAME"]  = "src index"
     srcindexhdu["HDUNAME"]  = (name, "src index of detector calibration data")
