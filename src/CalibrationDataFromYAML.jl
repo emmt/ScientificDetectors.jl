@@ -56,6 +56,9 @@ function reader_fits(::Type{T},
             if hdu.hduname == EasyFITS.hduname(ImageStat)[1]
                 reader_fits_ImageStat(T, hdu, categoryname, Δt, roi)
             else
+                isempty(hdu.hduname) || @warn string(
+                    "Reading HDU as basic image, but it has HDU name $(hdu.hduname), in file ",
+                    fitspath)
                 reader_fits_FitsImageHDU(T, hdu, categoryname, Δt, roi)
             end
         else
