@@ -73,7 +73,7 @@ end
     @test redcal === ReducedCalibration{Float64,2,Array{Bool,2}}(redcal)
 
     # promote T (also test the default V and vpm constructors)
-    @test ReducedCalibration{BigFloat,2,FastUniformMatrix{Bool,true}} == typeof(
+    @test ReducedCalibration{BigFloat,2,FastUniformMatrix{Bool,true,Tuple{Int,Int}}} == typeof(
         ReducedCalibration(
                 roi,
                 ones(Float64, W, H),
@@ -101,7 +101,8 @@ end
     cat1 = CalibrationCategory("CAT1", :(cat1))
     caldat = CalibrationData{Float64}(roy, [cat1])
     redcal = ReducedCalibration(caldat)
-    @test ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}} == typeof(redcal)
+    @test ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true,Tuple{Int,Int}}} ==
+        typeof(redcal)
 end
 
 
