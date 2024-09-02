@@ -1,10 +1,11 @@
 module TestingScientificDetectors
 
 using Test, ScientificDetectors
-using ScientificDetectors: offset, binning
+using ScientificDetectors: offset, binning, OnlineStatistics
 using EasyFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
+using MultivariateOnlineStatistics # to test CalibrationData
 
 @testset "DetectorAxis" begin
     # DetectorAxis
@@ -191,6 +192,39 @@ end
         @test_nowarn (weights, reduced_data) = process(ppp, science_matrix)
         @test reduced_data ≈ goal_reduced_science[:,:,1]
         @test weights      ≈ goal_reduced_science[:,:,2]
+    end
+end
+
+@testset "IO CalibrationData" begin
+    T = Float32
+    N = 2
+    roi = (DetectorAxis(10), DetectorAxis(4))
+    stat_index = Dict( ("FLAT", 3e0) => 2, ("FLAT", 6e0) => 1, ("DARK", 3e0) => 3)
+    stat = [ OnlineStatistics{T,N}( (fill(T(6080), size(roi)), fill(T(1014), size(roi))), 10) ,
+             OnlineStatistics{T,N}( (fill(T(3040), size(roi)), fill(T(507),  size(roi))), 11) ,
+             OnlineStatistics{T,N}( (fill(T(40),   size(roi)), fill(T(7),    size(roi))), 12) ]
+    null = zeros(T, size(roi))
+    src_to_cat = T[ 1 0; 1 1 ]
+    cat_index = Dict("FLAT" => 1, "DARK" => 2)
+    src_index = Dict("dark" => 2, "flat" => 1)
+    calib_data = CalibrationData{T,N}(
+        roi, stat_index, stat, null, src_to_cat, cat_index, src_index)
+    mktempdir() do tmpdir
+        fitspath = joinpath(tmpdir, "calib-data.fits")
+        @test_nowarn writefits!(fitspath, calib_data)
+        local calib_data2
+        @test_nowarn calib_data2 = read(CalibrationData, fitspath)
+        @test calib_data.roi == calib_data2.roi
+        @test calib_data.stat_index == calib_data2.stat_index
+        for i in 1:3
+            @test mean(calib_data.stat[i]) == mean(calib_data2.stat[i])
+            @test var( calib_data.stat[i]) == var( calib_data2.stat[i])
+            @test nobs(calib_data.stat[i]) == nobs(calib_data2.stat[i])
+        end
+        @test calib_data.null == calib_data2.null
+        @test calib_data.src_to_cat == calib_data2.src_to_cat
+        @test calib_data.cat_index == calib_data2.cat_index
+        @test calib_data.src_index == calib_data2.src_index
     end
 end
 

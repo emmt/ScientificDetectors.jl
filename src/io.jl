@@ -6,6 +6,7 @@
 #
 
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
+                                CalibrationData{T,N},
                                 ReducedCalibration{T,N},
                                 SampleStatistics{T,N},
                                 SimpleCalibration{T,N}}
@@ -97,6 +98,151 @@ readfits(T::Type{<:WritableData}, filename::AbstractString) =
     FitsFile(filename, "r") do io
         read(T, io)
     end
+
+#------------------------------------------------------------------------------
+#
+# I/O methods for `CalibrationData`.
+#
+
+# Extend EasyFITS method to provide HDU name and revision number.
+EasyFITS.hduname(::Type{<:CalibrationData}) = ("DETECTOR-CALIBRATION", 1)
+
+# Non Primary HDUs of `CalibrationData`.
+abstract type CalibrationData_StatIndex end
+abstract type CalibrationData_SrcToCat   end
+abstract type CalibrationData_CatIndex   end
+abstract type CalibrationData_SrcIndex   end
+EasyFITS.hduname(::Type{<:CalibrationData_StatIndex}) = ("DETECTOR-CALIBRATION-STAT-INDEX", 1)
+EasyFITS.hduname(::Type{<:CalibrationData_SrcToCat})   = ("DETECTOR-CALIBRATION-SRC-TO-CAT",  1)
+EasyFITS.hduname(::Type{<:CalibrationData_CatIndex})   = ("DETECTOR-CALIBRATION-CAT-INDEX",   1)
+EasyFITS.hduname(::Type{<:CalibrationData_SrcIndex})   = ("DETECTOR-CALIBRATION-SRC-INDEX",   1)
+
+function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where {T,N}
+
+    # Create Primary HDU which contains roi, and statistics values
+    dims = size(data.roi)
+    stathdu = FitsImageHDU{T,N+2}(io, dims..., 2, length(data.stat))
+    # `2` is for means and variances statistics
+    # `length(data.stat)` is for the number of (cat,Δt) entries
+
+    # Write header.
+    name, vers = hduname(data)
+    stathdu["HDUNAME"]  = (name, "statistics of detector calibration data")
+    stathdu["HDUVERS"]  = (vers, "version of this format")
+    merge!(stathdu, DetectorAxes(data)) # write `data.roi` as keywords
+    merge!(stathdu, hdr)
+
+    # Write data array.
+    # Note that numbers of samples are written in another hdu
+    tick = Ticker(1, prod(dims))
+    for stat in data.stat
+        write(stathdu, stat.s[1]; first = tick()) # means
+        write(stathdu, stat.s[2]; first = tick()) # variances
+    end
+
+    # table HDU which contains (cat,Δt) entries and number of samples for each
+    statindex ::Vector{Pair{Tuple{String,T},Int}} = sort(collect(data.stat_index) ; by=p->p[2])
+    catnames  ::Vector{String}                    = map(x -> x.first[1], statindex)
+    exptimes  ::Vector{T}                         = map(x -> x.first[2], statindex)
+    nsamples  ::Vector{Int}                       = [ stat.n for stat in data.stat ]
+    longestcatname ::Int = maximum(length.(catnames))
+    statindexhdu = FitsTableHDU(io, :catname  => (String, longestcatname),
+                                    :exptimes => T,
+                                    :nsamples => Int)
+    name, vers = hduname(CalibrationData_StatIndex)
+    statindexhdu["HDUNAME"]  = (name, "stat index of detector calibration data")
+    statindexhdu["HDUVERS"]  = (vers, "version of this format")
+    write(statindexhdu, :catname  => catnames)
+    write(statindexhdu, :exptimes => exptimes)
+    write(statindexhdu, :nsamples => nsamples)
+
+    # image HDU which contains `data.src_to_cat`
+    dims = size(data.src_to_cat)
+    srctocathdu = FitsImageHDU{T,2}(io, dims...)
+    name, vers = hduname(CalibrationData_SrcToCat)
+    srctocathdu["HDUNAME"]  = (name, "src to cat matrix of detector calibration data")
+    srctocathdu["HDUVERS"]  = (vers, "version of this format")
+    write(srctocathdu, data.src_to_cat)
+
+    # table HDU which contains `data.cat_index`
+    cat_index = map(p->p[1], sort(collect(data.cat_index) ; by=p->p[2]))
+    catindexhdu = FitsTableHDU(io, :cat_index => (String, longestcatname))
+    name, vers = hduname(CalibrationData_CatIndex)
+    catindexhdu["HDUNAME"]  = (name, "cat index of detector calibration data")
+    catindexhdu["HDUVERS"]  = (vers, "version of this format")
+    write(catindexhdu, :cat_index => cat_index)
+
+    # table HDU which contains `data.src_index`
+    src_index = map(p->p[1], sort(collect(data.src_index) ; by=p->p[2]))
+    longestsrcname ::Int = maximum(length.(src_index))
+    srcindexhdu = FitsTableHDU(io, :src_index => (String, longestsrcname))
+    name, vers = hduname(CalibrationData_SrcIndex)
+    srcindexhdu["HDUNAME"]  = (name, "src index of detector calibration data")
+    srcindexhdu["HDUVERS"]  = (vers, "version of this format")
+    write(srcindexhdu, :src_index => src_index)
+end
+
+# type of float and number of axes are found in the header keywords
+function read(::Type{CalibrationData}, io::FitsFile)
+
+    matchvalue(io[1], "HDUNAME", hduname(CalibrationData)[1]) || error(string(
+        "Primary HDUNAME is \"", io[1]["HDUNAME"],
+        " instead of ", hduname(CalibrationData)[1], "."))
+
+    matchvalue(io[1], "HDUVERS", hduname(CalibrationData)[2]) || error(string(
+        "Primary HDUVERS is \"", io[1]["HDUVERS"],
+        " instead of ", hduname(CalibrationData)[2], "."))
+
+    for (target_hduname, target_version) in ( hduname(CalibrationData_StatIndex),
+                                              hduname(CalibrationData_SrcToCat ),
+                                              hduname(CalibrationData_CatIndex ),
+                                              hduname(CalibrationData_SrcIndex ))
+        index = findfirst(target_hduname, io)
+        isnothing(index) && error("Missing HDU \"$target_hduname\".")
+        matchvalue(io[index], "HDUVERS", target_version) || error(
+            "HDU \"$target_hduname\" should have version $version.")
+    end
+
+    stathdu      = io[1] ::FitsImageHDU
+    statindexhdu = io[hduname(CalibrationData_StatIndex )[1]] ::FitsTableHDU
+    srctocathdu  = io[hduname(CalibrationData_SrcToCat  )[1]] ::FitsImageHDU
+    catindexhdu  = io[hduname(CalibrationData_CatIndex  )[1]] ::FitsTableHDU
+    srcindexhdu  = io[hduname(CalibrationData_SrcIndex  )[1]] ::FitsTableHDU
+
+    T = stathdu.data_eltype ::Type{<:AbstractFloat}
+    N = stathdu.data_ndims - 2
+
+    roi = get(DetectorAxes{N}, stathdu)
+
+    statarr = read(Array{T},        stathdu                 )
+    catnames = read(Vector{String}, statindexhdu, :catname  )
+    exptimes = read(Vector{T},      statindexhdu, :exptimes )
+    nsamples = read(Vector{Int},    statindexhdu, :nsamples )
+
+    nstat ::Int = length(catnames)
+
+    stat_index = Dict{Tuple{String,T},Int}()
+    stat = Vector{OnlineStatistics{T,N}}(undef, nstat)
+
+    for i in 1:nstat
+        means = statarr[colons(N)..., 1, i]
+        vars  = statarr[colons(N)..., 2, i]
+        stat[i] = OnlineStatistics{T,N}((means, vars), nsamples[i])
+        stat_index[ (catnames[i], exptimes[i]) ] = i
+    end
+
+    null = zeros(T,size(roi))
+
+    src_to_cat = read(Array{T,2}, srctocathdu)
+
+    catindexarr = read(Vector{String}, catindexhdu, :cat_index)
+    cat_index = Dict{String,Int}( cat => index for (index,cat) in enumerate(catindexarr))
+
+    srcindexarr = read(Vector{String}, srcindexhdu, :src_index)
+    src_index = Dict{String,Int}( src => index for (index,src) in enumerate(srcindexarr))
+
+    return CalibrationData{T,N}(roi, stat_index, stat, null, src_to_cat, cat_index, src_index)
+end
 
 #------------------------------------------------------------------------------
 #
