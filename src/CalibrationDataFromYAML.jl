@@ -1,6 +1,6 @@
 function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
                             basedir::AbstractString=pwd(),
-                            reader::Function=reader_fits,
+                            reader_fits::Function=reader_fits,
                             verb::Bool=false) where {T<:AbstractFloat}
 
     if yml isa AbstractString
