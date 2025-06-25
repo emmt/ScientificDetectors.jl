@@ -79,7 +79,6 @@ import .Preprocessing:
 
 include("io.jl")
 
-
 @deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 @deprecate regionofinterest(A) DetectorAxes(A) false
 

@@ -21,6 +21,8 @@ using MultivariateOnlineStatistics:
 using EasyFITS
 using YAML
 using StructuredArrays
+using OrderedCollections
+using Dates
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,
@@ -53,6 +55,7 @@ include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 include("CalibrationDataFromYAML.jl")
+include("YAML2YAML.jl")
 
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.

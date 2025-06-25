@@ -7,9 +7,18 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
         yml = YAML.load_file(yml)
     end
    
-    roi = DetectorAxes(
+    haskey(yml, "roi") || throw(ArgumentError("yaml dict miss key \"roi\""))
+    
+    roi = Tuple(map(yml["roi"]) do ax
+        
+        ax isa AbstractDict  || throw(ArgumentError("yaml dict roi ax should be a dict too"))
+        haskey(ax, "length") || throw(ArgumentError("yaml dict roi axis miss key \"length\""))
+        haskey(ax, "offset") || throw(ArgumentError("yaml dict roi axis miss key \"offset\""))
+        haskey(ax, "bin")    || throw(ArgumentError("yaml dict roi axis miss key \"bin\""))
+        haskey(ax, "step")   || throw(ArgumentError("yaml dict roi axis miss key \"step\""))
+        
         DetectorAxis(ax["length"]; off=ax["offset"], bin=ax["bin"], step=ax["step"])
-        for ax in yml["roi"])
+    end)
     
     cats = CalibrationCategory[
         CalibrationCategory(catname, Meta.parse(cat["sources"]))
@@ -149,7 +158,8 @@ function reader_fits_ImageStat(::Type{T},
     
     Δt ≈ exposuretime(imagestat) || @error string(
         "Exposure times are different between the one given in the YAML `$Δt` ",
-        "and the one found in SampleStatistics HDU of the file `$(exposuretime(imagestat))`.")
+        "and the one found in SampleStatistics HDU of the file `$(exposuretime(imagestat))`. ",
+        "Maybe you should use \"EXPTIME\" keyword (or one which rounds the number).")
     
     # if needed, cut `imagestat` to `roi`
     stat =
