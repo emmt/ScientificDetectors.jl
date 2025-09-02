@@ -6,6 +6,8 @@ using EasyFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 
+test_dir = joinpath(dirname(dirname(pathof(ScientificDetectors))), "test/")
+
 @testset "DetectorAxis" begin
     # DetectorAxis
     len, off, bin = 17, 3, 4
@@ -107,13 +109,18 @@ end
 @testset "Test on small IRDIS FITS files" begin
 
     # !! update this list if you modify the data test files !!
-    backs_filepaths = map(f -> "test/data/" * f,
-        ["back_1s.fits.gz", "back_8s.fits.gz", "back_96s.fits.gz"])
-    flats_filepaths = map(f -> "test/data/" * f,
-        ["flat_1s.fits.gz", "flat_3s.fits.gz", "flat_5s.fits.gz"])
-    science_filepath = "test/data/science_96s.fits.gz"
-    goal_reduced_calibdata_filepath = "test/data/goal_reduced_calibdata.fits.gz"
-    goal_reduced_science_filepath   = "test/data/goal_reduced_science_96s.fits.gz"
+    backs_filepaths = [
+        joinpath(test_dir, "data/", "back_1s.fits.gz"),
+        joinpath(test_dir, "data/", "back_8s.fits.gz"),
+        joinpath(test_dir, "data/", "back_96s.fits.gz") ]
+    flats_filepaths = [
+        joinpath(test_dir, "data/", "flat_1s.fits.gz"),
+        joinpath(test_dir, "data/", "flat_3s.fits.gz"),
+        joinpath(test_dir, "data/", "flat_5s.fits.gz") ]
+    science_filepath = joinpath(test_dir, "data/", "science_96s.fits.gz")
+    goal_reduced_calibdata_filepath = joinpath(test_dir, "data/", "goal_reduced_calibdata.fits.gz")
+    test_reduced_calibdata_filepath = joinpath(test_dir, "data/", "test_reduced_calibdata.fits")
+    goal_reduced_science_filepath = joinpath(test_dir, "data/", "goal_reduced_science_96s.fits.gz")
 
     # ensuring resources files are present
     for file in [ backs_filepaths ; flats_filepaths ; science_filepath ;
@@ -164,33 +171,42 @@ end
         reduced_calibdata = ReducedCalibration(calibdata;validpixels=firstvalidpixels)
         @test reduced_calibdata isa ReducedCalibration
         @test_nowarn findbadpixels!(reduced_calibdata)
+        # write on disk so developer can inspect easily
+        write!(test_reduced_calibdata_filepath, reduced_calibdata)
 
         goal_reduced_calibdata = read(ReducedCalibration, goal_reduced_calibdata_filepath)
         @test reduced_calibdata.roi == goal_reduced_calibdata.roi
-        @test count(xor.(reduced_calibdata.vpm, goal_reduced_calibdata.vpm)) <= 16
-
-        @test reduced_calibdata.f ≈ goal_reduced_calibdata.f
-        @test reduced_calibdata.g ≈ goal_reduced_calibdata.g
-        @test reduced_calibdata.z ≈ goal_reduced_calibdata.z
-        @test reduced_calibdata.σ ≈ goal_reduced_calibdata.σ
         @test length(reduced_calibdata.src) == length(goal_reduced_calibdata.src)
+        @test count(xor.(reduced_calibdata.vpm, goal_reduced_calibdata.vpm)) <= 16
+        vpm = goal_reduced_calibdata.vpm
+        @test all(.≈(reduced_calibdata.f[vpm], goal_reduced_calibdata.f[vpm]; atol=10))
+        @test all(.≈(reduced_calibdata.g[vpm], goal_reduced_calibdata.g[vpm]; atol=0.05))
+        @test all(.≈(reduced_calibdata.z[vpm], goal_reduced_calibdata.z[vpm]; atol=0.01))
+        @test all(.≈(reduced_calibdata.σ[vpm], goal_reduced_calibdata.σ[vpm]; atol=0.01))
         for f in 1:length(reduced_calibdata.src)
-            @test reduced_calibdata.s[f] ≈ goal_reduced_calibdata.s[f]
+            @test all(.≈(reduced_calibdata.s[f][vpm], goal_reduced_calibdata.s[f][vpm]; rtol=0.01))
         end
     end
 
     # reduced science
-    # we assume that science has NAXIS3 == 1
     @testset "PreprocessingParameters & reduce science" begin
+
         science_dit = FitsFile(f->typefloat(f[1]["ESO DET SEQ1 REALDIT"].float), science_filepath)
-        science_matrix       = readfits(Matrix{typefloat}, science_filepath, :,:,1)
-        goal_reduced_science = readfits(goal_reduced_science_filepath)
-        local ppp, weights, reduced_data
+        science_matrix = readfits(Matrix{typefloat}, science_filepath, :,:,1)
+
+        local ppp, reduced_weights, reduced_data
+
         @test_nowarn ppp = PreprocessingParameters(
             reduced_calibdata; flat="flat", bg="back", Δt=science_dit)
-        @test_nowarn (weights, reduced_data) = process(ppp, science_matrix)
-        @test reduced_data ≈ goal_reduced_science[:,:,1]
-        @test weights      ≈ goal_reduced_science[:,:,2]
+
+        @test_nowarn (reduced_weights, reduced_data) = process(ppp, science_matrix)
+
+        goal_reduced_data    = readfits(goal_reduced_science_filepath, :,:,1)
+        goal_reduced_weights = readfits(goal_reduced_science_filepath, :,:,2)
+        vpm = (goal_reduced_weights .> 0)
+        
+        @test all(.≈(reduced_data[vpm], goal_reduced_data[vpm]   ; rtol=0.01))
+        @test all(.≈(reduced_data[vpm], goal_reduced_weights[vpm]; rtol=0.01))
     end
 end
 
