@@ -6,6 +6,10 @@ using AstroFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 
+# for good mesure
+using Random
+Random.seed!(1234)
+
 const DATA_DIR = joinpath(@__DIR__, "data/")
 
 # list of small real calibration files (cropped 50x50 for space and time economy)
