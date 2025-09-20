@@ -113,7 +113,7 @@ function findbadpixels(calib::CalibrationData{T,N};
 
     Χ2 = Chi2(Val(method),d)
     dof = estimatedof ? mean(Χ2) : nb_param
-
+    print(cquantile(Chisq(nb_param), threshold))
     vpm[:] .= (Χ2 .< cquantile(Chisq(nb_param), threshold))
 
     return vpm
