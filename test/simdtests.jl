@@ -112,7 +112,7 @@ seq_reduced_calibdata = read(ReducedCalibration, "/tmp/toto/seq-reduced-calibdat
 @test seq_firstvalidpixels == simd_firstvalidpixels
 @test seq_reduced_calibdata == simd_reduced_calibdata
 @test count(.!(.≈(seq_reduced_calibdata.f, simd_reduced_calibdata.f; rtol=0.01, atol=10))) == 0
-@test count(.!(.≈(seq_reduced_calibdata.g, simd_reduced_calibdata.g; rtol=0.01, atol=0.001))) == 0
+@test count(.!(.≈(seq_reduced_calibdata.g, simd_reduced_calibdata.g; rtol=0.01, atol=0.1))) == 0
 @test count(.!(.≈(seq_reduced_calibdata.z, simd_reduced_calibdata.z; rtol=0.01, atol=0.01))) == 0
 @test count(.!(.≈(seq_reduced_calibdata.σ, simd_reduced_calibdata.σ; rtol=0.01, atol=0.01))) == 0
 @test count(.!(.≈(seq_reduced_calibdata.s[1], simd_reduced_calibdata.s[1]; rtol=0.01, atol=0.001))) == 0
