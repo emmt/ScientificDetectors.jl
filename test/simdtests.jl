@@ -1,16 +1,20 @@
 error("not meant to be included. copy paste steps by hand in the REPL.")
 
+# this script it supposed to be executed twice,
 
-# launch julia like this:
-# julia --project --threads=1
+# once with:
+# julia --project --threads=1 --check-bounds=auto
 
-# for some parts you will have to launch it like this:
+# and once with:
 # julia --project --threads=1 --check-bounds=yes
+
+# some parts of the script are with check-bounds=auto, and others with check-bounds=yes
+# you are supposed to compare the two sets of produced data then
 
 
 
 # ==============================================================
-# calib file list, include this all the time
+# [both cases] calib file list
 dpid_flats = [
 "SPHER.2022-05-08T09:44:44.628",
 "SPHER.2022-05-08T09:45:16.753",
@@ -21,8 +25,9 @@ dpid_backs = [
 "SPHER.2022-05-07T10:42:57.778"]
 
 
+
 # ==============================================================
-# download calib files (do this only once)
+# [both cases, do it only once] download calib files
 using Downloads
 isdir("/tmp/toto/") || mkdir("/tmp/toto/")
 for dpid in dpid_flats
@@ -35,8 +40,9 @@ for dpid in dpid_backs
 end
 
 
+
 # ==============================================================
-# computing
+# [both cases] computing
 using ScientificDetectors, EasyFITS, Random
 Random.seed!(1234)
 roi = FitsFile(f -> DetectorAxes(f[1].data_size[1:2]), "/tmp/toto/$(dpid_flats[1]).fits.Z")
@@ -72,7 +78,7 @@ findbadpixels!(reduced_calibdata)
 
 
 # ==============================================================
-# writing results to disk
+# [case check-bounds=auto] writing results to disk
 # so we can compare with other results afterwards
 using ScientificDetectors, EasyFITS
 include("test/calibdataio.jl") # some methods to IO with CalibrationData
@@ -80,28 +86,48 @@ write!("/tmp/toto/simd-calibdata.fits", calibdata)
 writefits!("/tmp/toto/simd-firstvalidpixels.fits", FitsHeader(), firstvalidpixels)
 write!("/tmp/toto/simd-reduced-calibdata.fits", FitsHeader(), reduced_calibdata)
 
+# ==============================================================
+# [case check-bounds=yes] writing results to disk
+# so we can compare with other results afterwards
+using ScientificDetectors, EasyFITS
+include("test/calibdataio.jl") # some methods to IO with CalibrationData
+write!("/tmp/toto/seq-calibdata.fits", calibdata)
+writefits!("/tmp/toto/seq-firstvalidpixels.fits", FitsHeader(), firstvalidpixels)
+write!("/tmp/toto/seq-reduced-calibdata.fits", FitsHeader(), reduced_calibdata)
+
 
 
 
 # ==============================================================
-# now start again with julia parameter `--check-bounds=yes`
-# skip the download part
-# skip the writing part too !!!!
-# redo the computing part !!!
-# then do these tests
+# [case comparison of results]
 using ScientificDetectors, EasyFITS, Test
 include("test/calibdataio.jl") # some methods to IO with CalibrationData
 simd_calibdata = read(CalibrationData, "/tmp/toto/simd-calibdata.fits");
 simd_firstvalidpixels = readfits(Array{Bool}, "/tmp/toto/simd-firstvalidpixels.fits");
 simd_reduced_calibdata = read(ReducedCalibration, "/tmp/toto/simd-reduced-calibdata.fits");
-@test calibdata == simd_calibdata
-@test firstvalidpixels == simd_firstvalidpixels
-@test reduced_calibdata == simd_reduced_calibdata
+seq_calibdata = read(CalibrationData, "/tmp/toto/seq-calibdata.fits");
+seq_firstvalidpixels = readfits(Array{Bool}, "/tmp/toto/seq-firstvalidpixels.fits");
+seq_reduced_calibdata = read(ReducedCalibration, "/tmp/toto/seq-reduced-calibdata.fits");
+@test seq_calibdata == simd_calibdata
+@test seq_firstvalidpixels == simd_firstvalidpixels
+@test seq_reduced_calibdata == simd_reduced_calibdata
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+# following part was a check on the valid pixels process, but it turns out they are the same
+# so i just keep it for archive, no need to execute it
 
 # ==============================================================
 # part to check findvalidpixels intermediary values
