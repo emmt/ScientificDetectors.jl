@@ -103,7 +103,6 @@ end
     @test typeof(redcal) <: ReducedCalibration{Float64,2,<:FastUniformMatrix{Bool,true}}
 end
 
-
 @testset "Test on small IRDIS FITS files" begin
 
     # !! update this list if you modify the data test files !!
@@ -191,6 +190,26 @@ end
         @test_nowarn (weights, reduced_data) = process(ppp, science_matrix)
         @test reduced_data ≈ goal_reduced_science[:,:,1]
         @test weights      ≈ goal_reduced_science[:,:,2]
+    end
+
+    # YAML config
+    @testset "CalibrationDataFromYAML" begin
+        local calibdatayaml
+        @test_nowarn calibdatayaml= CalibrationData{Float32}(
+            "test/data/config.yaml"; basedir="test/data/")
+        src_index = calibdatayaml.src_index
+        cat_index = calibdatayaml.cat_index
+        @test length(src_index) == 2
+        @test haskey(src_index, "back")
+        @test haskey(src_index, "flat")
+        @test length(cat_index) == 2
+        @test haskey(cat_index, "BACK")
+        @test haskey(cat_index, "FLAT")
+        @test calibdatayaml.src_to_cat[cat_index["BACK"], src_index["back"]] == 1
+        @test calibdatayaml.src_to_cat[cat_index["FLAT"], src_index["back"]] == 1
+        @test calibdatayaml.src_to_cat[cat_index["BACK"], src_index["flat"]] == 0
+        @test calibdatayaml.src_to_cat[cat_index["FLAT"], src_index["flat"]] == 1
+        #TODO: more tests when pull request for CalibrationData IO will be merged
     end
 end
 

@@ -15,6 +15,7 @@ using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
 using TypeUtils, ArrayTools, StructuredArrays
 using OptimPackNextGen
+using YAML
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
     storage
@@ -46,6 +47,7 @@ include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
+include("CalibrationDataFromYAML.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 

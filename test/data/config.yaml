@@ -1,0 +1,25 @@
+title: "an IRDIS config"
+generated: 2024-03-18T17:18:45.160
+roi: "FULL"
+
+categories:
+
+  BACK:
+    sources: back
+    files:
+        1:
+            - "back_1s.fits.gz"
+        8:
+            - "back_8s.fits.gz"
+        96:
+            - "back_96s.fits.gz"
+
+  FLAT:
+    sources: back + flat
+    files:
+        1:
+            - "flat_1s.fits.gz"
+        3:
+            - "flat_3s.fits.gz"
+        5:
+            - "flat_5s.fits.gz"
