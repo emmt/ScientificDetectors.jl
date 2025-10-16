@@ -35,7 +35,7 @@ function findbadpixels!(calib::ReducedCalibration{T,N};
     vpm = validpixelsmap(calib)
     L = reshape(cologlikelihood(calib)[vpm], :, 1)
     Χ2 = Chi2(Val(:robust),L)
-    threshold_firststep = 0.01
+    threshold_firststep = 0.0001
     validpixelsmap(calib)[vpm] .= (Χ2 .< cquantile(Chisq(1), threshold_firststep))
 
 
