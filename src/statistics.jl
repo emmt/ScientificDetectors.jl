@@ -15,7 +15,7 @@ import ..ScientificDetectors:
     DetectorAxes,
     exposuretime
 
-using EasyFITS
+using AstroFITS
 
 using ArrayTools
 using Statistics, StatsBase

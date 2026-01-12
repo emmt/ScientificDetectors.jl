@@ -197,7 +197,7 @@ default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
 #------------------------------------------------------------------------------
 # FITS CARD VALUES
 
-# FIXME: The following methods should be provided by EasyFITS.
+# FIXME: The following methods should be provided by AstroFITS.
 
 """
     getvalue([T,] H, key)
@@ -230,7 +230,7 @@ yield whether `val` is equal to the value of the FITS card `card`.
 
 """
 matchvalue(val, card::FitsCard) = matchvalue(card, val)
-matchvalue(card::FitsCard, val::EasyFITS.Undefined) = card.type == FITS_UNDEFINED
+matchvalue(card::FitsCard, val::AstroFITS.Undefined) = card.type == FITS_UNDEFINED
 matchvalue(card::FitsCard, val::Nothing) = card.type == FITS_COMMENT
 matchvalue(card::FitsCard, val::AbstractString) =
     card.type == FITS_STRING ? card.string == val : false

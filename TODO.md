@@ -1,6 +1,6 @@
 # List of wishes
 
-- Move everything depending on `FITS` and `EasyFITS` to package
+- Move everything depending on `FITS` and `AstroFITS` to package
   `AstronomicalDetectors`.
 - Calibration procedures can be multi-threaded.
 - Add progress bar in `ReducedCalibration`.

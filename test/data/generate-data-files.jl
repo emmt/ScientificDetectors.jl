@@ -1,4 +1,4 @@
-using Downloads, EasyFITS, ScientificDetectors
+using Downloads, AstroFITS, ScientificDetectors
 
 """
 This function should be runned from the test/data/ folder since it will download

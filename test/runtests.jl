@@ -2,7 +2,7 @@ module TestingScientificDetectors
 
 using Test, ScientificDetectors
 using ScientificDetectors: offset, binning
-using EasyFITS
+using AstroFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 

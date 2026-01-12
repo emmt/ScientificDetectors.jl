@@ -6,7 +6,7 @@ version = "0.3.6"
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-EasyFITS = "a977f4a2-36a7-4172-89e7-19c2726f82e5"
+AstroFITS = "34e54ef0-c5bf-48ab-9e5d-cca51f35ed77"
 LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MultivariateOnlineStatistics = "e9d32067-d496-40b5-8c90-e40f06d38009"
@@ -20,7 +20,7 @@ TypeUtils = "c3b1956e-8857-4d84-9b79-890df85b1e67"
 
 [compat]
 ArrayTools = "0.2.3, 0.3"
-EasyFITS = "0.6, 0.7"
+AstroFITS = "1"
 MultivariateOnlineStatistics = "0.2.1"
 StructuredArrays = "0.2.5"
 TypeUtils = "0.2, 0.3, 1"
