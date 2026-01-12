@@ -44,9 +44,9 @@ import Base: read, write
 using Statistics, StatsBase, Distributions
 using MultivariateOnlineStatistics
 using ArrayTools, StructuredArrays
-using EasyFITS
-using EasyFITS: hduname, throw_file_already_exists
-import EasyFITS: write!, readfits, writefits, writefits!
+using AstroFITS
+using AstroFITS: hduname, throw_file_already_exists
+import AstroFITS: write!, readfits, writefits, writefits!
 
 function process end
 function process! end

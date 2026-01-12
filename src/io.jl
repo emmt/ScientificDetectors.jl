@@ -11,7 +11,7 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 SimpleCalibration{T,N}}
 
 # HDU name and revision number only depend on the type of our objects..
-EasyFITS.hduname(data::WritableData) = hduname(typeof(data))
+AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 
 """
     write(dest, [hdr,] data; kwds...)
@@ -103,8 +103,8 @@ readfits(T::Type{<:WritableData}, filename::AbstractString) =
 # I/O methods for `ReducedCalibration`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:ReducedCalibration}) =
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:ReducedCalibration}) =
     ("REDUCED-DETECTOR-CALIBRATION", 3)
 
 function read(T::Type{<:ReducedCalibration}, io::FitsFile)
@@ -207,8 +207,8 @@ end
 # I/O methods for `SimpleCalibration`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:SimpleCalibration}) =
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:SimpleCalibration}) =
     ("SIMPLE-DETECTOR-CALIBRATION", 1)
 
 function read(T::Type{<:SimpleCalibration}, io::FitsFile)
@@ -293,8 +293,8 @@ end
 # I/O methods for `PreprocessingParameters`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:PreprocessingParameters}) =
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:PreprocessingParameters}) =
     ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
 
 function read(T::Type{<:PreprocessingParameters}, io::FitsFile)
@@ -379,7 +379,7 @@ end
 # I/O methods for `SampleStatistics`.
 #
 
-EasyFITS.hduname(::Type{<:SampleStatistics}) =
+AstroFITS.hduname(::Type{<:SampleStatistics}) =
     ("DETECTOR-SAMPLE-STATISTICS", 1)
 
 """
