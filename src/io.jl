@@ -17,15 +17,15 @@ AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
     write(dest, [hdr,] data; kwds...)
     writefits(dest, [hdr,] data; kwds...)
 
-writes reduced detector calibration or preprocessing parameters `data` in
-`dest` which may be a FITS file instance or the name of a new FITS file to
-create. Argument `hdr` is an optional header which can be `nothing` or have
-any form accepted by the `FitsHeader` constructor. If `hdr` is not specifed,
-the other keywords than `overwrite` are used to build a header.
+Write reduced detector calibration or preprocessing parameters `data` in `dest` which may
+be a FITS file instance or the name of a new FITS file to create. Argument `hdr` is an
+optional header which can be `nothing` or have any form accepted by the `FitsHeader`
+constructor. If `hdr` is not specifed, the other keywords than `overwrite` are used to
+build a header.
 
-If `dest` is the name of a file which already exists, an error is thrown unless
-keyword `overwrite = true` is specified. An alternative is to call `write!`
-or `fitswrite!` which silently overwrite existing files.
+If `dest` is the name of a file which already exists, an error is thrown unless keyword
+`overwrite = true` is specified. An alternative is to call `writefits!` which silently
+overwrite existing files.
 
 """
 write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false) =
@@ -33,12 +33,6 @@ write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false
 
 write(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data; kwds...)
-
-write!(filename::AbstractString, data::WritableData; kwds...) =
-    writefits!(filename, data; kwds...)
-
-write!(filename::AbstractString, hdr, data::WritableData) =
-    writefits!(filename, hdr, data)
 
 writefits!(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data;  overwrite = true, kwds...)
@@ -64,7 +58,7 @@ end
 function writefits(filename::AbstractString, hdr::FitsHeader,
                    data::WritableData; overwrite::Bool = false)
     (overwrite == false && ispath(filename)) && throw_file_already_exists(
-        filename, "call `write!`, `writefits!`, or use `overwrite=true`")
+        filename, "call `writefits!` or use `overwrite=true`")
     FitsFile(filename, (overwrite ? "w!" : "w")) do io
         write(io, hdr, data)
     end
