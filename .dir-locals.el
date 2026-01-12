@@ -1,6 +1,6 @@
 ((nil . ((indent-tabs-mode . nil)
 	 (tab-width . 8)
          ;;(coding . utf8)
-	 (fill-column . 90)
+	 (fill-column . 92)
 	 (ispell-local-dictionary . "american")))
  (julia-mode . ()))
