@@ -62,7 +62,7 @@ function reader_fits(::Type{T},
         hdu = fitsfile[datahduindex]
         
         if hdu isa FitsImageHDU
-            if hdu.hduname == EasyFITS.hduname(ImageStat)[1]
+            if hdu.hduname == hduname(ImageStat)[1]
                 reader_fits_ImageStat(T, hdu, categoryname, Δt, roi)
             else 
                 isnothing(hdu.hduname) || isempty(hdu.hduname) || @warn string(

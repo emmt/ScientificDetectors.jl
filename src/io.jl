@@ -13,7 +13,8 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 ImageStat{T,N}}
 
 # HDU name and revision number only depend on the type of our objects..
-AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
+import AstroFITS: hduname
+hduname(data::WritableData) = hduname(typeof(data))
 
 """
     write(dest, [hdr,] data; kwds...)
@@ -100,7 +101,7 @@ readfits(T::Type{<:WritableData}, filename::AbstractString; kwds...) =
 #
 
 # Extend AstroFITS method to provide HDU name and revision number.
-AstroFITS.hduname(::Type{<:ReducedCalibration}) =
+hduname(::Type{<:ReducedCalibration}) =
     ("REDUCED-DETECTOR-CALIBRATION", 3)
 
 function read(T::Type{<:ReducedCalibration}, io::FitsFile)
@@ -203,8 +204,8 @@ end
 # I/O methods for `CalibrationData`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:CalibrationData}) = ("DETECTOR-CALIBRATION-DATA-STATISTICS", 1)
+# Extend AstroFITS method to provide HDU name and revision number.
+hduname(::Type{<:CalibrationData}) = ("DETECTOR-CALIBRATION-DATA-STATISTICS", 1)
 
 function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where {T,N}
 
@@ -327,7 +328,7 @@ end
 #
 
 # Extend AstroFITS method to provide HDU name and revision number.
-AstroFITS.hduname(::Type{<:SimpleCalibration}) =
+hduname(::Type{<:SimpleCalibration}) =
     ("SIMPLE-DETECTOR-CALIBRATION", 1)
 
 function read(T::Type{<:SimpleCalibration}, io::FitsFile)
@@ -413,7 +414,7 @@ end
 #
 
 # Extend AstroFITS method to provide HDU name and revision number.
-AstroFITS.hduname(::Type{<:PreprocessingParameters}) =
+hduname(::Type{<:PreprocessingParameters}) =
     ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
 
 function read(T::Type{<:PreprocessingParameters}, io::FitsFile)
@@ -498,7 +499,7 @@ end
 # I/O methods for `SampleStatistics`.
 #
 
-AstroFITS.hduname(::Type{<:SampleStatistics}) =
+hduname(::Type{<:SampleStatistics}) =
     ("DETECTOR-SAMPLE-STATISTICS", 1)
 
 """
@@ -686,7 +687,7 @@ end
 function read(::Type{ImageStat{T,N}}, hdu::FitsImageHDU) where {T<:AbstractFloat,N}
     hdu.data_ndims == N+1 || dimension_mismatch("HDU has wrong number of dimensions")
     hdu.data_size[N+1] == 2 || dimension_mismatch("Number of moments must be 2")
-    hdu.hduname == EasyFITS.hduname(ImageStat)[1] || @warn "Not declared as an ImageStat HDU"
+    hdu.hduname == hduname(ImageStat)[1] || @warn "Not declared as an ImageStat HDU"
 
     Δt = hdu["EXPTIME"].float
     n  = hdu["NSAMPLES"].integer

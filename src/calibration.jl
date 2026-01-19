@@ -18,7 +18,7 @@ using OptimPackNextGen
 using MultivariateOnlineStatistics
 using MultivariateOnlineStatistics:
     storage
-using EasyFITS
+using AstroFITS
 using YAML
 using StructuredArrays
 using OrderedCollections

@@ -1,7 +1,7 @@
 module TestingScientificDetectors
 
 using Test, ScientificDetectors
-using ScientificDetectors: offset, binning, issequentiable, sequence
+using ScientificDetectors: offset, binning
 using AstroFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
@@ -107,13 +107,14 @@ end
 @testset "Test on small IRDIS FITS files" begin
 
     # !! update this list if you modify the data test files !!
-    backs_filepaths = map(f -> "test/data/" * f,
+    testdir = joinpath(dirname(dirname(pathof(ScientificDetectors))), "test/")
+    backs_filepaths = map(f -> joinpath(testdir, "data/", f),
         ["back_1s.fits.gz", "back_8s.fits.gz", "back_96s.fits.gz"])
-    flats_filepaths = map(f -> "test/data/" * f,
+    flats_filepaths = map(f -> joinpath(testdir, "data/", f),
         ["flat_1s.fits.gz", "flat_3s.fits.gz", "flat_5s.fits.gz"])
-    science_filepath = "test/data/science_96s.fits.gz"
-    goal_reduced_calibdata_filepath = "test/data/goal_reduced_calibdata.fits.gz"
-    goal_reduced_science_filepath   = "test/data/goal_reduced_science_96s.fits.gz"
+    science_filepath = joinpath(testdir, "data/", "science_96s.fits.gz")
+    goal_reduced_calibdata_filepath = joinpath(testdir, "data/", "goal_reduced_calibdata.fits.gz")
+    goal_reduced_science_filepath = joinpath(testdir, "data/", "goal_reduced_science_96s.fits.gz")
 
     # ensuring resources files are present
     for file in [ backs_filepaths ; flats_filepaths ; science_filepath ;

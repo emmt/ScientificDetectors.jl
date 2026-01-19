@@ -47,7 +47,7 @@ using MultivariateOnlineStatistics
 using ArrayTools, StructuredArrays
 using AstroFITS
 using AstroFITS: hduname, throw_file_already_exists, FitsImageHDU
-import AstroFITS: write!, readfits, writefits, writefits!
+import AstroFITS: readfits, writefits, writefits!
 
 function process end
 function process! end
