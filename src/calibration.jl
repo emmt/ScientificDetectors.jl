@@ -23,6 +23,7 @@ using YAML
 using StructuredArrays
 using OrderedCollections
 using Dates
+using AstroFITS: hduname
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,

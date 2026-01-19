@@ -66,7 +66,6 @@ struct ImageStat{T<:Real,N}
     stat::OnlineStatistics{T,N} # Statistics.
     roi::DetectorAxes{N}  # Detector axes settings.
 end
-hduname(::Type{<:ImageStat}) = ("IMAGE-STAT", 1)
 exposuretime(imgst::ImageStat) = imgst.Δt
 StatsBase.nobs(imgst::ImageStat) = imgst.stat.n
 DetectorAxes(imgst::ImageStat) = imgst.roi

@@ -13,8 +13,7 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 ImageStat{T,N}}
 
 # HDU name and revision number only depend on the type of our objects..
-import AstroFITS: hduname
-hduname(data::WritableData) = hduname(typeof(data))
+AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 
 """
     write(dest, [hdr,] data; kwds...)
@@ -101,7 +100,7 @@ readfits(T::Type{<:WritableData}, filename::AbstractString; kwds...) =
 #
 
 # Extend AstroFITS method to provide HDU name and revision number.
-hduname(::Type{<:ReducedCalibration}) =
+AstroFITS.hduname(::Type{<:ReducedCalibration}) =
     ("REDUCED-DETECTOR-CALIBRATION", 3)
 
 function read(T::Type{<:ReducedCalibration}, io::FitsFile)
@@ -684,6 +683,8 @@ end
 #
 # I/O methods for `ImageStat`.
 #
+hduname(::Type{<:ImageStat}) = ("IMAGE-STAT", 1)
+
 function read(::Type{ImageStat{T,N}}, hdu::FitsImageHDU) where {T<:AbstractFloat,N}
     hdu.data_ndims == N+1 || dimension_mismatch("HDU has wrong number of dimensions")
     hdu.data_size[N+1] == 2 || dimension_mismatch("Number of moments must be 2")
