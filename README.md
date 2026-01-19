@@ -63,7 +63,7 @@ considered as defective.
 Read some raw data and apply pre-processings to the 7-th raw frame:
 
 ```julia
-using EasyFITS
+using AstroFITS
 raw = read(FitsImage, "SPHER.2018-06-22T04.00.04.544IRD_SCIENCE_DPI_RAW.fits.gz");
 wgt, dat = process(prm, raw[:,:,7]);
 ```

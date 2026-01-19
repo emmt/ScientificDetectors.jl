@@ -1022,7 +1022,7 @@ function ReducedCalibration(alg::Val{S},
                             g::Real = gmin,
                             σ::Real = 1/sqrt(12),
                             badvalue::Real = zero(T),
-                            quiet::Bool = false) where {S,T,N}
+                            quiet::Bool = false) where {S,T<:AbstractFloat,N}
     axes(validpixels) == axes(dat) || throw(DimensionMismatch("incompatible indices"))
     (isfinite(gmin) && gmin > 0) || argument_error(
         "value of keyword `gmin` must be finite and positive")
@@ -1032,33 +1032,23 @@ function ReducedCalibration(alg::Val{S},
         "value of keyword `σ` must be finite and positive")
     nthreads = Threads.nthreads()
     if nthreads ≤ 1
-        @warn "You may start Julia as `JULIA_NUM_THREADS=$(Base.Sys.CPU_THREADS) julia`"
+        @warn "You may start Julia as `JULIA_NUM_THREADS=$(Base.Sys.CPU_THREADS) julia` or as `julia -t auto`"
     end
 
     badvalue = as(T, badvalue)
-    obj = [ObjectiveFunction{S}(dat) for i in 1:nthreads]
-    nsub, ncat, nsrc = size(obj[1])
-    n = 3 + nsrc
-    x = [Vector{T}(undef, n) for i in 1:nthreads]
-    xmin = [Vector{T}(undef, n) for i in 1:nthreads]
-    xmax = [Vector{T}(undef, n) for i in 1:nthreads]
-    for i in 1:nthreads
-        fill!(xmin[i], -Inf)
-        fill!(xmax[i], +Inf)
-        xmin[i][2] = gmin
-        xmax[i][2] = gmax
-        xmin[i][3] = 1e-6
-        fill!(view(xmax[i], 4:n), maxval)
-        if nonnegative
-            fill!(view(xmin[i], 4:n), 0)
-        end
-    end
+    gmin = as(T, gmin)
+    gmax = as(T, gmax)
+    maxval = as(T, maxval)
+    g = as(T, g)
+    σ = as(T, σ)
 
-    dims = size(dat.roi)
+    ncat, nsrc = size(dat.src_to_cat)
+    nsub = length(dat.stat)
     src_names = Array{String}(undef, nsrc)
     for (key,val) in dat.src_index
         src_names[val] = key
     end
+    dims = size(dat.roi)
     out = ReducedCalibration{T}(dat.roi,
                                 fill(badvalue, dims), # f
                                 fill(badvalue, dims), # z
@@ -1069,33 +1059,97 @@ function ReducedCalibration(alg::Val{S},
                                 validpixels)
     npixels = prod(dims)
     p = Progress(count(validpixels); showspeed=true)
+    key = Symbol("ScientificDetector.reduce_calibration_data!")
     Threads.@threads for k in 1:npixels
         validpixels[k] || continue
-        i = Threads.threadid()
-        extract!(obj[i], dat, k)
-        copyto!(x[i], xmin[i])
-        x[i][2] = g
-        x[i][3] = (S === :zgσs ? σ : g*σ^2)
-        # try
-        fit_linear_terms!(obj[i], x[i]; eta=Inf, nonnegative=nonnegative)
-        vmlmb!(obj[i],x[i]; mem=n, lower=xmin[i], upper=xmax[i],  autodiff=false,
-               ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
-        # catch e
-        #     @debug showerror(stdout, e)
-        #     @debug "VMLMB crashed on pixel  $k"
-        #     reset!(obj[i])
-        #     continue
-        # end
-        out.f[k] = obj[i](x[i]) # FIXME: should not be necessary
-        out.z[k] = x[i][1]
-        out.g[k] = x[i][2]
-        out.σ[k] = (S === :zgσs ? x[i][3] : sqrt(x[i][3]/x[i][2]))
-        for j in 1:nsrc
-            out.s[j][k] = x[i][j + 3]
-        end
+        reduce_calibration_data!(alg, out, k, dat, key; nonnegative=nonnegative,
+                                 maxval=maxval, gmin=gmin, gmax=gmax, g=g, σ=σ)
         quiet || next!(p)
     end
     return out
+end
+
+# The following method fits the model parameters for a single pixel, it is intended to be
+# called by the different processing tasks with `key` to identity the task local data
+# storing the workspaces.
+function reduce_calibration_data!(alg::Val{S},
+                                  out::ReducedCalibration{T},
+                                  k::Int, # pixel index
+                                  dat::CalibrationData{T,N},
+                                  key::Symbol;
+                                  nonnegative::Bool,
+                                  maxval::Real,
+                                  gmin::Real,
+                                  gmax::Real,
+                                  kwds...) where {S,T<:AbstractFloat,N}
+    tls = task_local_storage()
+    if haskey(tls, key)
+        # Retrieve task local data with some guarantees on their types.
+        objfun, x, xmin, xmax = tls[key]::Tuple{ObjectiveFunction{S,T},
+                                                Vector{T},Vector{T},Vector{T}}
+        # Call worker which is also a function barrier for type-stability.
+        reduce_calibration_data!(out, k, dat, objfun, x, xmin, xmax;
+                                 nonnegative=nonnegative, kwds...)
+    else
+        # Allocate task local data.
+        ncat, nsrc = size(dat.src_to_cat)
+        n = 3 + nsrc
+        objfun = ObjectiveFunction{S,T}(dat)
+        x, xmin, xmax = (Vector{T}(undef, n) for _ in 1:3)
+        # Initialize task local data.
+        fill!(xmin, -Inf)
+        xmin[2] = gmin
+        xmin[3] = 1e-6
+        nonnegative && fill!(view(xmin, 4:n), 0)
+        fill!(xmax, +Inf)
+        xmax[2] = gmax
+        fill!(view(xmax, 4:n), maxval)
+        # Store task local data.
+        tls[key] = (objfun, x, xmin, xmax)
+        # Call worker.
+        reduce_calibration_data!(out, k, dat, objfun, x, xmin, xmax;
+                                 nonnegative=nonnegative, kwds...)
+    end
+    nothing
+end
+
+# The following method fits the model parameters for a single pixel given all workspace
+# arrays. It can be used for mono- or multi-task processing.
+function reduce_calibration_data!(out::ReducedCalibration{T},
+                                  k::Int, # pixel index
+                                  dat::CalibrationData{T,N},
+                                  objfun::ObjectiveFunction{S,T},
+                                  x::AbstractVector{T},
+                                  xmin::AbstractVector{T},
+                                  xmax::AbstractVector{T};
+                                  nonnegative::Bool,
+                                  g::Real,
+                                  σ::Real) where {S,T<:AbstractFloat,N}
+    ncat, nsrc = size(dat.src_to_cat)
+    n = 3 + nsrc
+    axes(x) == axes(xmin) == axes(xmax) == (1:n,) ||
+        throw(DimensionMismatch("invalid workspace(s) size"))
+    extract!(objfun, dat, k)
+    copyto!(x, xmin)
+    x[2] = g
+    x[3] = (S === :zgσs ? σ : g*σ^2)
+    # try
+    fit_linear_terms!(objfun, x; eta=Inf, nonnegative=nonnegative)
+    vmlmb!(objfun, x; mem=length(x), lower=xmin, upper=xmax, autodiff=false,
+           ftol=(1e-8,0), xtol=(0,0), gtol=(0,0), maxeval=1000)
+    # catch e
+    #     @debug showerror(stdout, e)
+    #     @debug "VMLMB crashed on pixel  $k"
+    #     reset!(objfun)
+    #     continue
+    # end
+    out.f[k] = objfun(x) # FIXME: should not be necessary
+    out.z[k] = x[1]
+    out.g[k] = x[2]
+    out.σ[k] = (S === :zgσs ? x[3] : sqrt(x[3]/x[2]))
+    for j in 1:nsrc
+        out.s[j][k] = x[j + 3]
+    end
 end
 
 """

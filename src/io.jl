@@ -13,21 +13,21 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 ImageStat{T,N}}
 
 # HDU name and revision number only depend on the type of our objects..
-EasyFITS.hduname(data::WritableData) = hduname(typeof(data))
+AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 
 """
     write(dest, [hdr,] data; kwds...)
     writefits(dest, [hdr,] data; kwds...)
 
-writes reduced detector calibration or preprocessing parameters `data` in
-`dest` which may be a FITS file instance or the name of a new FITS file to
-create. Argument `hdr` is an optional header which can be `nothing` or have
-any form accepted by the `FitsHeader` constructor. If `hdr` is not specifed,
-the other keywords than `overwrite` are used to build a header.
+Write reduced detector calibration or preprocessing parameters `data` in `dest` which may
+be a FITS file instance or the name of a new FITS file to create. Argument `hdr` is an
+optional header which can be `nothing` or have any form accepted by the `FitsHeader`
+constructor. If `hdr` is not specifed, the other keywords than `overwrite` are used to
+build a header.
 
-If `dest` is the name of a file which already exists, an error is thrown unless
-keyword `overwrite = true` is specified. An alternative is to call `write!`
-or `fitswrite!` which silently overwrite existing files.
+If `dest` is the name of a file which already exists, an error is thrown unless keyword
+`overwrite = true` is specified. An alternative is to call `writefits!` which silently
+overwrite existing files.
 
 """
 write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false) =
@@ -35,12 +35,6 @@ write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false
 
 write(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data; kwds...)
-
-write!(filename::AbstractString, data::WritableData; kwds...) =
-    writefits!(filename, data; kwds...)
-
-write!(filename::AbstractString, hdr, data::WritableData) =
-    writefits!(filename, hdr, data)
 
 writefits!(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data;  overwrite = true, kwds...)
@@ -66,7 +60,7 @@ end
 function writefits(filename::AbstractString, hdr::FitsHeader,
                    data::WritableData; overwrite::Bool = false)
     (overwrite == false && ispath(filename)) && throw_file_already_exists(
-        filename, "call `write!`, `writefits!`, or use `overwrite=true`")
+        filename, "call `writefits!` or use `overwrite=true`")
     FitsFile(filename, (overwrite ? "w!" : "w")) do io
         write(io, hdr, data)
     end
@@ -105,8 +99,8 @@ readfits(T::Type{<:WritableData}, filename::AbstractString; kwds...) =
 # I/O methods for `ReducedCalibration`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:ReducedCalibration}) =
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:ReducedCalibration}) =
     ("REDUCED-DETECTOR-CALIBRATION", 3)
 
 function read(T::Type{<:ReducedCalibration}, io::FitsFile)
@@ -332,8 +326,8 @@ end
 # I/O methods for `SimpleCalibration`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:SimpleCalibration}) =
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:SimpleCalibration}) =
     ("SIMPLE-DETECTOR-CALIBRATION", 1)
 
 function read(T::Type{<:SimpleCalibration}, io::FitsFile)
@@ -418,8 +412,8 @@ end
 # I/O methods for `PreprocessingParameters`.
 #
 
-# Extend EasyFITS method to provide HDU name and revision number.
-EasyFITS.hduname(::Type{<:PreprocessingParameters}) =
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:PreprocessingParameters}) =
     ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
 
 function read(T::Type{<:PreprocessingParameters}, io::FitsFile)
@@ -504,7 +498,7 @@ end
 # I/O methods for `SampleStatistics`.
 #
 
-EasyFITS.hduname(::Type{<:SampleStatistics}) =
+AstroFITS.hduname(::Type{<:SampleStatistics}) =
     ("DETECTOR-SAMPLE-STATISTICS", 1)
 
 """

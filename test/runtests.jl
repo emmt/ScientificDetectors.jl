@@ -2,7 +2,7 @@ module TestingScientificDetectors
 
 using Test, ScientificDetectors
 using ScientificDetectors: offset, binning, issequentiable, sequence
-using EasyFITS
+using AstroFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 
@@ -72,15 +72,15 @@ end
     @test redcal === ReducedCalibration{Float64,2,Array{Bool,2}}(redcal)
 
     # promote T (also test the default V and vpm constructors)
-    @test ReducedCalibration{BigFloat,2,FastUniformMatrix{Bool,true}} == typeof(
-        ReducedCalibration(
-                roi,
-                ones(Float64, W, H),
-                ones(Float32, W, H),
-                ones(Float16, W, H),
-                ones(Rational, W, H),
-                [ones(Int32, W, H), ones(BigFloat, W, H),],
-                ["TOTO", "TATA"]))
+    redcal = ReducedCalibration(
+        roi,
+        ones(Float64, W, H),                        # f
+        ones(Float32, W, H),                        # z
+        ones(Float16, W, H),                        # g
+        ones(Rational{Int}, W, H),                  # σ
+        [ones(Int32, W, H), ones(BigFloat, W, H),], # s
+        ["SRC1", "SRC2"])                           # src
+    @test typeof(redcal) <: ReducedCalibration{BigFloat,2,<:FastUniformMatrix{Bool, true}}
 
     # T and V conversion
     redcal = ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}}(
@@ -100,7 +100,7 @@ end
     cat1 = CalibrationCategory("CAT1", :(cat1))
     caldat = CalibrationData{Float64}(roy, [cat1])
     redcal = ReducedCalibration(caldat)
-    @test ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}} == typeof(redcal)
+    @test typeof(redcal) <: ReducedCalibration{Float64,2,<:FastUniformMatrix{Bool,true}}
 end
 
 
