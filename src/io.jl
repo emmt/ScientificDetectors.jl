@@ -168,22 +168,24 @@ function write(io::FitsFile, hdr::FitsHeader,
     hdu = FitsImageHDU{T,N+1}(io, dims..., 5 + nsrc)
 
     # Write header.
+    H = FitsHeader()
     name, vers = hduname(data)
-    hdu["HDUNAME"] = (name, "reduced detector calibration")
-    hdu["HDUVERS"] = (vers, "version of this format")
-    merge!(hdu, DetectorAxes(data))
-    hdu["FRAME1"] = ("score", "co-log-likelihood (f)")
-    hdu["FRAME2"] = ("bias", "[ADU] constant bias (z)")
-    hdu["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
-    hdu["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
-    hdu["FRAME5"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
+    H["HDUNAME"] = (name, "reduced detector calibration")
+    H["HDUVERS"] = (vers, "version of this format")
+    merge!(H, DetectorAxes(data))
+    H["FRAME1"] = ("score", "co-log-likelihood (f)")
+    H["FRAME2"] = ("bias", "[ADU] constant bias (z)")
+    H["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
+    H["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
+    H["FRAME5"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
     for k ∈ eachindex(data.src)
-        hdu["FRAME$(5+k)"] = (data.src[k], "[ADU/s]")
+        H["FRAME$(5+k)"] = (data.src[k], "[ADU/s]")
     end
     for k ∈ 1:nsrc
-        hdu["SRC$k"] = data.src[k]
+        H["SRC$k"] = data.src[k]
     end
-    merge!(hdu, hdr)
+    merge!(H, hdr)
+    merge!(hdu, filter(!is_structural, H))
 
     # Write data array.
     tick = Ticker(1, prod(dims))
@@ -219,8 +221,10 @@ function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where 
     statshdu["EXTNAME"]  = "mean and variance stats"
     statshdu["HDUNAME"]  = (name, "statistics of detector calibration data")
     statshdu["HDUVERS"]  = (vers, "version of this format")
-    merge!(statshdu, DetectorAxes(data)) # write `data.roi` as keywords
-    merge!(statshdu, hdr)
+    H = FitsHeader()
+    merge!(H, DetectorAxes(data)) # write `data.roi` as keywords
+    merge!(H, hdr)
+    merge!(statshdu, filter(!is_structural, H))
 
     # Write data array.
     # Note that numbers of samples are written in another hdu
