@@ -3,6 +3,7 @@ function parse_highyml_to_lowyml(
     ; basedir::String = pwd(),
       include_subdirectory ::Union{Nothing,Bool} = nothing,
       roi ::Union{Nothing,DetectorAxes} = nothing,
+      datahdu ::Union{Nothing,Integer,String} = nothing,
       title ::Union{Nothing,String} = nothing,
       fixed_file_list ::Union{Nothing,Vector{String}} = nothing,
       generated ::DateTime= Dates.now()
@@ -13,7 +14,8 @@ function parse_highyml_to_lowyml(
         highyml = YAML.load_file(highyml)
     end
 
-    haskey(highyml, "exptime")     || throw(ArgumentError("yaml dict miss key \"exptime\""))
+    haskey(highyml, "exptime keyword") || throw(
+        ArgumentError("yaml dict miss key \"exptime keyword\""))
     haskey(highyml, "categories")  || throw(ArgumentError("yaml dict miss key \"categories\""))
     for (catname,catdef) in highyml["categories"]
         if !haskey(catdef, "sources")
@@ -23,11 +25,7 @@ function parse_highyml_to_lowyml(
     
     # keyword julia parameter has priority over yaml parameter
     if isnothing(title)
-        if haskey(highyml, "title")
-            title = highyml["title"]
-        else
-            title = "YAML file produced by ScientificDetectors"
-        end
+        title = get(highyml, "title", "YAML file produced by ScientificDetectors")
     end
     
     # keyword julia parameter has priority over yaml parameter
@@ -44,7 +42,13 @@ function parse_highyml_to_lowyml(
                             "bin"    => axis.bin)  for axis in roi ]
     end
     
-    exptimekwd = highyml["exptime"]
+    # keyword julia parameter has priority over yaml parameter
+    if isnothing(datahdu)
+        datahdu = get(highyml, "datahdu", 1)
+    end
+        
+    
+    exptimekwd = highyml["exptime keyword"]
 
     suffixes = haskey(highyml, "suffixes") ? highyml["suffixes"] : [".fits", ".fits.gz", ".fits.Z"]
 
@@ -61,6 +65,7 @@ function parse_highyml_to_lowyml(
         "title"      => title,
         "generated"  => generated,
         "roi"        => roi,
+        "datahdu"    => datahdu,
         "categories" => OrderedDict{String,Any}()
     )
     
@@ -81,8 +86,8 @@ function parse_highyml_to_lowyml(
                 # check that this file respect every keyword condition listed in higyml category
                 valid = true
                 for (keyword,values) in catdef
-                    if keyword == "sources"
-                        continue
+                    if keyword in ("sources", "datahdu")
+                        continue # skip non keyword entries
                     end
                     if haskey(fits[1], keyword)
                         if (values isa Vector) && any(==(fits[1][keyword].value()), values)
@@ -106,14 +111,18 @@ function parse_highyml_to_lowyml(
                             "sources" => catdef["sources"],
                             "files"   => OrderedDict{Float64,Any}()
                         )
+                        if haskey(catdef, "datahdu")
+                            lowyml["categories"][catname]["datahdu"] = catdef["datahdu"]
+                        end
                     end
                     
                     file_exptime =
                         if haskey(fits[1], exptimekwd)
                             fits[1][exptimekwd].float
                         else
-                            throw("Fits file \"$fitspath\" miss exptime keyword \"exptimekwd\"")
+                            throw("Fits file \"$fitspath\" miss exptime keyword \"$exptimekwd\".")
                         end
+                    
                     
                     # create entry for that exptime if it doest not exist yet
                     if !haskey(lowyml["categories"][catname]["files"], file_exptime)

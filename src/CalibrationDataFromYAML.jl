@@ -10,14 +10,10 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
     haskey(yml, "roi") || throw(ArgumentError("yaml dict miss key \"roi\""))
     
     roi = Tuple(map(yml["roi"]) do ax
-        
         ax isa AbstractDict  || throw(ArgumentError("yaml dict roi ax should be a dict too"))
         haskey(ax, "length") || throw(ArgumentError("yaml dict roi axis miss key \"length\""))
-        haskey(ax, "offset") || throw(ArgumentError("yaml dict roi axis miss key \"offset\""))
-        haskey(ax, "bin")    || throw(ArgumentError("yaml dict roi axis miss key \"bin\""))
-        haskey(ax, "step")   || throw(ArgumentError("yaml dict roi axis miss key \"step\""))
-        
-        DetectorAxis(ax["length"]; off=ax["offset"], bin=ax["bin"], step=ax["step"])
+        DetectorAxis(ax["length"]
+            ; off=get(ax,"offset",0), bin=get(ax,"bin",1), step=get(ax,"step",1))
     end)
     
     cats = CalibrationCategory[
@@ -25,7 +21,7 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
         for (catname, cat) in yml["categories"] ]
     
     datahduindex = Dict(
-        catname => haskey(cat, "datahdu") ? cat["datahdu"] : 1
+        catname => get(cat, "datahdu", get(yml, "datahdu", 1))
         for (catname, cat) in yml["categories"])
     
     calibration_data = CalibrationData{T}(roi, cats; verb)
