@@ -55,7 +55,10 @@ function generate_data_files(
         end
         run(`rm "$(filename)"`)
         filename = chop(filename; tail=2) # without .Z
-        writefits!(filename, header, data)
+        header2 = filter(!is_structural, header)
+
+        writefits!(filename, header2, data)
+
         run(`gzip -f "$(filename)"`) # creates the .fits.gz file and auto delete the .fits file
     end
 
@@ -86,7 +89,7 @@ function generate_data_files(
     firstvalidpixels = findbadpixels(calibdata)
     reduced_calibdata = ReducedCalibration(calibdata ; validpixels=firstvalidpixels)
     findbadpixels!(reduced_calibdata)
-    write!(goal_reduced_calibdata_filename, reduced_calibdata)
+    write(goal_reduced_calibdata_filename, reduced_calibdata, overwrite=true)
     run(`gzip -f "$(goal_reduced_calibdata_filename)"`)
 
     # reduced science
@@ -94,6 +97,6 @@ function generate_data_files(
     ppp = PreprocessingParameters(reduced_calibdata; flat="flat", bg="back", Δt=science_dit)
     science_matrix = readfits(Matrix{typefloat}, science_filename, :,:,1)
     (weights, reduced_data) = process(ppp, science_matrix)
-    writefits!(goal_reduced_science_filename, FitsHeader(), [ reduced_data ;;; weights ])
+    writefits!(goal_reduced_science_filename, FitsHeader(), [ reduced_data ;;; weights ],overwrite=true)
     run(`gzip -f "$(goal_reduced_science_filename)"`)
 end
