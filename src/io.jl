@@ -60,7 +60,7 @@ function writefits(filename::AbstractString, hdr::FitsHeader,
     (overwrite == false && ispath(filename)) && throw_file_already_exists(
         filename, "call `writefits!` or use `overwrite=true`")
     FitsFile(filename, (overwrite ? "w!" : "w")) do io
-        write(io, hdr, data)
+        write(io, filter(!is_structural, hdr), data)
     end
     nothing
 end
