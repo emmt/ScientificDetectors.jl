@@ -153,9 +153,6 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
                                 AbstractVector{<:DetectorAxis}})
     n = length(prm)
     for i in 1:n
-        dst["NAXIS$i"] = (prm[i].len, "length of data axis $i")
-    end
-    for i in 1:n
         dst["OFF$i"] = (prm[i].off, "offset along axis $i")
     end
     for i in 1:n
