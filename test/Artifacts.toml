@@ -1,0 +1,7 @@
+[SPHEREtestdata]
+git-tree-sha1 = "20e067a864dcbbc0139a1a29219d84e3cfca27c3"
+lazy = true
+
+    [[SPHEREtestdata.download]]
+    url = "https://cloud.osu-lyon.fr/public.php/dav/files/XQrKRAFeM4zR2Ty/?accept=zip"
+    sha256 = "915f8f971e07f1b3f99d236eeeebf1d900031525d4f245a6585d5aafa1dc6028"
