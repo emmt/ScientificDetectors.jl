@@ -5,8 +5,8 @@ version = "0.3.6"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
-Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 AstroFITS = "34e54ef0-c5bf-48ab-9e5d-cca51f35ed77"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MultivariateOnlineStatistics = "e9d32067-d496-40b5-8c90-e40f06d38009"
@@ -22,15 +22,12 @@ TypeUtils = "c3b1956e-8857-4d84-9b79-890df85b1e67"
 ArrayTools = "0.2.3, 0.3"
 AstroFITS = "1"
 MultivariateOnlineStatistics = "0.2.1"
-Random = "1.11.0"
 StructuredArrays = "0.2.5"
 TypeUtils = "0.2, 0.3, 1"
 julia = "1.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-
 
 [targets]
-test = ["Test", "Random"]
+test = ["Test"]

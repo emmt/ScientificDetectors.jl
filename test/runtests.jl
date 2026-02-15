@@ -6,6 +6,8 @@ using AstroFITS
 using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 using Random
+using LazyArtifacts
+
 
 @testset "runtests.jl" begin
 
@@ -109,7 +111,8 @@ end
 
 @testset "Test on small IRDIS FITS files" begin
 
-    DATA_DIR = joinpath(@__DIR__, "data/")
+DATA_DIR = artifact"SPHEREtestdata"
+
 
     flats_paths = [ joinpath(DATA_DIR, "flat_1s_db_h23.fits.gz"),
                     joinpath(DATA_DIR, "flat_3s_db_h23.fits.gz"),
