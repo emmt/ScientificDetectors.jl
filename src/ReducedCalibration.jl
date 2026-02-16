@@ -80,6 +80,8 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
     # valid pixels map (true = valid pixel)
     vpm::V
 
+    algo::Symbol # name of the algorithm used to compute the reduced calibration data   
+
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N,V}(roi::DetectorAxes{N},
                                        f::AbstractArray{<:Real,N},
@@ -90,10 +92,11 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
                                        s::AbstractVector{<:AbstractArray{<:Real,N}},
                                        src::AbstractVector{<:AbstractString},
                                        vpm::AbstractArray{Bool,N};
-                                       check::Bool = false
+                                       check::Bool = false,
+                                       algo::Symbol = :zgσs
                                        ) where {T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
         checkindices(ReducedCalibration, roi, f, z, g, σ, σa, s, src, vpm)
-        obj = new{T,N,V}(roi, f, z, g, σ, σa, s, src, vpm)
+        obj = new{T,N,V}(roi, f, z, g, σ, σa, s, src, vpm, algo)
         check && checkvalues(obj)
         return obj
     end
@@ -160,6 +163,8 @@ sourcesid(obj::ReducedCalibration) = obj.src
 sourcesid(obj::ReducedCalibration, k::Integer) = getindex(sourcesid(obj), k)
 
 nsources(obj::ReducedCalibration) = length(sources(obj))
+
+algo(obj::ReducedCalibration) = obj.algo
 #
 # Basic operations on ReducedCalibration structure.
 #
