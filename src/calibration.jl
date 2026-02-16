@@ -117,6 +117,11 @@ struct ObjectiveFunction{S,T<:AbstractFloat}
     b::Vector{T} # RHS vector of the normal equations
 end
 
+
+numberofparameters(::ObjectiveFunction{S}) where S  =  ((S === :zgσas) ? 4 : 3 )
+ 
+
+
 """
     obj = ObjectiveFunction{S,T=float(eltype(H))}(H, nsub)
 
@@ -434,11 +439,7 @@ function fit_linear_terms!(obj::ObjectiveFunction{S,T},
         obj.sz .= eq.A\eq.b # FIXME: use in-place operations
     end
     x[1] = obj.sz[end]
-    if S === :zgσas 
-        x[5:end] = obj.sz[1:end-1]
-    else
-        x[4:end] = obj.sz[1:end-1]
-    end
+    x[(numberofparameters(obj)+1):end] = obj.sz[1:end-1]
     return x
 end
 
@@ -470,11 +471,9 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
                                 η::T) where {S,T<:AbstractFloat}
     # Extract parameters from workspace.
     nsub, ncat, nsrc = size(obj, :checkindices)
-    if S === :zgσas
-        length(x) == nsrc + 4   || error("variables must have ", nsrc + 4, " elements")
-    else
-        length(x) == nsrc + 3 || error("variables must have ", nsrc + 3, " elements")
-    end
+    numberofparameters(obj)+nsrc == length(x) || error(
+        "variables must have ", numberofparameters(obj) + nsrc, " elements")
+        
     s = view(x, 4:length(x))
     n = nsrc + 1 # bias z is the last source
     J = Base.OneTo(nsrc)   # only index over the sources
@@ -855,32 +854,34 @@ function (obj::ObjectiveFunction{:zgσas, T})(x::AbstractVector{T}) where {T}
     Δt = obj.Δt # exposure time
 
     nsub = length(cΔt)
-
-    # Loop to integrate the objective function.
-    f = zero(T) # to compute f
-#=     @inbounds @simd for i in 1:nsub
-        n = T(obj.n[i])          # number of samples in subset
-        u = cΔt[i]               # contribution of sources
-        r = (u + z) - obj.avg[i] # residuals = model - sample mean
-        u₊ = fastmax(u, zero(T))
-        σt² = (σa / sqrt(Δt[i]) + σ)^2
-        v = ρ * u₊ + σt²            # model of variance
-        χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
-        f += (log(v) + χ²) * n      # objective function
+    if true # without mutating the workspace, the loop is faster than mapreduce
+        # Loop to integrate the objective function.
+        f = zero(T) # to compute f
+        @inbounds @simd for i in 1:nsub
+            n = T(obj.n[i])          # number of samples in subset
+            u = cΔt[i]               # contribution of sources
+            r = (u + z) - obj.avg[i] # residuals = model - sample mean
+            u₊ = fastmax(u, zero(T))
+            σt² = (σa / sqrt(Δt[i]) + σ)^2
+            v = ρ * u₊ + σt²            # model of variance
+            χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
+            f += (log(v) + χ²) * n      # objective function
+        end
+        return f
+    else
+        # Non mutating version of the loop to compute the objective function
+        function computef(i) 
+            n = T(obj.n[i])          # number of samples in subset
+            u = cΔt[i]               # contribution of sources
+            r = (u + z) - obj.avg[i] # residuals = model - sample mean
+            u₊ = fastmax(u, zero(T))
+            σt² = (σa / sqrt(Δt[i]) + σ)^2
+            v = ρ * u₊ + σt²            # model of variance
+            χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
+            return (log(v) + χ²) * n      # objective function
+        end
+        return mapreduce(computef, +, 1:nsub) 
     end
- =#
-
-    function computef(i) 
-        n = T(obj.n[i])          # number of samples in subset
-        u = cΔt[i]               # contribution of sources
-        r = (u + z) - obj.avg[i] # residuals = model - sample mean
-        u₊ = fastmax(u, zero(T))
-        σt² = (σa / sqrt(Δt[i]) + σ)^2
-        v = ρ * u₊ + σt²            # model of variance
-        χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
-        return (log(v) + χ²) * n      # objective function
-    end
-    return mapreduce(computef, +, 1:nsub)
 end
 
 function (obj::ObjectiveFunction{:zgσas, T})(
@@ -900,16 +901,15 @@ function (obj::ObjectiveFunction{:zgσas, T})(
     ∂f_∂σa = zero(T) # to compute ∂f/∂σa²
     ∂f_∂c_temp = cΔt # overwrite workspace cΔt for ∂f/∂c
     @inbounds @simd for i in 1:nsub
-        Δt = sqrt(obj.Δt[i])     # exposure time
-        isΔt = inv(sqrt(Δt)) # 1/sqrt(Δt)
+        Δt = obj.Δt[i]     # exposure time
+        isΔt = 1 / sqrt(Δt) # 1/sqrt(Δt)
         n = T(obj.n[i])          # number of samples in subset
         u = cΔt[i]               # contribution of sources
         r = (u + z) - obj.avg[i] # residuals = model - sample mean
         u₊ = fastmax(u, zero(T))
         σt = (σa * isΔt + σ)
-        σt² =  σt^2
 
-        v = ρ * u₊ + σt²            # model of variance
+        v = ρ * u₊ + σt^2           # model of variance
         w = 1 / v                  # weight
         χ² = (r^2 + obj.var[i]) * w # χ² per sample of the sub-set
         f += (log(v) + χ²) * n      # objective function
@@ -1091,7 +1091,7 @@ calibration data stored by `obj`.  The returned array is the internal buffer
 function compute_c(obj::ObjectiveFunction{S,T},
                    s::AbstractVector{T}) where {S,T}
     return mvmult!(obj.wcat1, obj.H, s)
-    #return obj.H * s without mutation
+    #return obj.H * s # without mutation
 end
 
 """
@@ -1145,12 +1145,15 @@ function compute_cΔt!(cΔt::AbstractVector{T},
         end
         flag || error("out of bound category index")
     end
-    @inbounds for i ∈ I
-        Δt     = obj.Δt[i] # exposure time
-        l      = obj.l[i]  # category index
-        cΔt[i] = c[l]*Δt   # contribution of sources
-    end 
-    #cΔt = obj.Δt .* view(c, obj.l) # same but without mutation 
+    if true # without mutating the workspace, the loop is faster
+        @inbounds for i ∈ I
+            Δt     = obj.Δt[i] # exposure time
+            l      = obj.l[i]  # category index
+            cΔt[i] = c[l]*Δt   # contribution of sources
+        end 
+    else
+        cΔt = obj.Δt .* view(c, obj.l) # same but without mutation 
+    end
     return cΔt
 end
 
@@ -1248,9 +1251,9 @@ function reduce_calibration_data!(alg::Val{S},
     else
         # Allocate task local data.
         ncat, nsrc = size(dat.src_to_cat)
-        nx =  (S === :zgσas ?  4   : 3 )
-        n = nx + nsrc
         objfun = ObjectiveFunction{S,T}(dat)
+        nx = numberofparameters(objfun)
+        n = nx + nsrc
         x, xmin, xmax = (Vector{T}(undef, n) for _ in 1:nx)
         # Initialize task local data.
         fill!(xmin, -Inf)
@@ -1285,7 +1288,7 @@ function reduce_calibration_data!(out::ReducedCalibration{T},
                                   σa::Real = 0.0,
                                   ) where {S,T<:AbstractFloat,N}
     ncat, nsrc = size(dat.src_to_cat)
-    nx =  (S === :zgσas ?  4   : 3 )
+    nx =  numberofparameters(objfun)
     n = nx + nsrc
     axes(x) == axes(xmin) == axes(xmax) == (1:n,) ||
         throw(DimensionMismatch("invalid workspace(s) size"))
