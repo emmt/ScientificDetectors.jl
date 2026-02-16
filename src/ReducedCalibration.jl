@@ -66,6 +66,9 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
     # Standard deviation of the readout noise (in ADU/frame):
     σ::Array{T,N}
 
+    # DIT dependant Standard deviation of the readout noise (in ADU/frame/second):
+    σa::Array{T, N}
+
     # Time dependent source, e.g. dark current and background flux, (in
     # ADU/second), may be empty or zero-filled:
     s::Vector{Array{T,N}}
@@ -83,13 +86,14 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
                                        z::AbstractArray{<:Real,N},
                                        g::AbstractArray{<:Real,N},
                                        σ::AbstractArray{<:Real,N},
+                                       σa::AbstractArray{<:Real,N},
                                        s::AbstractVector{<:AbstractArray{<:Real,N}},
                                        src::AbstractVector{<:AbstractString},
                                        vpm::AbstractArray{Bool,N};
                                        check::Bool = false
                                        ) where {T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
-        checkindices(ReducedCalibration, roi, f, z, g, σ, s, src, vpm)
-        obj = new{T,N,V}(roi, f, z, g, σ, s, src, vpm)
+        checkindices(ReducedCalibration, roi, f, z, g, σ, σa, s, src, vpm)
+        obj = new{T,N,V}(roi, f, z, g, σ, σa, s, src, vpm)
         check && checkvalues(obj)
         return obj
     end
@@ -106,13 +110,14 @@ function ReducedCalibration(roi::DetectorAxes{N},
                             z::AbstractArray{<:Real,N},
                             g::AbstractArray{<:Real,N},
                             σ::AbstractArray{<:Real,N},
+                            σa::AbstractArray{<:Real,N},
                             s::AbstractVector{<:AbstractArray{<:Real,N}},
                             src::AbstractVector{<:AbstractString},
                             args...;
                             kwds...) where {N}
-    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
+    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ), eltype(σa),
                            map(eltype, s)...))
-    ReducedCalibration{T}(roi, f, z, g, σ, s, src, args...; kwds...)
+    ReducedCalibration{T}(roi, f, z, g, σ, σa, s, src, args...; kwds...)
 end
 
 for constructor in (:(ReducedCalibration{T}), :(ReducedCalibration{T,N}))
@@ -126,11 +131,12 @@ for constructor in (:(ReducedCalibration{T}), :(ReducedCalibration{T,N}))
                               z::AbstractArray{<:Real,N},
                               g::AbstractArray{<:Real,N},
                               σ::AbstractArray{<:Real,N},
+                              σa::AbstractArray{<:Real,N},
                               s::AbstractVector{<:AbstractArray{<:Real,N}},
                               src::AbstractVector{<:AbstractString},
                               vpm::AbstractArray{Bool,N} = default_valid_pixels_map(roi);
                               kwds...) where {T<:AbstractFloat,N}
-            ReducedCalibration{T,N,typeof(vpm)}(roi, f, z, g, σ, s, src, vpm; kwds...)
+            ReducedCalibration{T,N,typeof(vpm)}(roi, f, z, g, σ, σa, s, src, vpm; kwds...)
         end
     end
 end
@@ -146,6 +152,7 @@ cologlikelihood(obj::ReducedCalibration) = obj.f
 detectorbias(obj::ReducedCalibration) = obj.z
 detectorgain(obj::ReducedCalibration) = obj.g
 detectornoise(obj::ReducedCalibration) = obj.σ
+detectornoisedit(obj::ReducedCalibration) = obj.σa
 validpixelsmap(obj::ReducedCalibration) = obj.vpm
 sources(obj::ReducedCalibration) = obj.s
 sources(obj::ReducedCalibration, k::Integer) = getindex(sources(obj), k)
@@ -188,46 +195,48 @@ end
 
 # Provide a ROI if not specified and parse source terms.
 function ReducedCalibration(f::AbstractArray, z::AbstractArray,
-                            g::AbstractArray, σ::AbstractArray,
+                            g::AbstractArray, σ::AbstractArray, σa::AbstractArray,
                             args...; kwds...)
-    ReducedCalibration(map(DetectorAxis, size(f)), f, z, g, σ,
+    ReducedCalibration(map(DetectorAxis, size(f)), f, z, g, σ, σa,
                        _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T}(f::AbstractArray, z::AbstractArray,
-                               g::AbstractArray, σ::AbstractArray,
+                               g::AbstractArray, σ::AbstractArray, σa::AbstractArray,
                                args...; kwds...) where {T}
-    ReducedCalibration{T}(map(DetectorAxis, size(f)), f, z, g, σ,
+    ReducedCalibration{T}(map(DetectorAxis, size(f)), f, z, g, σ, σa,
                           _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T,N}(f::AbstractArray, z::AbstractArray,
-                                 g::AbstractArray, σ::AbstractArray,
+                                 g::AbstractArray, σ::AbstractArray, σa::AbstractArray,
                                  args...; kwds...) where {T,N}
-    ReducedCalibration{T,N}(map(DetectorAxis, size(f)), f, z, g, σ,
+    ReducedCalibration{T,N}(map(DetectorAxis, size(f)), f, z, g, σ, σa,
                             _getsources(args...)...; kwds...)
 end
 
 # Parse source terms.
 function ReducedCalibration(roi::Tuple{Vararg{DetectorAxis}},
                             f::AbstractArray, z::AbstractArray,
-                            g::AbstractArray, σ::AbstractArray,
+                            g::AbstractArray, σ::AbstractArray, σa::AbstractArray,
                             args...; kwds...)
-    ReducedCalibration(roi, f, z, g, σ, _getsources(args...)...; kwds...)
+    ReducedCalibration(roi, f, z, g, σ, σa, _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T}(roi::Tuple{Vararg{DetectorAxis}},
                                f::AbstractArray, z::AbstractArray,
                                g::AbstractArray, σ::AbstractArray,
+                               σa::AbstractArray,
                                args...; kwds...) where {T}
-    ReducedCalibration{T}(roi, f, z, g, σ, _getsources(args...)...; kwds...)
+    ReducedCalibration{T}(roi, f, z, g, σ, σa, _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                                  f::AbstractArray, z::AbstractArray,
                                  g::AbstractArray, σ::AbstractArray,
+                                 σa::AbstractArray,
                                  args...; kwds...) where {T,N}
-    ReducedCalibration{T,N}(roi, f, z, g, σ, _getsources(args...)...; kwds...)
+    ReducedCalibration{T,N}(roi, f, z, g, σ, σa, _getsources(args...)...; kwds...)
 end
 
 function ReducedCalibration(roi::DetectorAxes{N},
@@ -235,12 +244,13 @@ function ReducedCalibration(roi::DetectorAxes{N},
                             z::AbstractArray,
                             g::AbstractArray,
                             σ::AbstractArray,
+                            σa::AbstractArray,
                             s::AbstractVector{<:AbstractArray},
                             src::AbstractVector{<:Identifiers};
                             kwds...) where {N}
-    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ),
+    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ), eltype(σa),
                            _promote_eltype(s)))
-    ReducedCalibration{T,N}(roi, f, z, g, σ, s, src; kwds...)
+    ReducedCalibration{T,N}(roi, f, z, g, σ,σa, s, src; kwds...)
 end
 
 function ReducedCalibration{T}(roi::DetectorAxes{N},
@@ -248,10 +258,11 @@ function ReducedCalibration{T}(roi::DetectorAxes{N},
                                z::AbstractArray,
                                g::AbstractArray,
                                σ::AbstractArray,
+                               σa::AbstractArray,
                                s::AbstractVector{<:AbstractArray},
                                src::AbstractVector{<:Identifiers};
                                kwds...) where {T,N}
-    ReducedCalibration{T,N}(roi, f, z, g, σ, s, src; kwds...)
+    ReducedCalibration{T,N}(roi, f, z, g, σ, σa, s, src; kwds...)
 end
 
 function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
@@ -259,6 +270,7 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                                  z::AbstractArray,
                                  g::AbstractArray,
                                  σ::AbstractArray,
+                                 σa::AbstractArray,
                                  s::AbstractVector{<:AbstractArray},
                                  src::AbstractVector{<:Identifiers};
                                  kwds...) where {T,N}
@@ -286,6 +298,7 @@ function ReducedCalibration{T,N}(roi::Tuple{Vararg{DetectorAxis}},
                             fixarray(z),
                             fixarray(g),
                             fixarray(σ),
+                            fixarray(σa),
                             map(fixarray, s),
                             map(identifier, src); kwds...)
 end
@@ -308,7 +321,7 @@ invalid.
 """
 function checkvalues(cal::ReducedCalibration)
     checkindices(cal)
-    f, z, g, σ, s = cal.f, cal.z, cal.g, cal.σ, cal.s
+    f, z, g, σ, σa, s = cal.f, cal.z, cal.g, cal.σ, cal.σa, cal.s
     for k ∈ eachindex(s)
         all(x -> isfinite(x) && x ≥ 0, s[k]) ||
             error("some invalid values in time-dependent bias")
@@ -319,6 +332,8 @@ function checkvalues(cal::ReducedCalibration)
         error("some invalid values in detector gain")
     all(x -> isfinite(x) && x ≥ 0, σ) ||
         error("some invalid values in readout noise")
+    all(x -> isfinite(x) && x ≥ 0, σa) ||
+        error("some invalid values in additional noise")
 end
 
 """
@@ -344,6 +359,7 @@ function checkindices(::Type{<:ReducedCalibration},
                       z::AbstractArray,
                       g::AbstractArray,
                       σ::AbstractArray,
+                      σa::AbstractArray,
                       s::AbstractVector{<:AbstractArray},
                       src::AbstractVector{<:AbstractString},
                       vpm::AbstractArray) where {N}
@@ -362,6 +378,7 @@ function checkindices(::Type{<:ReducedCalibration},
     axes(z) == inds || dimension_mismatch("`z` has incompatible indices")
     axes(g) == inds || dimension_mismatch("`g` has incompatible indices")
     axes(σ) == inds || dimension_mismatch("`σ` has incompatible indices")
+    axes(σa) == inds || dimension_mismatch("`σa` has incompatible indices")
     axes(vpm) == inds || dimension_mismatch("`vpm` has incompatible indices")
     axes(src) == axes(s) || dimension_mismatch(
         "source terms and names have incompatible indices")
