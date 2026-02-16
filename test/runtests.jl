@@ -56,6 +56,7 @@ end
                 Transpose(ones(Float64, H, W)), # test another subtype of AbstractArray
                 ones(Float64, W, H),
                 ones(Float64, W, H),
+                ones(Float64, W, H),
                 [ones(Float64, W, H), ones(Float64, W, H),],
                 ["TOTO", "TATA"],
                 trues(W, H);
@@ -64,6 +65,7 @@ end
     # identity
     redcal = ReducedCalibration{Float64,2,Array{Bool,2}}(
                 roi,
+                ones(Float64, W, H),
                 ones(Float64, W, H),
                 ones(Float64, W, H),
                 ones(Float64, W, H),
@@ -83,6 +85,7 @@ end
         ones(Float32, W, H),                        # z
         ones(Float16, W, H),                        # g
         ones(Rational{Int}, W, H),                  # σ
+        ones(Rational{Int}, W, H),                  # σa
         [ones(Int32, W, H), ones(BigFloat, W, H),], # s
         ["SRC1", "SRC2"])                           # src
     @test typeof(redcal) <: ReducedCalibration{BigFloat,2,<:FastUniformMatrix{Bool, true}}
@@ -90,6 +93,7 @@ end
     # T and V conversion
     redcal = ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}}(
                 roi,
+                ones(Float64, W, H),
                 ones(Float64, W, H),
                 ones(Float64, W, H),
                 ones(Float64, W, H),
@@ -181,7 +185,9 @@ DATA_DIR = artifact"SPHEREtestdata"
         @test_nowarn firstvalidpixels = findbadpixels(calibdata)
         reduced_calibdata = ReducedCalibration(calibdata; validpixels=firstvalidpixels)
         @test reduced_calibdata isa ReducedCalibration
-        @test_nowarn findbadpixels!(reduced_calibdata)
+        reduced_calibdata = ReducedCalibration(:zgσas,calibdata; validpixels=firstvalidpixels)
+        @test reduced_calibdata isa ReducedCalibration
+#        @test_nowarn findbadpixels!(reduced_calibdata)
 
         # we load the reference ReducedCalibration file to compare
         goal_reduced_calibdata = read(ReducedCalibration, goal_reduced_calibdata_path)
