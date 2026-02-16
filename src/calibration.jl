@@ -118,7 +118,7 @@ struct ObjectiveFunction{S,T<:AbstractFloat}
 end
 
 
-numberofparameters(::ObjectiveFunction{S}) where S  =  ((S === :zgσas) ? 4 : 3 )
+numberofparameters(::ObjectiveFunction{S}) where S  =  (((S === :zgσas)||(S === :zgσbs)) ? 4 : 3 )
  
 
 
@@ -690,6 +690,22 @@ function unpack_parameters(
         x::AbstractVector{T};
         nonnegative::Bool = false
     ) where {T}
+    unpack_parameters_zgσas(obj, x; nonnegative=nonnegative)
+end
+
+function unpack_parameters(
+        obj::ObjectiveFunction{:zgσbs, T},
+        x::AbstractVector{T};
+        nonnegative::Bool = false
+    ) where {T}
+    unpack_parameters_zgσas(obj, x; nonnegative=nonnegative)
+end
+
+function unpack_parameters_zgσas(
+        obj::ObjectiveFunction{S, T},
+        x::AbstractVector{T};
+        nonnegative::Bool = false
+    ) where {S,T}
     nsub, ncat, nsrc = size(obj, :checkindices)
     Base.has_offset_axes(x) && error(
         "variables have non-standard indexing"
@@ -719,6 +735,7 @@ function unpack_parameters(
     end
     return z, g, σ, σa, s
 end
+
 
 function unpack_parameters(obj::ObjectiveFunction{:zgηs,T},
                            x::AbstractVector{T};
@@ -798,6 +815,27 @@ end
 
 function unpack_parameters_with_cΔt(
         obj::ObjectiveFunction{:zgσas, T},
+        x::AbstractVector{T};
+        nonnegative::Bool = false
+    ) where {T}
+    z, g, σ, σa, s = unpack_parameters(obj, x; nonnegative = nonnegative)
+    cΔt = compute_cΔt(obj, compute_c(obj, s); unsafe = true)
+    return z, g, σ, σa, cΔt
+end
+
+function unpack_parameters_with_cΔt(
+        obj::ObjectiveFunction{:zgσbs, T},
+        x::AbstractVector{T},
+        grd::AbstractVector{T};
+        nonnegative::Bool = false
+    ) where {T}
+    z, g, σ, σa, s = unpack_parameters(obj, x, grd; nonnegative = nonnegative)
+    cΔt = compute_cΔt(obj, compute_c(obj, s); unsafe = true)
+    return z, g, σ, σa, cΔt
+end
+
+function unpack_parameters_with_cΔt(
+        obj::ObjectiveFunction{:zgσbs, T},
         x::AbstractVector{T};
         nonnegative::Bool = false
     ) where {T}
@@ -938,6 +976,104 @@ function (obj::ObjectiveFunction{:zgσas, T})(
     mvmult!(view(grd, 5:length(grd)), obj.H', ∂f_∂c)
     return f
 end
+
+
+function (obj::ObjectiveFunction{:zgσbs, T})(x::AbstractVector{T}) where {T}
+    # Unpack parameters and check arguments.
+    z, g, σ, σa, cΔt = unpack_parameters_with_cΔt(obj, x)
+    ρ = 1 / g
+    Δt = obj.Δt # exposure time
+
+    nsub = length(cΔt)
+    if true # without mutating the workspace, the loop is faster than mapreduce
+        # Loop to integrate the objective function.
+        f = zero(T) # to compute f
+        @inbounds @simd for i in 1:nsub
+            n = T(obj.n[i])          # number of samples in subset
+            u = cΔt[i]               # contribution of sources
+            r = (u + z) - obj.avg[i] # residuals = model - sample mean
+            u₊ = fastmax(u, zero(T))
+            σt² = σa^2 / Δt[i] + σ^2
+            v = ρ * u₊ + σt²            # model of variance
+            χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
+            f += (log(v) + χ²) * n      # objective function
+        end
+        return f
+    else
+        # Non mutating version of the loop to compute the objective function
+        function computef(i) 
+            n = T(obj.n[i])          # number of samples in subset
+            u = cΔt[i]               # contribution of sources
+            r = (u + z) - obj.avg[i] # residuals = model - sample mean
+            u₊ = fastmax(u, zero(T))
+            σt² = σa^2 / Δt[i] + σ^2
+            v = ρ * u₊ + σt²            # model of variance
+            χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
+            return (log(v) + χ²) * n      # objective function
+        end
+        return mapreduce(computef, +, 1:nsub) 
+    end
+end
+
+function (obj::ObjectiveFunction{:zgσbs, T})(
+        x::AbstractVector{T},
+        grd::AbstractVector{T}
+    ) where {T}
+    # Unpack parameters and check arguments.
+    z, g, σ, σa, cΔt = unpack_parameters_with_cΔt(obj, x)
+    ρ = 1 / g
+    σa² = σa^2
+    σ² = σ^2
+
+    nsub = length(cΔt)
+
+
+    # Loop to integrate objective function and its gradient.
+    f = zero(T) # to compute f
+    ∂f_∂z = zero(T) # to compute ∂f/∂z
+    ∂f_∂ρ = zero(T) # to compute ∂f/∂ρ
+    ∂f_∂σ = zero(T) # to compute ∂f/∂σ²
+    ∂f_∂σa = zero(T) # to compute ∂f/∂σa²
+    ∂f_∂c_temp = cΔt # overwrite workspace cΔt for ∂f/∂c
+    @inbounds @simd for i in 1:nsub
+        Δt = obj.Δt[i]     # exposure time
+        iΔt = 1 / Δt # 1/sqrt(Δt)
+        n = T(obj.n[i])          # number of samples in subset
+        u = cΔt[i]               # contribution of sources
+        r = (u + z) - obj.avg[i] # residuals = model - sample mean
+        u₊ = fastmax(u, zero(T))
+        σt2 = σa² * iΔt + σ²
+
+        v = ρ * u₊ + σt2           # model of variance
+        w = 1 / v                  # weight
+        χ² = (r^2 + obj.var[i]) * w # χ² per sample of the sub-set
+        f += (log(v) + χ²) * n      # objective function
+        nw = n * w
+        ∂f_∂m = 2 * nw * r            # ∂f/∂m[k,l]
+        ∂f_∂v = nw * (1 - χ²)       # ∂f/∂v[k,l]
+        ∂f_∂z += ∂f_∂m
+        ∂f_∂σ += ∂f_∂v * (2σ)
+        ∂f_∂σa += ∂f_∂v * (2σa * iΔt)
+        ∂f_∂ρ += u₊ * ∂f_∂v
+        ∂v_∂u = ifelse(u > zero(T), ρ, zero(T))
+        ∂f_∂c_temp[i] = (∂f_∂m + ∂f_∂v * ∂v_∂u) * Δt
+    end
+
+    # Convert gradients and return objective function.
+    ∂f_∂g = -ρ^2 * ∂f_∂ρ # ∂f/∂g = -ρ²⋅(∂f/∂ρ)
+    @inbounds grd[1] = ∂f_∂z
+    @inbounds grd[2] = ∂f_∂g
+    @inbounds grd[3] = ∂f_∂σ
+    @inbounds grd[4] = ∂f_∂σa
+    ∂f_∂c = fill!(obj.wcat1, zero(T)) # to compute ∂f/∂c
+    @inbounds @simd for i in 1:nsub
+        l = obj.l[i] # category index
+        ∂f_∂c[l] += ∂f_∂c_temp[i]
+    end
+    mvmult!(view(grd, 5:length(grd)), obj.H', ∂f_∂c)
+    return f
+end
+
 
 function (obj::ObjectiveFunction{:zgσs,T})(x::AbstractVector{T}) where {T}
     # Unpack parameters and check arguments.
@@ -1261,7 +1397,7 @@ function reduce_calibration_data!(alg::Val{S},
         fill!(xmin, -Inf)
         xmin[2] = gmin
         xmin[3] = 1e-6
-        S ===   :zgσas && (xmin[4] = 0)
+        ((S ===   :zgσas) || (S === :zgσbs)) && (xmin[4] = 0)
         nonnegative && fill!(view(xmin, (nx+1):n), 0) 
         fill!(xmax, +Inf)
         xmax[2] = gmax
@@ -1298,7 +1434,7 @@ function reduce_calibration_data!(out::ReducedCalibration{T},
     copyto!(x, xmin)
     x[2] = g
     x[3] = (S === :zgσs ? σ : g*σ^2)
-    S === :zgσas && (x[4] = σa)
+     ((S ===   :zgσas) || (S === :zgσbs))  && (x[4] = σa)
     # try
     fit_linear_terms!(objfun, x; eta=Inf, nonnegative=nonnegative)
     vmlmb!(objfun, x; mem=length(x), lower=xmin, upper=xmax, autodiff=false,
@@ -1312,8 +1448,8 @@ function reduce_calibration_data!(out::ReducedCalibration{T},
     out.f[k] = objfun(x) # FIXME: should not be necessary
     out.z[k] = x[1]
     out.g[k] = x[2]
-    out.σ[k] = ((S === :zgσs || S === :zgσas) ? x[3] : sqrt(x[3]/x[2]))
-    S === :zgσas && (out.σa[k] = x[4])
+    out.σ[k] = ((S === :zgσs || S === :zgσas || S === :zgσbs) ? x[3] : sqrt(x[3]/x[2]))
+     ((S ===   :zgσas) || (S === :zgσbs))  && (out.σa[k] = x[4])
     for j in 1:nsrc
         out.s[j][k] = x[j + nx]
     end
