@@ -42,11 +42,13 @@ Other implemented methods (must be imported or prefixed by `Calibration.`):
     detectorbias(obj)    # yields constant detector bias (in ADU)
     detectorgain(obj)    # yields detector gain (in e-/ADU)
     detectornoise(obj)   # yields standard deviation of detector noise (in ADU)
+    detectornoisedit(obj)# yields DIT-dependent standard deviation of detector noise (in ADU/√second)
     sources(obj)         # yields all sources terms
     sources(obj, k)      # yields k-th source term (in ADU/s)
     sourcesid(obj)       # yields names of sources terms
     sourcesid(obj, k)    # yields name of k-th source term
-    nsources(obj)        # # yields number of sources
+    nsources(obj)        # yields number of sources
+    algo(obj)            # yields name of algorithm used to compute the reduced calibration data
 
 
 """
@@ -66,7 +68,7 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
     # Standard deviation of the readout noise (in ADU/frame):
     σ::Array{T,N}
 
-    # DIT dependent Standard deviation of the readout noise (in ADU/frame/second):
+    # DIT dependent Standard deviation of the readout noise (in ADU/frame/√second):
     σa::Array{T, N}
 
     # Time dependent source, e.g. dark current and background flux, (in
@@ -334,11 +336,18 @@ _getsources(s::AbstractVector{<:AbstractArray}, src::AbstractVector) =
     (s, src)
 
 """
-    checkvalues(obj)
+    checkvalues(obj::ReducedCalibration)
 
-throws an error if some values in the reduced calibration object `obj` are
-invalid.
+Verify that all values in the reduced calibration object are valid.
 
+Throws an error if:
+- Source terms contain negative or non-finite values
+- Constant bias contains non-finite values
+- Detector gain contains negative or non-finite values
+- Readout noise contains negative or non-finite values
+- Additional noise (σₐ) contains negative or non-finite values
+
+See also: [`checkindices`](@ref)
 """
 function checkvalues(cal::ReducedCalibration)
     checkindices(cal)
@@ -358,22 +367,21 @@ function checkvalues(cal::ReducedCalibration)
 end
 
 """
-    checkindices(x)
+    checkindices(obj::ReducedCalibration)
+    checkindices(::Type{<:ReducedCalibration}, roi, f, z, g, σ, σa, s, src, vpm, algo)
 
-throws an exception if the fields of object `x` have invalid or incompatible
-dimensions or indices.
+Verify that all arrays have compatible dimensions and valid indices.
 
+Throws an exception if:
+- ROI has invalid axis lengths, offsets, or binning factors
+- Arrays have non-standard indexing (not starting at 1)
+- Arrays have incompatible dimensions
+- Source terms and identifiers have mismatched lengths
+
+See also: [`checkvalues`](@ref)
 """
-checkindices(obj::ReducedCalibration) =
-    checkindices(typeof(obj), getfields(obj)...)
+checkindices(obj::ReducedCalibration) = checkindices(typeof(obj), getfields(obj)...)
 
-"""
-    checkindices(T, f1, f2, ...)
-
-throws an exception if the fields `f1`, `f2`, ... for an object of type `T`
-have invalid or incompatible dimensions or indices.
-
-"""
 function checkindices(::Type{<:ReducedCalibration},
                       roi::DetectorAxes{N},
                       f::AbstractArray,

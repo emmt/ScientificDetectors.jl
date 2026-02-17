@@ -135,11 +135,38 @@ a symbol which specifies the chosen parametrization for the unknowns `θ`:
 
 - `S = :zgηs` to have parameters `θ = [z, g, η, s...]`;
 
+- `S = :zgσas` to have parameters `θ = [z, g, σ, σa, s...]` with DIT-dependent noise;
+
+- `S = :zgσbs` to have parameters `θ = [z, g, σ, σa, s...]` with alternative DIT noise model;
+
 - `S = :hier` to have parameters `θ = [η, s...]` while `z` and `g` are
   automatically derived from the others;
 
-with `z` the zero-level (in ADU), `g` the gain (in e-/ADU), `σ` the standard
-deviation of the readout noise (in ADU), `s` the source terms, and `η = g*σ^2`.
+with:
+- `z` the zero-level (in ADU)
+- `g` the gain (in e-/ADU)
+- `σ` the standard deviation of the readout noise (in ADU)
+- `σa` the DIT-dependent noise parameter (in ADU/√s for :zgσas or ADU·√s for :zgσbs)
+- `s` the source terms
+- `η = g*σ²`
+
+# DIT-Dependent Noise Models
+
+## Model `:zgσas` (Additive in σ space)
+Total noise standard deviation: `σₜ = σₐ/√Δt + σ`
+
+Where:
+- `σₐ`: DIT-dependent noise (ADU/√s)
+- `σ`: Readout noise (ADU)
+- `Δt`: Integration time (s)
+
+## Model `:zgσbs` (Additive in variance space)
+Total noise variance: `σₜ² = σₐ²/Δt + σ²`
+
+Where:
+- `σₐ`: DIT-dependent noise (ADU·√s)
+- `σ`: Readout noise (ADU)
+- `Δt`: Integration time (s)
 
 Object `obj` is callable:
 
@@ -261,13 +288,29 @@ function Base.size(obj::ObjectiveFunction, ::Val{:checkindices})
 end
 
 """
-    extract!(obj, cal, k) -> obj
+    extract!(obj::ObjectiveFunction, cal::CalibrationData, k)
 
-extracts into workspace `obj` the data for `k`-th pixel in calibration data
-`cal`.  Argument `k` may be a tuple of Cartesian indices or an instance of
-`CartesianIndex`.
+Extract data for pixel `k` from calibration data `cal` into workspace `obj`.
 
+# Arguments
+- `obj`: ObjectiveFunction workspace
+- `cal`: Calibration data
+- `k`: Pixel index (tuple of Cartesian indices, CartesianIndex, or linear index)
+
+# Returns
+Modified `obj` with extracted pixel data
+
+# Examples
+```julia
+obj = ObjectiveFunction{:zgσas}(cal)
+extract!(obj, cal, (10, 20))  # Extract pixel at (10, 20)
+```
 """
+function extract!(obj::ObjectiveFunction,
+                  cal::CalibrationData,
+                  k::Union{Tuple,CartesianIndex,Integer})
+    return extract!(obj, cal, CartesianIndex(k))
+end
 function extract!(obj::ObjectiveFunction,
                   cal::CalibrationData{T,N},
                   k::NTuple{N,Integer}) where {T,N}
@@ -701,6 +744,26 @@ function unpack_parameters(
     unpack_parameters_zgσas(obj, x; nonnegative=nonnegative)
 end
 
+"""
+    unpack_parameters_zgσas(obj, x; nonnegative=false)
+
+Unpacks and validates parameters for the `:zgσas` and `:zgσbs` models which include
+the additional DIT-dependent noise parameter `σa`:
+
+    x[1] = z    # bias or zero-level (ADU)
+    x[2] = g    # gain (e-/ADU)
+    x[3] = σ    # standard deviation of readout noise (ADU)
+    x[4] = σa   # DIT-dependent noise parameter (ADU/√s for :zgσas, ADU·√s for :zgσbs)
+    x[5:end] = s # source terms (ADU/s)
+
+Returns `(z, g, σ, σa, s)` where `s` is a view of the source terms.
+
+The noise models are:
+- `:zgσas`: variance = `ρ*u₊ + (σa/√Δt + σ)²` (additive in standard deviation space)
+- `:zgσbs`: variance = `ρ*u₊ + σa²/Δt + σ²` (additive in variance space)
+
+If `nonnegative` is true, checks that all source terms are nonnegative.
+"""
 function unpack_parameters_zgσas(
         obj::ObjectiveFunction{S, T},
         x::AbstractVector{T};
@@ -900,7 +963,7 @@ function (obj::ObjectiveFunction{:zgσas, T})(x::AbstractVector{T}) where {T}
             u = cΔt[i]               # contribution of sources
             r = (u + z) - obj.avg[i] # residuals = model - sample mean
             u₊ = fastmax(u, zero(T))
-            σt² = (σa / sqrt(Δt[i]) + σ)^2
+            σt² = (σa / sqrt(Δt[i]) + σ)^2 # variance of the read-out noise for DIT-dependent noise calculation
             v = ρ * u₊ + σt²            # model of variance
             χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
             f += (log(v) + χ²) * n      # objective function
@@ -913,7 +976,7 @@ function (obj::ObjectiveFunction{:zgσas, T})(x::AbstractVector{T}) where {T}
             u = cΔt[i]               # contribution of sources
             r = (u + z) - obj.avg[i] # residuals = model - sample mean
             u₊ = fastmax(u, zero(T))
-            σt² = (σa / sqrt(Δt[i]) + σ)^2
+            σt² = (σa / sqrt(Δt[i]) + σ)^2 # variance of the read-out noise for DIT-dependent noise calculation
             v = ρ * u₊ + σt²            # model of variance
             χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
             return (log(v) + χ²) * n      # objective function
@@ -1297,7 +1360,32 @@ default_valid_pixels_map(dat::CalibrationData) = default_valid_pixels_map(Detect
 
 ReducedCalibration(dat::CalibrationData; kwds...) =
     ReducedCalibration(:zgσs, dat; kwds...)
+    
+"""
+    ReducedCalibration(alg, dat; kwds...)
 
+Performs pixel-wise calibration of detector data using the specified algorithm.
+
+# Arguments
+- `alg::Symbol`: Algorithm choice (`:zgσs`, `:zgσas`, `:zgσbs`, `:zgηs`)
+- `dat::CalibrationData`: Input calibration data
+
+# Keywords
+- `σa::Real=0.0`: DIT-dependent noise parameter (only used for `:zgσas` and `:zgσbs`)
+  * For `:zgσas`: interpreted as noise in ADU/√s (additive in σ space)
+  * For `:zgσbs`: interpreted as noise in ADU·√s (additive in variance space)
+- `g::Real=gmin`: Initial gain estimate
+- `σ::Real=1/√12`: Readout noise standard deviation
+- `validpixels`: Boolean mask of valid pixels
+- `nonnegative::Bool=true`: Enforce non-negative source terms
+- Other standard optimization keywords...
+
+# Models
+The different models handle noise as follows:
+- `:zgσs`: Fixed readout noise, no DIT dependence
+- `:zgσas`: `variance = ρ·φ + (σa/√Δt + σ)²`
+- `:zgσbs`: `variance = ρ·φ + σa²/Δt + σ²`
+"""
 ReducedCalibration(alg::Symbol, dat::CalibrationData; kwds...) =
     ReducedCalibration(Val(alg), dat; kwds...)
 
