@@ -66,7 +66,7 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
     # Standard deviation of the readout noise (in ADU/frame):
     σ::Array{T,N}
 
-    # DIT dependant Standard deviation of the readout noise (in ADU/frame/second):
+    # DIT dependent Standard deviation of the readout noise (in ADU/frame/second):
     σa::Array{T, N}
 
     # Time dependent source, e.g. dark current and background flux, (in

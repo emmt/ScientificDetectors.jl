@@ -727,7 +727,7 @@ function unpack_parameters_zgσas(
     @inbounds σa = x[4]
     (isfinite(σa) && σa ≥ 0) || argument_error(
         "standard deviation of the read-out noise `σa` ",
-        "must be finite and  positive"
+        "must be finite and non-negative"
     )
     s = view(x, 5:n) # source terms
     if nonnegative
@@ -1321,7 +1321,7 @@ function ReducedCalibration(alg::Val{S},
     (isfinite(σ) && σ > 0) || argument_error(
         "value of keyword `σ` must be finite and positive")
     (isfinite(σa) && σa ≥ 0) || argument_error(
-        "value of keyword `σa` must be finite and positive")
+        "value of keyword `σa` must be finite and non-negative")
     nthreads = Threads.nthreads()
     if nthreads ≤ 1
         @warn "You may start Julia as `JULIA_NUM_THREADS=$(Base.Sys.CPU_THREADS) julia` or as `julia -t auto`"
@@ -1359,7 +1359,7 @@ function ReducedCalibration(alg::Val{S},
     Threads.@threads for k in 1:npixels
         validpixels[k] || continue
         reduce_calibration_data!(alg, out, k, dat, key; nonnegative=nonnegative,
-                                 maxval=maxval, gmin=gmin, gmax=gmax, g=g, σ=σ,σa=σa)   
+                                 maxval=maxval, gmin=gmin, gmax=gmax, g=g, σ=σ, σa=σa)   
         quiet || next!(p)
     end
     return out
@@ -1392,7 +1392,7 @@ function reduce_calibration_data!(alg::Val{S},
         objfun = ObjectiveFunction{S,T}(dat)
         nx = numberofparameters(objfun)
         n = nx + nsrc
-        x, xmin, xmax = (Vector{T}(undef, n) for _ in 1:nx)
+        x, xmin, xmax = (Vector{T}(undef, n) for _ in 1:3)
         # Initialize task local data.
         fill!(xmin, -Inf)
         xmin[2] = gmin
