@@ -91,11 +91,11 @@ struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
                                        σa::AbstractArray{<:Real,N},
                                        s::AbstractVector{<:AbstractArray{<:Real,N}},
                                        src::AbstractVector{<:AbstractString},
-                                       vpm::AbstractArray{Bool,N};
+                                       vpm::AbstractArray{Bool,N},
+                                       algo::Symbol;
                                        check::Bool = false,
-                                       algo::Symbol = :zgσs
                                        ) where {T<:AbstractFloat,N,V<:AbstractArray{Bool,N}}
-        checkindices(ReducedCalibration, roi, f, z, g, σ, σa, s, src, vpm)
+        checkindices(ReducedCalibration, roi, f, z, g, σ, σa, s, src, vpm, algo)
         obj = new{T,N,V}(roi, f, z, g, σ, σa, s, src, vpm, algo)
         check && checkvalues(obj)
         return obj
@@ -123,6 +123,21 @@ function ReducedCalibration(roi::DetectorAxes{N},
     ReducedCalibration{T}(roi, f, z, g, σ, σa, s, src, args...; kwds...)
 end
 
+function ReducedCalibration(roi::DetectorAxes{N},
+                            f::AbstractArray{<:Real,N},
+                            z::AbstractArray{<:Real,N},
+                            g::AbstractArray{<:Real,N},
+                            σ::AbstractArray{<:Real,N},
+                            σa::AbstractArray{<:Real,N},
+                            s::AbstractVector{<:AbstractArray{<:Real,N}},
+                            src::AbstractVector{<:AbstractString},
+                            vpm::AbstractArray{Bool,N};
+                            kwds...) where {N}
+    T = float(promote_type(eltype(f), eltype(z), eltype(g), eltype(σ), eltype(σa),
+                           map(eltype, s)...))
+    ReducedCalibration{T}(roi, f, z, g, σ, σa, s, src, vpm, :zgσs; kwds...)
+end
+
 for constructor in (:(ReducedCalibration{T}), :(ReducedCalibration{T,N}))
     @eval begin
         $constructor(obj::ReducedCalibration{<:Any,N}) where {T,N} =
@@ -137,9 +152,10 @@ for constructor in (:(ReducedCalibration{T}), :(ReducedCalibration{T,N}))
                               σa::AbstractArray{<:Real,N},
                               s::AbstractVector{<:AbstractArray{<:Real,N}},
                               src::AbstractVector{<:AbstractString},
-                              vpm::AbstractArray{Bool,N} = default_valid_pixels_map(roi);
+                              vpm::AbstractArray{Bool,N} = default_valid_pixels_map(roi),
+                              algo::Symbol = :zgσs;
                               kwds...) where {T<:AbstractFloat,N}
-            ReducedCalibration{T,N,typeof(vpm)}(roi, f, z, g, σ, σa, s, src, vpm; kwds...)
+            ReducedCalibration{T,N,typeof(vpm)}(roi, f, z, g, σ, σa, s, src, vpm, algo; kwds...)
         end
     end
 end
@@ -367,7 +383,8 @@ function checkindices(::Type{<:ReducedCalibration},
                       σa::AbstractArray,
                       s::AbstractVector{<:AbstractArray},
                       src::AbstractVector{<:AbstractString},
-                      vpm::AbstractArray) where {N}
+                      vpm::AbstractArray,
+                      algo::Symbol) where {N}
     for i in 1:N
         length(roi[i]) ≥ 1 || argument_error(
             "invalid detector axis length")
