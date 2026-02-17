@@ -59,7 +59,8 @@ end
                 ones(Float64, W, H),
                 [ones(Float64, W, H), ones(Float64, W, H),],
                 ["TOTO", "TATA"],
-                trues(W, H);
+                trues(W, H),
+                :zgσs;
                 check = true))
 
     # identity
@@ -72,7 +73,8 @@ end
                 ones(Float64, W, H),
                 [ones(Float64, W, H), ones(Float64, W, H),],
                 ["TOTO", "TATA"],
-                trues(W, H))
+                trues(W, H),
+                :zgσs;)
     @test redcal === ReducedCalibration(redcal)
     @test redcal === ReducedCalibration{Float64}(redcal)
     @test redcal === ReducedCalibration{Float64,2}(redcal)
@@ -100,7 +102,9 @@ end
                 ones(Float64, W, H),
                 [ones(Float64, W, H), ones(Float64, W, H),],
                 ["TOTO", "TATA"],
-                ScientificDetectors.default_valid_pixels_map(roi))
+                ScientificDetectors.default_valid_pixels_map(roi),
+                :zgσs;
+                )
     @test ReducedCalibration{Float32,2,Array{Bool,2}} == typeof(
         ReducedCalibration{Float32,2,Array{Bool,2}}(redcal))
 
