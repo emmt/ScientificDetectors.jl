@@ -307,11 +307,6 @@ extract!(obj, cal, (10, 20))  # Extract pixel at (10, 20)
 ```
 """
 function extract!(obj::ObjectiveFunction,
-                  cal::CalibrationData,
-                  k::Union{Tuple,CartesianIndex,Integer})
-    return extract!(obj, cal, CartesianIndex(k))
-end
-function extract!(obj::ObjectiveFunction,
                   cal::CalibrationData{T,N},
                   k::NTuple{N,Integer}) where {T,N}
     return extract!(obj, cal, CartesianIndex(k))
