@@ -183,7 +183,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     hdu["FRAME2"] = ("bias", "[ADU] constant bias (z)")
     hdu["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
     hdu["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
-    hdu["FRAME5"] = ("DITron", "[ADU/√s] DIT dependant readout-noise (sigma)")
+    hdu["FRAME5"] = ("DITron", "[ADU/√s] DIT dependent readout-noise (sigma)")
     hdu["FRAME6"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
     for k ∈ eachindex(data.src)
         hdu["FRAME$(6+k)"] = (data.src[k], "[ADU/s]")
