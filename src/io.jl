@@ -158,7 +158,7 @@ function read(::Type{ReducedCalibration{T,N}},
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
-    σa = version > 3 ? read(hdu, inds..., 5) : zeros(eltype(σ), size(σ)) # use FastUniformArray
+    σa = version > 3 ? read(hdu, inds..., 5) : FastUniformArray(zero(T), dims[1:end-1])
     
     vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5 + (version > 3 ? 1 : 0))  :
         FastUniformArray(true, dims[1:end-1])

@@ -49,8 +49,8 @@ end
     roi = DetectorAxes((1:W, 1:H))
 
     # inner
-    @test ReducedCalibration{Float64,2,Array{Bool,2}} == typeof(
-            ReducedCalibration{Float64,2,Array{Bool,2}}(
+    @test ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}} == typeof(
+            ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}}(
                 roi,
                 ones(Float64, W, H),
                 Transpose(ones(Float64, H, W)), # test another subtype of AbstractArray
@@ -64,7 +64,7 @@ end
                 check = true))
 
     # identity
-    redcal = ReducedCalibration{Float64,2,Array{Bool,2}}(
+    redcal = ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}}(
                 roi,
                 ones(Float64, W, H),
                 ones(Float64, W, H),
@@ -79,6 +79,7 @@ end
     @test redcal === ReducedCalibration{Float64}(redcal)
     @test redcal === ReducedCalibration{Float64,2}(redcal)
     @test redcal === ReducedCalibration{Float64,2,Array{Bool,2}}(redcal)
+    @test redcal === ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}}(redcal)
 
     # promote T (also test the default V and vpm constructors)
     redcal = ReducedCalibration(
@@ -93,7 +94,7 @@ end
     @test typeof(redcal) <: ReducedCalibration{BigFloat,2,<:FastUniformMatrix{Bool, true}}
 
     # T and V conversion
-    redcal = ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true}}(
+    redcal = ReducedCalibration{Float64,2,FastUniformMatrix{Bool,true},Array{Float64,2}}(
                 roi,
                 ones(Float64, W, H),
                 ones(Float64, W, H),
@@ -105,8 +106,8 @@ end
                 ScientificDetectors.default_valid_pixels_map(roi),
                 :zgσs;
                 )
-    @test ReducedCalibration{Float32,2,Array{Bool,2}} == typeof(
-        ReducedCalibration{Float32,2,Array{Bool,2}}(redcal))
+    @test ReducedCalibration{Float32,2,Array{Bool,2},Array{Float32,2}} == typeof(
+        ReducedCalibration{Float32,2,Array{Bool,2},Array{Float32,2}}(redcal))
 
     # CalibrationData
     roy = DetectorAxes((1:2, 1:2))
