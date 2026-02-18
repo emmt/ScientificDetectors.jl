@@ -1425,12 +1425,13 @@ function ReducedCalibration(alg::Val{S},
         src_names[val] = key
     end
     dims = size(dat.roi)
+    Aσa = ((S === :zgσas || S === :zgσbs) ?   fill(σa, dims) : FastUniformArray(σa, size(dat.roi)))
     out = ReducedCalibration{T}(dat.roi,
                                 fill(badvalue, dims), # f
                                 fill(badvalue, dims), # z
                                 fill(badvalue, dims), # g
                                 fill(badvalue, dims), # σ
-                                fill(badvalue, dims), # σa
+                                Aσa, # σa
                                 [fill(badvalue, dims) for j in 1:nsrc], # s
                                 src_names,
                                 validpixels,
