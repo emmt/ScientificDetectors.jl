@@ -4,14 +4,15 @@ struct CalibrationDataStat{T<:Real,N}
     stat::OnlineStatistics{T,N} # Statistics.
     roi::DetectorAxes{N}  # Detector axes settings.
     
-    function CalibrationDataStat{T,N}(cat::Category,
-                                       Δt::Real,
-                                       stat::OnlineStatistics{T,N},
-                                       roi::DetectorAxes{N}=DetectorAxes(size(stat))
-                                       ) where {T<:Real,N}
+    function CalibrationDataStat{T,N}(cat::String,
+                                      Δt::Real,
+                                      stat::OnlineStatistics{T,N},
+                                      roi::DetectorAxes{N}=DetectorAxes(size(stat))
+                                      ) where {T<:Real,N}
         Δt ≥ 0 || argument_error("exposure time must be nonnegative")
         size(stat) == size(roi) || dimension_mismatch(
             "statistics and region of interest have different sizes")
+        order(stat) ≥ 2 || argument_error("need at least 2 statistical moments")
         obj = new{T,N}(cat, Δt, stat, roi)
         # Check indexing and pixel type *after* possible conversions.
         eltype(obj.stat) === T || argument_error(
@@ -39,7 +40,7 @@ function Base.push!(A::CalibrationData{T,N},
         "detector ROI settings must be identical for all calibration data")
 
     # Update statistics for given category and exposure time.
-    key = (cat, Δt)
+    key = (cat, T(Δt))
     if haskey(A.stat_index, key)
         index = A.stat_index[key]
         stat = A.stat[index]
@@ -60,12 +61,3 @@ function Base.push!(A::CalibrationData{T,N},
     return A
 end
 
-
-struct ImageStat{T<:Real,N}
-    Δt::Float64                 # Exposure time.
-    stat::OnlineStatistics{T,N} # Statistics.
-    roi::DetectorAxes{N}  # Detector axes settings.
-end
-exposuretime(imgst::ImageStat) = imgst.Δt
-StatsBase.nobs(imgst::ImageStat) = imgst.stat.n
-DetectorAxes(imgst::ImageStat) = imgst.roi
