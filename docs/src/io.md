@@ -4,12 +4,12 @@ If object `obj` is an instance of `ReducedCalibration` or `PreprocessingParamete
 its contents can be saved into a FITS file by calling:
 
 ```julia
-write!(path, obj)
+writefits!(path, obj)
 ```
 
 with `path` the name of the file.  If the FITS file already exists, it is
-(silently) overwritten.  Call `write` instead to throw an error if the file
-already exists.  The `write` method can take a FITS handle instead of a file
+(silently) overwritten.  Call `writefits` instead to throw an error if the file
+already exists.  The `writefits` method can take a FITS handle instead of a file
 name, to append a new FITS HDU with detector reduced calibration or
 pre-processing parameters.
 

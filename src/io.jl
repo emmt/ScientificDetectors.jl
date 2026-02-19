@@ -13,8 +13,12 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
 # HDU name and revision number only depend on the type of our objects..
 AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 
+@deprecate(Base.write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false),
+    writefits(filename, hdr, data; overwrite = overwrite),false)
+@deprecate(Base.write(filename::AbstractString, data::WritableData; kwds...),
+    writefits(filename, data; kwds...), false)
+
 """
-    write(dest, [hdr,] data; kwds...)
     writefits(dest, [hdr,] data; kwds...)
 
 Write reduced detector calibration or preprocessing parameters `data` in `dest` which may
@@ -25,14 +29,10 @@ build a header.
 
 If `dest` is the name of a file which already exists, an error is thrown unless keyword
 `overwrite = true` is specified. An alternative is to call `writefits!` which silently
-overwrite existing files.
+overwrites existing files.
 
+Note: `write(filename::AbstractString, ...)` is deprecated in favor of `writefits(...)`.
 """
-write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false) =
-    writefits(filename, hdr, data; overwrite = overwrite)
-
-write(filename::AbstractString, data::WritableData; kwds...) =
-    writefits(filename, data; kwds...)
 
 writefits!(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data;  overwrite = true, kwds...)
