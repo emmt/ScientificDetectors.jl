@@ -1048,7 +1048,7 @@ function ReducedCalibration(alg::Val{S},
                                 fill(badvalue, dims), # σ
                                 [fill(badvalue, dims) for j in 1:nsrc], # s
                                 src_names,
-                                validpixels)
+                                deepcopy(validpixels))
     npixels = prod(dims)
     p = Progress(count(validpixels); showspeed=true)
     key = Symbol("ScientificDetector.reduce_calibration_data!")
