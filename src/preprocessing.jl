@@ -218,7 +218,7 @@ end
 function PreprocessingParameters(Δt::Real,
                                  a::AbstractArray, b::AbstractArray,
                                  q::AbstractArray, r::AbstractArray)
-    PreprocessingParameters(map(DetectorAxis, size(f)), Δt, a, b, q, r)
+    PreprocessingParameters(map(DetectorAxis, size(a)), Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T}(Δt::Real,
