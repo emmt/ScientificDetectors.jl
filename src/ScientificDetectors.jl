@@ -5,7 +5,7 @@
 #
 #-------------------------------------------------------------------------------
 #
-# This file if part of the ScientificDetector software
+# This file is part of the ScientificDetector software
 # (https://github.com/emmt/ScientificDetector.jl) licensed under the MIT
 # license.
 #
@@ -33,7 +33,6 @@ export
     process!,
     process,
     readfits,
-    write!,
     writefits!,
     writefits,
     findbadpixels!,
@@ -46,7 +45,8 @@ using MultivariateOnlineStatistics
 using ArrayTools, StructuredArrays
 using AstroFITS
 using AstroFITS: hduname, throw_file_already_exists
-import AstroFITS: write!, readfits, writefits, writefits!
+import AstroFITS: readfits, writefits, writefits!
+
 
 function process end
 function process! end
