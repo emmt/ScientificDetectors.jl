@@ -227,7 +227,7 @@ end
 function read(::Type{SimpleCalibration{T,N}},
               hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS and BITPIX.
-    name, _ = hduname(ReducedCalibration)
+    name, _ = hduname(SimpleCalibration)
     matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
     version = getvalue(Int, hdu, "HDUVERS", 0)
     version == 1 || error("unsupported format revision $version")
@@ -255,7 +255,7 @@ function read(::Type{SimpleCalibration{T,N}},
     b = read(hdu, inds..., 3)
     g = read(hdu, inds..., 4)
     σ = read(hdu, inds..., 5)
-    return T(roi, Δt, f, a, b, g, σ)
+    return SimpleCalibration{T,N}(roi, Δt, f, a, b, g, σ)
 end
 
 function write(io::FitsFile, hdr::FitsHeader,
