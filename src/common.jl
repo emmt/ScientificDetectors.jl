@@ -262,7 +262,7 @@ struct KeywordMatcher{V} <: Function
     value::V
 end
 (obj::KeywordMatcher)(H::Union{FitsHDU,FitsHeader}) =
-    matchvalue(H, obj.key, obj.val)
+    matchvalue(H, obj.key, obj.value)
 
 #------------------------------------------------------------------------------
 # IDENTIFIERS
