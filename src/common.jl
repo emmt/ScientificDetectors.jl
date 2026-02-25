@@ -1,14 +1,4 @@
 """
-    ScientificDetectors.OnlineStatistics{T,N}
-
-is an alias for:
-
-    MultivariateOnlineStatistics.IndependentStatistics{2,T,N,Array{T,N}}
-
-"""
-const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
-
-"""
     R = DetectorAxis(len; off=0, bin=1, step=1)
 
 builds an instance `R` of `DetectorAxis` describing a detector axis with `len`

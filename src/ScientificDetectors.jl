@@ -41,7 +41,7 @@ export
 import Base: read, write
 
 using Statistics, StatsBase, Distributions
-using MultivariateOnlineStatistics
+using OnlineSampleStatistics
 using ArrayTools, StructuredArrays
 using AstroFITS
 using AstroFITS: hduname, throw_file_already_exists

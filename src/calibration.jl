@@ -16,15 +16,12 @@ using StatsBase, Statistics, LinearAlgebra
 using SimpleExpressions
 using TypeUtils, ArrayTools, StructuredArrays
 using OptimPackNextGen
-using MultivariateOnlineStatistics
-using MultivariateOnlineStatistics:
-    storage
+using OnlineSampleStatistics
 using StructuredArrays
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,
     Identifiers,
-    OnlineStatistics,
     binning,
     getfields,
     identifier,
@@ -336,9 +333,9 @@ function extract!(obj::ObjectiveFunction,
         # Extract statistics of k-th pixel in subset of calibration data
         # samples.
         stat       = cal.stat[i]
-        obj.n[i]   = nobs(stat)
-        obj.avg[i] = mean(stat, k)
-        obj.var[i] = var(stat, k; corrected=false)
+        obj.n[i]   = nobs(stat[k])
+        obj.avg[i] = mean(stat[k])
+        obj.var[i] = var(stat[k]; corrected=false)
     end
     return obj
 end
