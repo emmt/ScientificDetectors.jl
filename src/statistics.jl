@@ -45,7 +45,6 @@ Detector sample statistics can be read from a FITS file by one of:
 Detector sample statistics can also be written to a FITS file by:
 
     write(filename, A; overwrite=false)
-    write!(filename, A)
     writefits(filename, A; overwrite=false)
     writefits!(filename, A)
 

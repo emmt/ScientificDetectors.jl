@@ -17,6 +17,7 @@ using ..Calibration:
     detectorbias,
     detectorgain,
     detectornoise,
+    detectornoisedit,
     #exposuretimes,
     find
 
@@ -217,7 +218,7 @@ end
 function PreprocessingParameters(Δt::Real,
                                  a::AbstractArray, b::AbstractArray,
                                  q::AbstractArray, r::AbstractArray)
-    PreprocessingParameters(map(DetectorAxis, size(f)), Δt, a, b, q, r)
+    PreprocessingParameters(map(DetectorAxis, size(a)), Δt, a, b, q, r)
 end
 
 function PreprocessingParameters{T}(Δt::Real,
@@ -335,6 +336,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     z = detectorbias(cal)
     g = detectorgain(cal)
     σ = detectornoise(cal)
+    σa = detectornoisedit(cal)
     s = sources(cal)
 
     # Private functions to check validity of parameters.
@@ -365,11 +367,12 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     if jbg != 0
         sbg = s[jbg]
         dt = T(Δt)
-        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ, sbg)
+        isdt = inv( sqrt(dt))
+        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ, σa, sbg)
             sdt = sbg[i]*dt
             b_i = z[i] + sdt
             q_i = g[i]/a[i]
-            r_i = a[i]*(g[i]*σ[i]^2 + sdt)
+            r_i = a[i]*(g[i]*(σ[i] + σa[i] * isdt )^2 + sdt)
             if validpixels[i] & ispositive(a[i]) & isfinite(b_i) & isnonnegative(q_i) & ispositive(r_i)
                 b[i] = b_i
                 q[i] = q_i

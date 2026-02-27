@@ -14,8 +14,12 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
 # HDU name and revision number only depend on the type of our objects..
 AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 
+@deprecate(Base.write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false),
+    writefits(filename, hdr, data; overwrite = overwrite),false)
+@deprecate(Base.write(filename::AbstractString, data::WritableData; kwds...),
+    writefits(filename, data; kwds...), false)
+
 """
-    write(dest, [hdr,] data; kwds...)
     writefits(dest, [hdr,] data; kwds...)
 
 Write reduced detector calibration or preprocessing parameters `data` in `dest` which may
@@ -26,14 +30,10 @@ build a header.
 
 If `dest` is the name of a file which already exists, an error is thrown unless keyword
 `overwrite = true` is specified. An alternative is to call `writefits!` which silently
-overwrite existing files.
+overwrites existing files.
 
+Note: `write(filename::AbstractString, ...)` is deprecated in favor of `writefits(...)`.
 """
-write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false) =
-    writefits(filename, hdr, data; overwrite = overwrite)
-
-write(filename::AbstractString, data::WritableData; kwds...) =
-    writefits(filename, data; kwds...)
 
 writefits!(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data;  overwrite = true, kwds...)
@@ -61,7 +61,7 @@ function writefits(filename::AbstractString, hdr::FitsHeader,
     (overwrite == false && ispath(filename)) && throw_file_already_exists(
         filename, "call `writefits!` or use `overwrite=true`")
     FitsFile(filename, (overwrite ? "w!" : "w")) do io
-        write(io, hdr, data)
+        write(io, filter(!is_structural, hdr), data)
     end
     nothing
 end
@@ -100,7 +100,7 @@ readfits(T::Type{<:WritableData}, filename::AbstractString; kwds...) =
 
 # Extend AstroFITS method to provide HDU name and revision number.
 AstroFITS.hduname(::Type{<:ReducedCalibration}) =
-    ("REDUCED-DETECTOR-CALIBRATION", 3)
+    ("REDUCED-DETECTOR-CALIBRATION", 4)
 
 function read(T::Type{<:ReducedCalibration}, io::FitsFile)
     # Find HDU with calibration parameters.
@@ -127,7 +127,7 @@ function read(::Type{ReducedCalibration{T,N}},
     name, _ = hduname(ReducedCalibration)
     matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
     version = getvalue(Int, hdu, "HDUVERS", 0)
-    1 ≤ version ≤ 3 || error("unsupported format revision $version")
+    1 ≤ version ≤ 4 || error("unsupported format revision $version")
     bitpix = hdu["BITPIX"].integer
     bitpix == -32 || bitpix == -64 ||
         @warn("To avoid loss of precision, save reduced calibration data "*
@@ -138,7 +138,13 @@ function read(::Type{ReducedCalibration{T,N}},
     N ≥ 1 || dimension_mismatch("invalid number of dimensions")
     dims = hdu.data_size
     @assert length(dims) == Np1
-    n1 = (version < 3 ? 4 : 5) # number of fields before the sources
+    if version ≤ 2
+        n1 = 4 # number of fields before the sources
+    elseif version == 3
+        n1 = 5 # number of fields before the sources
+    else
+        n1 = 6 
+    end
     nsrc = dims[end] - n1
     nsrc ≥ 0 || dimension_mismatch("invalid last dimension")
 
@@ -153,10 +159,12 @@ function read(::Type{ReducedCalibration{T,N}},
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
-    vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5) :
+    σa = version > 3 ? read(hdu, inds..., 5) : FastUniformArray(zero(T), dims[1:end-1])
+    
+    vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5 + (version > 3 ? 1 : 0))  :
         FastUniformArray(true, dims[1:end-1])
     s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
-    return ReducedCalibration{T}(roi, f, z, g, σ, s, src, vpm)
+    return ReducedCalibration{T}(roi, f, z, g, σ, σa, s, src, vpm)
 end
 
 function write(io::FitsFile, hdr::FitsHeader,
@@ -169,16 +177,18 @@ function write(io::FitsFile, hdr::FitsHeader,
     # Write header.
     H = FitsHeader()
     name, vers = hduname(data)
-    H["HDUNAME"] = (name, "reduced detector calibration")
-    H["HDUVERS"] = (vers, "version of this format")
-    merge!(H, DetectorAxes(data))
-    H["FRAME1"] = ("score", "co-log-likelihood (f)")
-    H["FRAME2"] = ("bias", "[ADU] constant bias (z)")
-    H["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
-    H["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
-    H["FRAME5"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
+    hdu["HDUNAME"] = (name, "reduced detector calibration")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["ALGO"] = ("$(data.algo)", "algorithm in this calibration")
+    merge!(hdu, DetectorAxes(data))
+    hdu["FRAME1"] = ("score", "co-log-likelihood (f)")
+    hdu["FRAME2"] = ("bias", "[ADU] constant bias (z)")
+    hdu["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
+    hdu["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
+    hdu["FRAME5"] = ("DITron", "[ADU/√s] DIT dependent readout-noise (sigma)")
+    hdu["FRAME6"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
     for k ∈ eachindex(data.src)
-        H["FRAME$(5+k)"] = (data.src[k], "[ADU/s]")
+        hdu["FRAME$(6+k)"] = (data.src[k], "[ADU/s]")
     end
     for k ∈ 1:nsrc
         H["SRC$k"] = data.src[k]
@@ -192,6 +202,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     write(hdu, data.z; first = tick())
     write(hdu, data.g; first = tick())
     write(hdu, data.σ; first = tick())
+    write(hdu, data.σa; first = tick())
     write(hdu, data.vpm; first = tick())
     for arr ∈ data.s
         write(hdu, arr; first = tick())
@@ -355,7 +366,7 @@ end
 function read(::Type{SimpleCalibration{T,N}},
               hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS and BITPIX.
-    name, _ = hduname(ReducedCalibration)
+    name, _ = hduname(SimpleCalibration)
     matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
     version = getvalue(Int, hdu, "HDUVERS", 0)
     version == 1 || error("unsupported format revision $version")
@@ -383,7 +394,7 @@ function read(::Type{SimpleCalibration{T,N}},
     b = read(hdu, inds..., 3)
     g = read(hdu, inds..., 4)
     σ = read(hdu, inds..., 5)
-    return T(roi, Δt, f, a, b, g, σ)
+    return SimpleCalibration{T,N}(roi, Δt, f, a, b, g, σ)
 end
 
 function write(io::FitsFile, hdr::FitsHeader,

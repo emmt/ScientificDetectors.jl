@@ -153,9 +153,6 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
                                 AbstractVector{<:DetectorAxis}})
     n = length(prm)
     for i in 1:n
-        dst["NAXIS$i"] = (prm[i].len, "length of data axis $i")
-    end
-    for i in 1:n
         dst["OFF$i"] = (prm[i].off, "offset along axis $i")
     end
     for i in 1:n
@@ -373,7 +370,7 @@ struct KeywordMatcher{V} <: Function
     value::V
 end
 (obj::KeywordMatcher)(H::Union{FitsHDU,FitsHeader}) =
-    matchvalue(H, obj.key, obj.val)
+    matchvalue(H, obj.key, obj.value)
 
 #------------------------------------------------------------------------------
 # IDENTIFIERS
@@ -402,7 +399,7 @@ identifier(key::Symbol) = String(key)
 identifier(A::AbstractArray{String}) = A
 identifier(A::AbstractArray{<:Identifiers}) = map(identifier, A)
 identifier(A::Tuple{Vararg{String}}) = A
-identifier(A::Tuple{Vararg{<:Identifiers}}) = map(identifier, A)
+identifier(A::Tuple{Vararg{T}}) where {T<:Identifiers} = map(identifier, A)
 
 #------------------------------------------------------------------------------
 #
