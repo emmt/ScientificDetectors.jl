@@ -172,7 +172,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     # Create HDU.
     dims = size(data)
     nsrc = length(data.s)
-    hdu = FitsImageHDU{T,N+1}(io, dims..., 5 + nsrc)
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 6 + nsrc)
 
     # Write header.
     H = FitsHeader()
