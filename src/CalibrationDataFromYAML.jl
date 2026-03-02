@@ -36,7 +36,10 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
                 FitsFile(fitspath) do fitsfile
                     ext = datahduindex[catname]
                     hdu = fitsfile[ext]
-                    hdudata = read_hdu_calibdata(T, hdu, catname, Δt, roi)
+                    hdudata = try read_hdu_calibdata(T, hdu, catname, Δt, roi)
+                              catch e
+                                    error("problem with FITS file \"$fitspath\".")
+                              end
                     push!(calibrationdata, hdudata)
                 end
             end
