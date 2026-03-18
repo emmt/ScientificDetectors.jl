@@ -4,6 +4,7 @@
 
 ### Changes
 
+- fix ROI writing
 - `EasyFITS` replaced by `AstroFITS`.
 - `MultivariateOnlineStatistics` replaced by `OnlineSampleStatistics`.
 
