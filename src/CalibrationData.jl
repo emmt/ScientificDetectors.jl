@@ -352,7 +352,8 @@ function Base.push!(A::CalibrationData{T,N},
         index = length(A.stat)
         A.stat_index[key] = index
     end
-    fit!(A.stat[A.stat_index[key]], pxl)
+    weight = 1
+    fit!(A.stat[A.stat_index[key]], pxl, weight)
     return A
 end
 
