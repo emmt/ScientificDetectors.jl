@@ -4,7 +4,7 @@ If object `obj` is an instance of `ReducedCalibration` or `PreprocessingParamete
 its contents can be saved into a FITS file by calling:
 
 ```julia
-write!(path, obj)
+writefits!(path, obj)
 ```
 
 with `path` the name of the file.  If the FITS file already exists, it is
