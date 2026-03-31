@@ -86,7 +86,7 @@ function generate_data_files(
     firstvalidpixels = findbadpixels(calibdata)
     reduced_calibdata = ReducedCalibration(calibdata ; validpixels=firstvalidpixels)
     findbadpixels!(reduced_calibdata)
-    write!(goal_reduced_calibdata_filename, reduced_calibdata)
+    writefits!(goal_reduced_calibdata_filename, reduced_calibdata)
     run(`gzip -f "$(goal_reduced_calibdata_filename)"`)
 
     # reduced science
