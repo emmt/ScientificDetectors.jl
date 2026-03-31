@@ -3,7 +3,7 @@
 
 builds an instance `R` of `DetectorAxis` describing a detector axis with `len`
 pixels or macro-pixels corresponding to physical pixels starting at offset
-`off` with respect to the corresponding sensor egde and with a binning factor
+`off` with respect to the corresponding sensor edge and with a binning factor
 `bin`, and sampling `step`. The offset `off`, the binning factor `bin`, and the
 sampling `step` are in units of sensor samples (e.g., *pixels*), the length
 `len` is in units of macro-samples (i.e., `bin` sensor samples each). The
