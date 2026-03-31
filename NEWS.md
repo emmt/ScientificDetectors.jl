@@ -1,10 +1,12 @@
 # User visible changes in `ScientificDetectors` package
 
-## Unreleased
+## Version v0.3.7
 
 ### Changes
 
 - `EasyFITS` replaced by `AstroFITS`.
+
+## Version v0.3.6
 
 ## Version v0.3.5
 
