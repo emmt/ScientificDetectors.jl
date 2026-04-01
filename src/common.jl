@@ -62,7 +62,9 @@ struct DetectorAxis
     stp::Int # step (in pixels)
 end
 
-const DetectorAxes{N} = NTuple{N,DetectorAxis}
+struct DetectorAxes{N}
+    data::NTuple{N,DetectorAxis}
+end
 
 # Union of types that can be interpreted as DetectorAxis.
 const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
@@ -103,7 +105,14 @@ binning(R::OrdinalRange{<:Integer,<:Integer}) = 1
 @doc @doc(DetectorAxis) offset
 @doc @doc(DetectorAxis) binning
 
-Base.size(roi::DetectorAxes) = map(length, roi)
+Base.eltype(::Type{DetectorAxes{N}}) where {N} = DetectorAxis
+Base.length(::DetectorAxes{N}) where {N} = N
+Base.getindex(roi::DetectorAxes, i::Integer) = getfield(roi, :data)[i]
+Base.iterate(roi::DetectorAxes, i::Integer = 1) =
+    (1 ≤ i ≤ length(roi) ? (roi[i], i + 1) : nothing)
+Base.Tuple(roi::DetectorAxes) = getfield(roi, :data)
+
+Base.size(roi::DetectorAxes) = map(length, Tuple(roi))
 Base.size(roi::DetectorAxes{N}, i::Integer) where {N} =
     (i < 1 ? error("out of range dimension index") :
      i ≤ N ? length(@inbounds roi[i]) : 1)
@@ -120,15 +129,26 @@ DetectorAxes{N}(I::NTuple{N,DetectorAxisTypes}) where {N} = DetectorAxes(I)
 
 DetectorAxes(A::AbstractArray) = begin
     Base.has_offset_axes(A) && error("array has non-standard indexing")
-    return map(DetectorAxis, size(A))
+    return DetectorAxes(map(DetectorAxis, size(A)))
 end
 
 DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
-DetectorAxes(I::Tuple{Vararg{DetectorAxisTypes}}) = map(DetectorAxis, I)
+DetectorAxes(I::NTuple{N,DetectorAxisTypes}) where {N} =
+    DetectorAxes{N}(map(DetectorAxis, I))
+
+function Base.merge!(dst::FitsHeader,
+                     prm::DetectorAxes)
+    _merge_axes!(dst, prm)
+end
 
 function Base.merge!(dst::FitsHeader,
                      prm::Union{Tuple{Vararg{DetectorAxis}},
                                 AbstractVector{<:DetectorAxis}})
+    _merge_axes!(dst, prm)
+end
+
+function Base.merge!(dst::FitsHDU,
+                     prm::DetectorAxes)
     _merge_axes!(dst, prm)
 end
 
@@ -176,7 +196,7 @@ end
 
 function Base.get(::Type{DetectorAxes{N}},
                   src::Union{FitsHeader,FitsHDU}) where {N}
-    return ntuple(i -> get(DetectorAxis, i, src), Val(N))
+    return DetectorAxes(ntuple(i -> get(DetectorAxis, i, src), Val(N)))
 end
 
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
