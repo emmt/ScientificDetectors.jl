@@ -39,13 +39,13 @@ Other methods:
     merge!(dst, ROI)               # set detector axes of `dst`
 
 here the source `src` and the destination `dst` can be instances of
-`FitsHeader` or of `FitsHDU`, `ROI` is a vector or a tuple of `DetectorAxis`.
+`FitsHeader` or of `FitsHDU`, `ROI` is an instance of `DetectorAxes`.
 
     DetectorAxes(B)
 
 yields the detector geometry settings for object `B` (note the plural) as an
-`N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
-detector.
+instance of `DetectorAxes{N}` (an opaque container of `N` `DetectorAxis`
+values), `N` being the number of dimensions of the detector.
 
 Call the `range` function as follows to retrieve the indices along `k`-th
 dimension of array `A` of the first physical pixels for the macro-pixels
