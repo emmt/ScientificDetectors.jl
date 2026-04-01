@@ -1,6 +1,7 @@
 module TestingScientificDetectors
 
 using Test, ScientificDetectors
+using Aqua
 using ScientificDetectors: offset, binning
 using AstroFITS
 using LinearAlgebra # to test other Arrays subtypes
@@ -10,6 +11,12 @@ using LazyArtifacts
 
 
 @testset "runtests.jl" begin
+
+@testset "Aqua" begin
+    Aqua.test_all(ScientificDetectors; ambiguities=true, unbound_args=true,
+                  undefined_exports=true, piracies=true, stale_deps=true,
+                  deps_compat=true)
+end
 
 @testset "DetectorAxis" begin
     # DetectorAxis
