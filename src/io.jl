@@ -71,9 +71,6 @@ write(io::FitsFile, data::WritableData; kwds...) =
 write(io::FitsFile, hdr::Nothing, data::WritableData) =
     write(io, FitsHeader(), data)
 
-write(io::FitsFile, hdr, data::WritableData) =
-    write(io, FitsHeader(hdr), data)
-
 """
     read(ReducedCalibration, src)
     readfits(ReducedCalibration, src)

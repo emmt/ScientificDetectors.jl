@@ -154,12 +154,6 @@ function Base.merge!(dst::FitsHDU,
     _merge_axes!(dst, prm)
 end
 
-function Base.merge!(dst::FitsHDU,
-                     prm::Union{Tuple{Vararg{DetectorAxis}},
-                                AbstractVector{<:DetectorAxis}})
-    _merge_axes!(dst, prm)
-end
-
 function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
                       prm::DetectorAxes)
     _merge_axes!(dst, Tuple(prm))
@@ -249,6 +243,7 @@ yield whether `val` is equal to the value of the FITS card `card`.
 
 """
 matchvalue(val, card::FitsCard) = matchvalue(card, val)
+matchvalue(::FitsCard, ::FitsCard) = false
 matchvalue(card::FitsCard, val::AstroFITS.Undefined) = card.type == FITS_UNDEFINED
 matchvalue(card::FitsCard, val::Nothing) = card.type == FITS_COMMENT
 matchvalue(card::FitsCard, val::AbstractString) =
@@ -313,7 +308,7 @@ identifier(key::Symbol) = String(key)
 identifier(A::AbstractArray{String}) = A
 identifier(A::AbstractArray{<:Identifiers}) = map(identifier, A)
 identifier(A::Tuple{Vararg{String}}) = A
-identifier(A::Tuple{Vararg{T}}) where {T<:Identifiers} = map(identifier, A)
+identifier(A::Tuple{Vararg{<:Identifiers}}) = map(identifier, A)
 
 #------------------------------------------------------------------------------
 #
