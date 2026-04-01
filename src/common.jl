@@ -88,7 +88,9 @@ end
 function Base.AbstractUnitRange(r::AbstractUnitRange{<:Integer}, x::DetectorAxis)
     # NOTE: yields the index in physical array representing the detector of the first
     # physical pixel in each macro-pixel along a dimension.
-    return first(r) + offset(x) : step(x) : AbstractUnitRange(axes(A, k), x)
+    start = first(r) + offset(x)
+    stop = start + step(x)*(length(x) - 1)
+    return start:step(x):stop
 end
 
 
@@ -159,6 +161,11 @@ function Base.merge!(dst::FitsHDU,
 end
 
 function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
+                      prm::DetectorAxes)
+    _merge_axes!(dst, Tuple(prm))
+end
+
+function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
                       prm::Union{Tuple{Vararg{DetectorAxis}},
                                 AbstractVector{<:DetectorAxis}})
     n = length(prm)
@@ -197,6 +204,11 @@ end
 function Base.get(::Type{DetectorAxes{N}},
                   src::Union{FitsHeader,FitsHDU}) where {N}
     return DetectorAxes(ntuple(i -> get(DetectorAxis, i, src), Val(N)))
+end
+
+function Base.get(::Type{NTuple{N,DetectorAxis}},
+                  src::Union{FitsHeader,FitsHDU}) where {N}
+    return Tuple(get(DetectorAxes{N}, src))
 end
 
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))

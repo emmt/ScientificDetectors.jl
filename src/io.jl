@@ -149,7 +149,7 @@ function read(::Type{ReducedCalibration{T,N}},
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(NTuple{N, DetectorAxis}, hdr)
+    roi = get(DetectorAxes{N}, hdr)
     src = [getvalue(String, hdr, "SRC$k", "") for k in 1:nsrc]
 
     # Read data and build instance.
