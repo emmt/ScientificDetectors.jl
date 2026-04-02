@@ -41,18 +41,6 @@ Other methods:
 here the source `src` and the destination `dst` can be instances of
 `FitsHeader` or of `FitsHDU`, `ROI` is an instance of `DetectorAxes`.
 
-    DetectorAxes(B)
-
-yields the detector geometry settings for object `B` (note the plural) as an
-instance of `DetectorAxes{N}` (an opaque container of `N` `DetectorAxis`
-values), `N` being the number of dimensions of the detector.
-
-Call the `range` function as follows to retrieve the indices along `k`-th
-dimension of array `A` of the first physical pixels for the macro-pixels
-defined by for detector axes `R`:
-
-    range(A, R, k)
-
 """
 struct DetectorAxis
     # Along the considered dimension:
@@ -62,6 +50,27 @@ struct DetectorAxis
     stp::Int # step (in pixels)
 end
 
+"""
+    DetectorAxes(::NTuple{N,DetectorAxis})
+    roi = DetectorAxes(B)
+
+yields the  region of interest (ROI) geometry of the detector for object `B` (note the plural) wrapping an
+`N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
+detector. `DetectorAxes{N}` stores an `N`-tuple of `DetectorAxis` values in a dedicated
+package type rather than extending `NTuple{N,DetectorAxis}` directly. This keeps methods
+such as `size`, `axes`, and FITS header conversions attached to a type owned by
+`ScientificDetectors` and avoids accidental method piracy on tuples, notably
+for the empty tuple when `N = 0`.
+
+Use `Tuple(roi)` to recover the underlying tuple of detector axes when a tuple
+is required by another API.
+
+Call the `range` function as follows to retrieve the indices along `k`-th
+dimension of array `A` of the first physical pixels for the macro-pixels
+defined by for detector axes `R`:
+
+    range(A, R, k)
+"""
 struct DetectorAxes{N}
     data::NTuple{N,DetectorAxis}
 end
