@@ -216,121 +216,96 @@ end
 #
 
 # Extend AstroFITS method to provide HDU name and revision number.
-hduname(::Type{<:CalibrationData}) = ("DETECTOR-CALIBRATION-DATA-STATISTICS", 1)
+AstroFITS.hduname(::Type{<:CalibrationData}) = ("DETECTOR-CALIBRATION-DATA", 1)
 
 function write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where {T,N}
 
-    # Create Primary HDU which contains roi, and statistics values
-    dims = size(data.roi)
-    statshdu = FitsImageHDU{T,N+2}(io, dims..., 2, length(data.stat))
-    # `2` is for means and variances statistics
-    # `length(data.stat)` is for the number of (cat,Δt) entries
+    # we write `stat` first because it is an image HDU, so it can be primary
+    # we merge `roi` in its header
+    # we merge `hdr` also, we do this only in the primary HDU
 
-    # Write header.
-    name, vers = hduname(data)
-    statshdu["EXTNAME"]  = "mean and variance stats"
-    statshdu["HDUNAME"]  = (name, "statistics of detector calibration data")
-    statshdu["HDUVERS"]  = (vers, "version of this format")
-    H = FitsHeader()
-    merge!(H, DetectorAxes(data)) # write `data.roi` as keywords
+    # first stat (remember, data.stat is a vector of statistics)
+    name, vers = ("DETECTOR-CALIBRATION-DATA-STAT", 1)
+    H = FitsHeader(
+        "EXTNAME" => hduname(CalibrationData)[1],
+        "HDUNAME" => hduname(CalibrationData)[1],
+        "HDUVERS" => hduname(CalibrationData)[2])
+    merge!(H, data.roi)
     merge!(H, hdr)
-    merge!(statshdu, filter(!is_structural, H))
+    filter!(!is_structural, H)
+    group_id = string(1)
+    write(io, H, data.stat[1], group_id)
 
-    # Write data array.
-    # Note that numbers of samples are written in another hdu
-    tick = Ticker(1, prod(dims))
-    for stat in data.stat
-        write(statshdu, stat.s[1]; first = tick()) # means
-        write(statshdu, stat.s[2]; first = tick()) # variances
+    # other stats
+    for i in 2:length(data.stat)
+        group_id = string(i)
+        write(io, FitsHeader(), data.stat[i], group_id)
     end
 
-    # table HDU which contains (cat,Δt) entries and number of samples for each
-    statindex ::Vector{Pair{Tuple{String,T},Int}} = sort(collect(data.stat_index) ; by=p->p[2])
-    catnames  ::Vector{String}                    = map(x -> x.first[1], statindex)
-    realdits  ::Vector{T}                         = map(x -> x.first[2], statindex)
-    nsamples  ::Vector{Int}                       = [ stat.n for stat in data.stat ]
-    longestcatname ::Int = maximum(length.(catnames))
-    keyshdu = FitsTableHDU(io,
-        :catname => (String, longestcatname),
-        :realdit => T,
-        :nsamples => Int)
-    name, vers = ("DETECTOR-CALIBRATION-DATA-STATS-INDEX", 1)
-    keyshdu["EXTNAME"] = "stats index"
-    keyshdu["HDUNAME"]  = (name, "stats index of detector calibration data")
-    keyshdu["HDUVERS"]  = (vers, "version of this format")
-    write(keyshdu, :catname  => catnames)
-    write(keyshdu, :realdit  => realdits)
-    write(keyshdu, :nsamples => nsamples)
+    # stat_index
+    H = FitsHeader("EXTNAME" => "stat_index", "HDUNAME" => "stat_index")
+    entries = collect(data.stat_index)
+    write(io, H, [
+        "CAT" => map(e -> e[1][1], entries),
+        "TIME" => map(e -> e[1][2], entries),
+        "INDEX" => map(e -> e[2], entries) ])
 
-    # image HDU which contains `data.src_to_cat`
-    dims = (length(data.cat_index), length(data.src_index))
-    srctocathdu = FitsImageHDU{T,2}(io, dims...)
-    name, vers = ("DETECTOR-CALIBRATION-DATA-SRC-TO-CAT", 1)
-    srctocathdu["EXTNAME"]  = "src to cat"
-    srctocathdu["HDUNAME"]  = (name, "src to cat matrix of detector calibration data")
-    srctocathdu["HDUVERS"]  = (vers, "version of this format")
-    write(srctocathdu, data.src_to_cat)
+    # src_to_cat
+    H = FitsHeader("EXTNAME" => "src_to_cat", "HDUNAME" => "src_to_cat")
+    write(io, H, data.src_to_cat)
 
-    # table HDU which contains `data.cat_index`
-    cat_index = map(p->p[1], sort(collect(data.cat_index) ; by=p->p[2]))
-    catindexhdu = FitsTableHDU(io, :cat_index => (String, longestcatname))
-    name, vers = ("DETECTOR-CALIBRATION-DATA-CAT-INDEX", 1)
-    catindexhdu["EXTNAME"]  = "cat index"
-    catindexhdu["HDUNAME"]  = (name, "cat index of detector calibration data")
-    catindexhdu["HDUVERS"]  = (vers, "version of this format")
-    write(catindexhdu, :cat_index => cat_index)
+    # cat_index
+    H = FitsHeader("EXTNAME" => "cat_index", "HDUNAME" => "cat_index")
+    entries = collect(data.cat_index)
+    write(io, H, [
+        "CAT" => map(e -> e[1], entries),
+        "INDEX" => map(e -> e[2], entries) ])
 
-    # table HDU which contains `data.src_index`
-    src_index = map(p->p[1], sort(collect(data.src_index) ; by=p->p[2]))
-    longestsrcname ::Int = maximum(length.(src_index))
-    srcindexhdu = FitsTableHDU(io, :src_index => (String, longestsrcname))
-    name, vers = ("DETECTOR-CALIBRATION-DATA-SRC-INDEX", 1)
-    srcindexhdu["EXTNAME"]  = "src index"
-    srcindexhdu["HDUNAME"]  = (name, "src index of detector calibration data")
-    srcindexhdu["HDUVERS"]  = (vers, "version of this format")
-    write(srcindexhdu, :src_index => src_index)
+    # src_index
+    H = FitsHeader("EXTNAME" => "src_index", "HDUNAME" => "src_index")
+    entries = collect(data.src_index)
+    write(io, H, [
+        "SRC" => map(e -> e[1], entries),
+        "INDEX" => map(e -> e[2], entries) ])
+
+    return io
 end
 
 # type of float and number of axes are found in the header keywords
 function read(::Type{CalibrationData}, io::FitsFile)
 
-    statshdu    = io["mean and variance stats"] ::FitsImageHDU
-    keyshdu     = io["stats index"]             ::FitsTableHDU
-    srctocathdu = io["src to cat"]              ::FitsImageHDU
-    catindexhdu = io["cat index"]               ::FitsTableHDU
-    srcindexhdu = io["src index"]               ::FitsTableHDU
+    # roi
+    hdu_stat1_moment1 = OnlineSampleStatistics.find_stat_hdus(io, "1")[1][1]
+    roi = Tuple(get(Vector{DetectorAxis}, hdu_stat1_moment1))
 
-    T = statshdu.data_eltype ::Type{<:AbstractFloat}
-    N = statshdu.data_ndims - 2
+    T = hdu_stat1_moment1.data_eltype
+    N = length(roi)
 
-    roi = get(DetectorAxes{N}, statshdu)
+    # stat_index
+    D = read(io["stat_index"])
+    stat_index = Dict( (c,t) => i for (c,t,i) in zip(D["CAT"], D["TIME"], D["INDEX"]))
 
-    statsarr = read(Array{T}, statshdu)
-    catnames = read(Vector{String}, keyshdu, :catname)
-    realdits = read(Vector{T},      keyshdu, :realdit)
-    nsamples = read(Vector{Int},    keyshdu, :nsamples)
-
-    nstats ::Int = length(catnames)
-
-    stat_index = Dict{Tuple{String,T},Int}()
-    stat = Vector{OnlineStatistics{T,N}}(undef, nstats)
-
-    for i in 1:nstats
-        means = statsarr[ ((:) for _ in 1:N)..., 1, i ]
-        vars  = statsarr[ ((:) for _ in 1:N)..., 2, i ]
-        stat[i] = OnlineStatistics{T,N}((means, vars), nsamples[i])
-        stat_index[ (catnames[i], realdits[i]) ] = i
+    # stat
+    nb_stats = length(stat_index)
+    stat = Vector{IndependentStatistic{T,N,2}}(undef, nb_stats)
+    for i in 1:nb_stats
+        group_id = string(i)
+        stat[i] = read(IndependentStatistic, io, group_id)
     end
 
-    null = zeros(T,size(roi))
+    # null
+    null = zeros(T, size(roi))
 
-    src_to_cat = read(Array{T,2}, srctocathdu)
+    # src_to_cat
+    src_to_cat = read(io["src_to_cat"])
 
-    catindexarr = read(Vector{String}, catindexhdu, :cat_index)
-    cat_index = Dict{String,Int}( cat => index for (index,cat) in enumerate(catindexarr))
+    # cat_index
+    D = read(io["cat_index"])
+    cat_index = Dict( c => i for (c,i) in zip(D["CAT"], D["INDEX"]))
 
-    srcindexarr = read(Vector{String}, srcindexhdu, :src_index)
-    src_index = Dict{String,Int}( src => index for (index,src) in enumerate(srcindexarr))
+    # src_index
+    D = read(io["src_index"])
+    src_index = Dict( s => i for (s,i) in zip(D["SRC"], D["INDEX"]))
 
     return CalibrationData{T,N}(roi, stat_index, stat, null, src_to_cat, cat_index, src_index)
 end
