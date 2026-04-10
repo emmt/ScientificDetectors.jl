@@ -79,7 +79,7 @@ struct CalibrationData{T<:AbstractFloat,N}
 
     # Vector of collected data statistics, each entry is for a given
     # (cat,Δt) pair.
-    stat::Vector{OnlineStatistics{T,N}}
+    stat::Vector{IndependentStatistic{T,N,2}} # 2 statistical moments
 
     # Array shared by statistics of singleton data-sets to store their 2nd
     # moment.
@@ -237,7 +237,7 @@ function CalibrationData{T}(roi::DetectorAxes{N},
     return CalibrationData{T,N}(
         roi,                               # region of interest
         Dict{Tuple{String,Float64},Int}(), # stat_index
-        OnlineStatistics{T,N}[],           # stat
+        IndependentStatistic{T,N,2}[],     # stat (2 moments)
         zeros(T, size(roi)),               # null,
         H,                                 # src_to_cat
         cat_index,                         # cat_index
@@ -347,24 +347,14 @@ function Base.push!(A::CalibrationData{T,N},
 
     # Update statistics for given category and exposure time.
     key = (cat, Δt)
-    if haskey(A.stat_index, key)
-        index = A.stat_index[key]
-        stat = A.stat[index]
-        if storage(stat, 2) === A.null
-            # Pushing one more sample will result in non-zero 2nd moment.
-            # Allocate one for this sub-dataset.
-            @assert nobs(stat) == 1
-            A.stat[index] = IndependentStatistics(
-                (storage(stat, 1), zeros(T, dims)), nobs(stat))
-        end
-    else
-        # Create new instance of statistics sharing its 2nd moment with other
-        # singleton data-sets.
-        push!(A.stat, IndependentStatistics((zeros(T, dims), A.null), 0))
+    if !haskey(A.stat_index, key)
+        # Create new instance of statistics
+        push!(A.stat, IndependentStatistic(T, 2, dims)) # 2 statistical moments
         index = length(A.stat)
         A.stat_index[key] = index
     end
-    push!(A.stat[index], pxl)
+    weight = 1
+    fit!(A.stat[A.stat_index[key]], pxl, weight)
     return A
 end
 

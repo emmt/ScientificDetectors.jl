@@ -33,15 +33,8 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
                 if !isfile(fitspath)
                     argument_error("Incorrect filepath \"$fitspath\".")
                 end
-                FitsFile(fitspath) do fitsfile
-                    ext = datahduindex[catname]
-                    hdu = fitsfile[ext]
-                    hdudata = try read_hdu_calibdata(T, hdu, catname, Δt, roi)
-                              catch e
-                                    error("problem with FITS file \"$fitspath\".")
-                              end
-                    push!(calibrationdata, hdudata)
-                end
+                ext = datahduindex[catname]
+                push!(calibrationdata, read_hdu_calibdata(fitspath, T, ext, catname, Δt, roi))
             end
         end
     end
@@ -49,37 +42,45 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
     calibrationdata
 end
 
-function read_hdu_calibdata(typefloat::Type{T},
-                            hdu::FitsHDU,
+function read_hdu_calibdata(fitspath::String,
+                            typefloat::Type{T},
+                            ext::Union{Integer,String},
                             catname::String,
                             Δt::Real,
                             roi::DetectorAxes{N}
-)::Union{CalibrationDataFrame, CalibrationFrameSampler, CalibrationDataStat} where {T,N}
-
-    (hdu isa FitsImageHDU) || argument_error("HDU must be an image.")
-
+) where {T,N}
     foreach(roi) do axis
         (axis.off == 0 && axis.bin == 1 && axis.stp == 1) || error(
             "only trivial DetectorAxis are handled for now")
     end
+    FitsFile(fitspath) do fits
+        hdu = fits[ext]
 
-    if MultivariateOnlineStatistics.isa_stat_hdu(hdu)
-        L = hdu.data_size[end]
-        stat = read(IndependentStatistics{L,T,N}, hdu)
-        return CalibrationDataStat{T,N}(catname, Δt, stat, roi)
-    else
-        data = read(Array{T}, hdu)
-        if ndims(data) == N
-            return CalibrationDataFrame{T,N}(catname, Δt, data; roi=roi)
-        elseif ndims(data) == N+1
-            if size(data,N+1) == 1
-                return CalibrationDataFrame{T,N}(catname, Δt, reshape(data, Val(N)); roi=roi)
-            else
-                return CalibrationFrameSampler(data, catname, Δt; roi=roi)
+        (hdu isa FitsImageHDU) || argument_error("HDU must be an image.")
+        
+        if OnlineSampleStatistics.isa_stat_hdu(hdu)
+            stat = read(IndependentStatistic, fits; ext)
+            # converting to correct type and order if needed
+            if eltype(get_moments(stat,1)) != T || order(stat) > 2
+                moments = OnlineSampleStatistics.get_rawmoments(stat)
+                stat = OnlineSampleStatistics.build_from_rawmoments(
+                    nobs(stat), Tuple(T.(m) for m in moments[1:2]))
             end
+            return CalibrationDataStat{T,N}(catname, Δt, stat, roi)
         else
-            dimension_mismatch(
-                "HDU should have $N or $(N+1) dimensions instead of $(ndims(data))")
+            data = read(Array{T}, hdu)
+            if ndims(data) == N
+                return CalibrationDataFrame{T,N}(catname, Δt, data; roi)
+            elseif ndims(data) == N+1
+                if size(data,N+1) == 1
+                    return CalibrationDataFrame{T,N}(catname, Δt, reshape(data, Val(N)); roi)
+                else
+                    return CalibrationFrameSampler(data, catname, Δt; roi=roi)
+                end
+            else
+                dimension_mismatch(
+                    "HDU should have $N or $(N+1) dimensions instead of $(ndims(data))")
+            end
         end
     end
 end

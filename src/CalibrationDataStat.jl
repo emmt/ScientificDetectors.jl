@@ -1,22 +1,21 @@
 struct CalibrationDataStat{T<:Real,N}
     cat::String                 # Category.
     Δt::Float64                 # Exposure time.
-    stat::OnlineStatistics{T,N} # Statistics.
+    stat::IndependentStatistic{T,N,2} # Statistics.
     roi::DetectorAxes{N}  # Detector axes settings.
     
     function CalibrationDataStat{T,N}(cat::String,
                                       Δt::Real,
-                                      stat::OnlineStatistics{T,N},
+                                      stat::IndependentStatistic{T,N,2},
                                       roi::DetectorAxes{N}=DetectorAxes(size(stat))
                                       ) where {T<:Real,N}
         Δt ≥ 0 || argument_error("exposure time must be nonnegative")
         size(stat) == size(roi) || dimension_mismatch(
             "statistics and region of interest have different sizes")
-        order(stat) ≥ 2 || argument_error("need at least 2 statistical moments")
         obj = new{T,N}(cat, Δt, stat, roi)
         # Check indexing and pixel type *after* possible conversions.
-        eltype(obj.stat) === T || argument_error(
-            "invalid pixel type (expecting `$T`, got `$(eltype(obj.stat))`)")
+        eltype(get_moments(obj.stat,1)) === T || argument_error(
+            "invalid pixel type (expecting `$T`, got `$(eltype(get_moments(obj.stat)[1]))`)")
         Base.has_offset_axes(obj.stat) && argument_error(
             "array of pixels must have 1-based indices")
         return obj
@@ -36,27 +35,19 @@ function Base.push!(A::CalibrationData{T,N},
     Base.has_offset_axes(x.stat) && argument_error(
         "array of pixels must have 1-based indices")
     dims = size(x.stat)
+    K = eltype(weights(x.stat))
     roi == DetectorAxes(A) || argument_error(
         "detector ROI settings must be identical for all calibration data")
 
     # Update statistics for given category and exposure time.
     key = (cat, T(Δt))
-    if haskey(A.stat_index, key)
-        index = A.stat_index[key]
-        stat = A.stat[index]
-        if storage(stat, 2) === A.null
-            # Pushing one more sample will result in non-zero 2nd moment.
-            # Allocate one for this sub-dataset.
-            @assert nobs(stat) == 1
-            A.stat[index] = IndependentStatistics(
-                (storage(stat, 1), zeros(T, dims)), nobs(stat))
-        end
-    else
+    if !haskey(A.stat_index, key)
         # Create new instance of statistics (reusing `x` memory would be unexpected by user)
-        push!(A.stat, IndependentStatistics((zeros(T,dims), zeros(T,dims)), 0))
+        push!(A.stat, IndependentStatistic(T, 2, K, dims))
         index = length(A.stat)
         A.stat_index[key] = index
     end
+    index = A.stat_index[key]
     merge!(A.stat[index], x.stat)
     return A
 end

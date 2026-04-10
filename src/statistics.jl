@@ -8,7 +8,6 @@ export
 
 using ..ScientificDetectors
 using ..ScientificDetectors:
-    OnlineStatistics,
     dimension_mismatch
 
 import ..ScientificDetectors:
@@ -19,7 +18,7 @@ using AstroFITS
 
 using ArrayTools
 using Statistics, StatsBase
-using MultivariateOnlineStatistics
+using OnlineSampleStatistics
 
 """
     A = SampleStatistics(stat, Δt, roi)
@@ -95,7 +94,7 @@ Basic methods:
 """
 struct SampleStatistics{T<:AbstractFloat,N}
     # Statistics.
-    stat::OnlineStatistics{T,N}
+    stat::IndependentStatistic{T,N,2} # 2 statistical moments
 
     # Exposure time (in seconds).
     Δt::Float64
@@ -105,7 +104,7 @@ struct SampleStatistics{T<:AbstractFloat,N}
 
     # This inner constructor is needed to avoid ambiguities and to check
     # compatibility of arguments.
-    function SampleStatistics{T,N}(stat::OnlineStatistics{T,N},
+    function SampleStatistics{T,N}(stat::IndependentStatistic{T,N,2},
                                    Δt::Real,
                                    roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
         size(roi) == size(stat) || dimension_mismatch(
@@ -115,13 +114,13 @@ struct SampleStatistics{T<:AbstractFloat,N}
 end
 
 # Regular constructors (just provide missing type parameter).
-function SampleStatistics{T}(A::OnlineStatistics{<:AbstractFloat,N},
+function SampleStatistics{T}(A::IndependentStatistic{<:AbstractFloat,N},
                              Δt::Real,
                              roi::DetectorAxes{N} = DetectorAxes(size(A))
                              ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(A, Δt, roi)
 end
-function SampleStatistics(A::OnlineStatistics{T,N},
+function SampleStatistics(A::IndependentStatistic{T,N},
                           Δt::Real,
                           roi::DetectorAxes{N} = DetectorAxes(size(A))
                           ) where {T<:AbstractFloat,N}
@@ -134,8 +133,9 @@ SampleStatistics{T}(A::SampleStatistics{T}) where {T} = A
 SampleStatistics{T,N}(A::SampleStatistics{T,N}) where {T,N} = A
 SampleStatistics{T}(A::SampleStatistics{<:Any,N}) where {T,N} =
     SampleStatistics(
-        OnlineStatistics{T,N}(
-            map(x -> convert(Array{T,N}, x), storage(A.stat)), nobs(A.stat)),
+        merge!(
+            IndependentStatistic(T, 2, eltype(nobs(A.stat)), size(mean(A.stat))),
+            A.stat),
         exposuretime(A),
         DetectorAxes(A))
 SampleStatistics{T,N}(A::SampleStatistics{<:Any,N}) where {T,N} =
@@ -179,7 +179,7 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:AbstractFloat,N},
         "arrays have different indices")
 
     # Convert the standard deviation to the sum the of squared differences with
-    # the empirical mean.  Then re-build an instance of OnlineStatistics.
+    # the empirical mean.  Then re-build an instance of IndependentStatistic.
     n = Int(nsamples)
     if corrected
         n -= 1
@@ -190,8 +190,9 @@ function SampleStatistics{T,N}(avg::AbstractArray{<:AbstractFloat,N},
     @inbounds @simd for i in eachindex(s2, std)
         s2[i] = eta*std[i]^2
     end
+    w = MutableUniformArray(n, size(std))
     s1 = convert(Array{T,N}, avg)
-    stat = OnlineStatistics{T,N}((s1, s2), nsamples)
+    stat = OnlineSampleStatistics.build_from_rawmoments(w, (s1, s2))
 
     return SampleStatistics{T,N}(stat, Δt, roi)
 end
@@ -249,9 +250,9 @@ end
 function SampleStatistics{T,N}(itr, Δt::Real,
                                roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
     dims = size(roi)
-    stat = OnlineStatistics{T,N}((zeros(T, dims), zeros(T, dims)), 0)
+    stat = IndependentStatistic(T, 2, dims)
     for x in itr
-        push!(stat, x)
+        fit!(stat, x)
     end
     return SampleStatistics{T,N}(stat, Δt, roi)
 end
@@ -264,10 +265,10 @@ function SampleStatistics{T,N}(x1::AbstractArray{<:Real,N},
                                roi::DetectorAxes{N} = DetectorAxes(x1)
                                ) where {T<:AbstractFloat,N}
     dims = size(roi)
-    stat = OnlineStatistics{T,N}((zeros(T, dims), zeros(T, dims)), 0)
-    push!(stat, x1)
+    stat = IndependentStatistic(T, 2, dims)
+    fit!(stat, x1)
     for x in itr
-        push!(stat, x)
+        fit!(stat, x)
     end
     return SampleStatistics{T,N}(stat, Δt, roi)
 end

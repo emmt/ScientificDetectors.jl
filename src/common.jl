@@ -1,19 +1,9 @@
 """
-    ScientificDetectors.OnlineStatistics{T,N}
-
-is an alias for:
-
-    MultivariateOnlineStatistics.IndependentStatistics{2,T,N,Array{T,N}}
-
-"""
-const OnlineStatistics{T,N} = IndependentStatistics{2,T,N,Array{T,N}}
-
-"""
     R = DetectorAxis(len; off=0, bin=1, step=1)
 
 builds an instance `R` of `DetectorAxis` describing a detector axis with `len`
 pixels or macro-pixels corresponding to physical pixels starting at offset
-`off` with respect to the corresponding sensor egde and with a binning factor
+`off` with respect to the corresponding sensor edge and with a binning factor
 `bin`, and sampling `step`. The offset `off`, the binning factor `bin`, and the
 sampling `step` are in units of sensor samples (e.g., *pixels*), the length
 `len` is in units of macro-samples (i.e., `bin` sensor samples each). The
@@ -159,7 +149,7 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
         dst["BIN$i"] = (prm[i].bin, "binning factor of axis $i")
     end
     for i in 1:n
-        dst["STP$i"] = (prm[i].bin, "sampling step axis $i")
+        dst["STP$i"] = (prm[i].stp, "sampling step axis $i")
     end
     return dst
 end
