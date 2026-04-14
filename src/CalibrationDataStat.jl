@@ -12,13 +12,8 @@ struct CalibrationDataStat{T<:Real,N}
         Δt ≥ 0 || argument_error("exposure time must be nonnegative")
         size(stat) == size(roi) || dimension_mismatch(
             "statistics and region of interest have different sizes")
-        obj = new{T,N}(cat, Δt, stat, roi)
-        # Check indexing and pixel type *after* possible conversions.
-        eltype(get_moments(obj.stat,1)) === T || argument_error(
-            "invalid pixel type (expecting `$T`, got `$(eltype(get_moments(obj.stat)[1]))`)")
-        Base.has_offset_axes(obj.stat) && argument_error(
-            "array of pixels must have 1-based indices")
-        return obj
+        Base.has_offset_axes(stat) && argument_error("array of pixels must have 1-based indices")
+        new{T,N}(cat, Δt, stat, roi)
     end
 end
 

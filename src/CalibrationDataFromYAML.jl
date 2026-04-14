@@ -34,13 +34,16 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
                     argument_error("Incorrect filepath \"$fitspath\".")
                 end
                 ext = datahduindex[catname]
-                push!(calibrationdata, read_hdu_calibdata(fitspath, T, ext, catname, Δt, roi))
+                fitsdata = read_hdu_calibdata(fitspath, T, ext, catname, Δt, roi)
+                push!(calibrationdata, fitsdata)
             end
         end
     end
     
     calibrationdata
 end
+
+using OnlineSampleStatistics: build_from_rawmoments, get_rawmoments
 
 function read_hdu_calibdata(fitspath::String,
                             typefloat::Type{T},
@@ -61,10 +64,13 @@ function read_hdu_calibdata(fitspath::String,
         if OnlineSampleStatistics.isa_stat_hdu(hdu)
             stat = read(IndependentStatistic, fits; ext)
             # converting to correct type and order if needed
-            if eltype(get_moments(stat,1)) != T || order(stat) > 2
-                moments = OnlineSampleStatistics.get_rawmoments(stat)
-                stat = OnlineSampleStatistics.build_from_rawmoments(
-                    nobs(stat), Tuple(T.(m) for m in moments[1:2]))
+            if order(stat) > 2
+                stat = build_from_rawmoments(
+                    nobs(stat), (get_rawmoments(stat,1), get_rawmoments(stat,2)))
+            end
+            if !(stat isa IndependentStatistic{T})
+                stat = build_from_rawmoments(
+                    nobs(stat), (map(T, get_rawmoments(stat,1)), map(T, get_rawmoments(stat,2))))
             end
             return CalibrationDataStat{T,N}(catname, Δt, stat, roi)
         else
