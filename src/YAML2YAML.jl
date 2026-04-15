@@ -1,7 +1,7 @@
 function parse_highyml_to_lowyml(
-    highyml::Union{AbstractDict,AbstractString}
-    ; basedir::String = pwd(),
-      include_subdirectory ::Union{Nothing,Bool} = nothing,
+    highyml::Union{AbstractDict,AbstractString},
+    dir::String = pwd()
+    ; include_subdirectory ::Union{Nothing,Bool} = nothing,
       roi ::Union{Nothing,DetectorAxes} = nothing,
       datahdu ::Union{Nothing,Integer,String} = nothing,
       title ::Union{Nothing,String} = nothing,
@@ -68,11 +68,11 @@ function parse_highyml_to_lowyml(
         "datahdu"    => datahdu,
         "categories" => OrderedDict{String,Any}()
     )
-    
-    # get the list of paths of every FITS file inside `basedir`
+
+    # get the list of paths of every FITS file inside `dir`
     # unless the caller gave a fixed file list, in that case we just use that list
     fitspaths = if isnothing(fixed_file_list)
-                    get_fits_paths(basedir; include_subdirectory, suffixes)
+                    get_fits_paths(dir; include_subdirectory, suffixes)
                 else
                     fixed_file_list
                 end
@@ -81,6 +81,7 @@ function parse_highyml_to_lowyml(
     # these categories conditions are described in `highyml["categories"]`
     for fitspath in fitspaths
         FitsFile(fitspath) do fits
+            H = FitsHeader(fits[1])
             for (catname,catdef) in highyml["categories"]
 
                 # check that this file respect every keyword condition listed in higyml category
@@ -89,10 +90,10 @@ function parse_highyml_to_lowyml(
                     if keyword in ("sources", "datahdu")
                         continue # skip non keyword entries
                     end
-                    if haskey(fits[1], keyword)
-                        if (values isa Vector) && any(==(fits[1][keyword].value()), values)
+                    if haskey(H, keyword)
+                        if (values isa Vector) && any(==(H[keyword].value()), values)
                             # good, the file respects this condition
-                        elseif !(values isa Vector) && (values == fits[1][keyword].value())
+                        elseif !(values isa Vector) && (values == H[keyword].value())
                             # good, the file respects this condition
                         else
                             valid = false
@@ -117,8 +118,8 @@ function parse_highyml_to_lowyml(
                     end
                     
                     file_exptime =
-                        if haskey(fits[1], exptimekwd)
-                            fits[1][exptimekwd].float
+                        if haskey(H, exptimekwd)
+                            H[exptimekwd].float
                         else
                             throw("Fits file \"$fitspath\" miss exptime keyword \"$exptimekwd\".")
                         end
@@ -135,12 +136,12 @@ function parse_highyml_to_lowyml(
             end
         end
     end
-    
-    sort!(lowyml["categories"])
-    for (catname,catdef) in lowyml["categories"]
-        sort!(catdef["files"])
+
+    # sort files by increasing exptime
+    for (catname,cat) in lowyml["categories"]
+        sort!(cat["files"])
     end
-    
+
     lowyml
 end
 
