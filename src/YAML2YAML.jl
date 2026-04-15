@@ -1,78 +1,59 @@
 function parse_highyml_to_lowyml(
     highyml::Union{AbstractDict,AbstractString},
-    dir::String = pwd()
+    calib_files_dir::String = pwd()
     ; include_subdirectory ::Union{Nothing,Bool} = nothing,
       roi ::Union{Nothing,DetectorAxes} = nothing,
       datahdu ::Union{Nothing,Integer,String} = nothing,
       title ::Union{Nothing,String} = nothing,
-      fixed_file_list ::Union{Nothing,Vector{String}} = nothing,
-      generated ::DateTime= Dates.now()
+      fixed_file_list ::Union{Nothing,Vector{String}} = nothing
 ) ::OrderedDict{String,Any}
 
     # use can give a filepath to yaml file, or an already parsed yaml (as a Dict)
     if highyml isa AbstractString
         highyml = YAML.load_file(highyml)
     end
+    
+    lowyml = OrderedDict{String,Any}()
+    
+    lowyml["title"] = something(title,
+                                get(highyml, "title", "YAML file produced by ScientificDetectors"))
 
-    haskey(highyml, "exptime keyword") || throw(
-        ArgumentError("yaml dict miss key \"exptime keyword\""))
-    haskey(highyml, "categories")  || throw(ArgumentError("yaml dict miss key \"categories\""))
-    for (catname,catdef) in highyml["categories"]
-        if !haskey(catdef, "sources")
-            throw(ArgumentError("Category \"$catname\" dict miss key \"sources\""))
+    lowyml["generated"] = Dates.now()
+
+    lowyml["roi"] = if isnothing(roi)
+                        deepcopy(highyml["roi"])
+                    else
+                        [ OrderedDict("offset" => axis.off,
+                                      "length" => axis.len,
+                                      "step"   => axis.stp,
+                                      "bin"    => axis.bin)
+                          for axis in roi ]
+                    end
+    
+    lowyml["datahdu"] = something(datahdu, get(highyml, "datahdu", 1))
+    
+    lowyml["categories"] = OrderedDict{String,Any}()
+    for (catname,cat) in highyml["categories"]
+        lowyml["categories"][catname] = OrderedDict{String,Any}()
+        lowyml["categories"][catname]["sources"] = deepcopy(cat["sources"])
+        lowyml["categories"][catname]["files"] = OrderedDict{Float64,Any}()
+        if haskey(cat, "datahdu")
+            lowyml["categories"][catname]["datahdu"] = cat["datahdu"]
         end
     end
-    
-    # keyword julia parameter has priority over yaml parameter
-    if isnothing(title)
-        title = get(highyml, "title", "YAML file produced by ScientificDetectors")
-    end
-    
-    # keyword julia parameter has priority over yaml parameter
-    if isnothing(roi)
-        if haskey(highyml, "roi")
-            roi = highyml["roi"]
-        else
-            throw(ArgumentError("yaml dict miss key \"roi\""))
-        end
-    else
-        roi = [ OrderedDict("offset" => axis.off,
-                            "length" => axis.len,
-                            "step"   => axis.stp,
-                            "bin"    => axis.bin)  for axis in roi ]
-    end
-    
-    # keyword julia parameter has priority over yaml parameter
-    if isnothing(datahdu)
-        datahdu = get(highyml, "datahdu", 1)
-    end
-        
-    
+
     exptimekwd = highyml["exptime keyword"]
 
-    suffixes = haskey(highyml, "suffixes") ? highyml["suffixes"] : [".fits", ".fits.gz", ".fits.Z"]
+    suffixes = get(highyml, "suffixes", [".fits", ".fits.gz", ".fits.Z"])
 
-    # keyword julia parameter has priority over yaml parameter
-    if isnothing(include_subdirectory)
-        if haskey(highyml, "include subdirectory")
-            include_subdirectory = highyml["include subdirectory"]
-        else
-            include_subdirectory = false
-        end
-    end
-    
-    lowyml = OrderedDict{String,Any}(
-        "title"      => title,
-        "generated"  => generated,
-        "roi"        => roi,
-        "datahdu"    => datahdu,
-        "categories" => OrderedDict{String,Any}()
-    )
+    include_subdirectory = something(include_subdirectory,
+                                     get(highyml, "include subdirectory",
+                                         false))
 
-    # get the list of paths of every FITS file inside `dir`
+    # get the list of paths of every FITS file inside `calib_files_dir`
     # unless the caller gave a fixed file list, in that case we just use that list
     fitspaths = if isnothing(fixed_file_list)
-                    get_fits_paths(dir; include_subdirectory, suffixes)
+                    get_fits_paths(calib_files_dir; include_subdirectory, suffixes)
                 else
                     fixed_file_list
                 end
@@ -82,56 +63,36 @@ function parse_highyml_to_lowyml(
     for fitspath in fitspaths
         FitsFile(fitspath) do fits
             H = FitsHeader(fits[1])
-            for (catname,catdef) in highyml["categories"]
+            for (catname,cat) in highyml["categories"]
 
                 # check that this file respect every keyword condition listed in higyml category
                 valid = true
-                for (keyword,values) in catdef
-                    if keyword in ("sources", "datahdu")
-                        continue # skip non keyword entries
-                    end
-                    if haskey(H, keyword)
-                        if (values isa Vector) && any(==(H[keyword].value()), values)
-                            # good, the file respects this condition
-                        elseif !(values isa Vector) && (values == H[keyword].value())
-                            # good, the file respects this condition
-                        else
-                            valid = false
-                            break
-                        end
+                for (kwd, accepted_vals) in cat
+                    # skip non keyword entries
+                    kwd in ("sources", "datahdu") && continue
+                    # get header value for that keyword
+                    haskey(H,kwd) || (valid = false; break)
+                    header_val = H[kwd].value()
+                    # header value must be one of the accepted values
+                    if accepted_vals isa AbstractVector
+                        (header_val in accepted_vals) || (valid = false; break)
                     else
-                        valid = false
-                        break
+                        (header_val == accepted_vals) || (valid = false; break)
                     end
                 end
                 
                 if valid
-                    # create category if non existing already
-                    if !haskey(lowyml["categories"], catname)
-                        lowyml["categories"][catname] = OrderedDict{String,Any}(
-                            "sources" => catdef["sources"],
-                            "files"   => OrderedDict{Float64,Any}()
-                        )
-                        if haskey(catdef, "datahdu")
-                            lowyml["categories"][catname]["datahdu"] = catdef["datahdu"]
+                    if haskey(H,exptimekwd)
+                        Δt = H[exptimekwd].float
+                        # create entry for that exptime if it doest not exist yet
+                        if !haskey(lowyml["categories"][catname]["files"], Δt)
+                            lowyml["categories"][catname]["files"][Δt] = Vector{String}()
                         end
+                        # add filepath to this category to this exptime
+                        push!(lowyml["categories"][catname]["files"][Δt], fitspath)
+                    else
+                        @error "Fits file \"$fitspath\" miss exptime keyword \"$exptimekwd\"."
                     end
-                    
-                    file_exptime =
-                        if haskey(H, exptimekwd)
-                            H[exptimekwd].float
-                        else
-                            throw("Fits file \"$fitspath\" miss exptime keyword \"$exptimekwd\".")
-                        end
-                    
-                    
-                    # create entry for that exptime if it doest not exist yet
-                    if !haskey(lowyml["categories"][catname]["files"], file_exptime)
-                        lowyml["categories"][catname]["files"][file_exptime] = Vector{String}()
-                    end
-
-                    # add filepath to this category to this exptime
-                    push!(lowyml["categories"][catname]["files"][file_exptime], fitspath)
                 end
             end
         end
