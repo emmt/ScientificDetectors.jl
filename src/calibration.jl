@@ -54,7 +54,7 @@ include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 include("CalibrationDataFromYAML.jl")
-include("YAML2YAML.jl")
+include("high_yaml_to_low_yaml.jl")
 
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.

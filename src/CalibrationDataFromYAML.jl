@@ -1,30 +1,23 @@
-function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
+function CalibrationData{T}(low_yml::Union{AbstractDict,AbstractString};
                             basedir::AbstractString=pwd()) where {T<:AbstractFloat}
 
-    if yml isa AbstractString
-        yml = YAML.load_file(yml)
+    if low_yml isa AbstractString
+        low_yml = YAML.load_file(low_yml)
     end
    
-    haskey(yml, "roi") || throw(ArgumentError("yaml dict miss key \"roi\""))
-    
-    roi = Tuple(map(yml["roi"]) do ax
-        ax isa AbstractDict  || throw(ArgumentError("yaml dict roi ax should be a Dict"))
-        haskey(ax, "length") || throw(ArgumentError("yaml dict roi axis miss key \"length\""))
-        DetectorAxis(ax["length"]
-            ; off=get(ax,"offset",0), bin=get(ax,"bin",1), step=get(ax,"step",1))
+    roi = Tuple(map(low_yml["roi"]) do axis
+        DetectorAxis(
+            axis["length"]
+            ; off=get(axis,"offset",0), bin=get(axis,"bin",1), step=get(axis,"step",1))
     end)
     
-    cats = CalibrationCategory[
+    calib_cats = CalibrationCategory[
         CalibrationCategory(catname, Meta.parse(cat["sources"]))
-        for (catname, cat) in yml["categories"] ]
+        for (catname, cat) in low_yml["categories"] ]
     
-    datahduindex = Dict(
-        catname => get(cat, "datahdu", get(yml, "datahdu", 1))
-        for (catname, cat) in yml["categories"])
+    calibrationdata = CalibrationData{T}(roi, calib_cats)
     
-    calibrationdata = CalibrationData{T}(roi, cats)
-    
-    for (catname, cat) in yml["categories"]
+    for (catname, cat) in low_yml["categories"]
         for (Δt, fitspaths) in cat["files"]
             for fitspath in fitspaths
                 if !isabspath(fitspath)
@@ -33,7 +26,7 @@ function CalibrationData{T}(yml::Union{AbstractDict,AbstractString};
                 if !isfile(fitspath)
                     argument_error("Incorrect filepath \"$fitspath\".")
                 end
-                ext = datahduindex[catname]
+                ext = get(cat, "datahdu", get(low_yml, "datahdu", 1))
                 fitsdata = read_hdu_calibdata(fitspath, T, ext, catname, Δt, roi)
                 push!(calibrationdata, fitsdata)
             end
@@ -81,11 +74,12 @@ function read_hdu_calibdata(fitspath::String,
                 if size(data,N+1) == 1
                     return CalibrationDataFrame{T,N}(catname, Δt, reshape(data, Val(N)); roi)
                 else
-                    return CalibrationFrameSampler(data, catname, Δt; roi=roi)
+                    return CalibrationFrameSampler(data, catname, Δt; roi)
                 end
             else
-                dimension_mismatch(
-                    "HDU should have $N or $(N+1) dimensions instead of $(ndims(data))")
+                dimension_mismatch(string(
+                    "in filepath \"$filepath\", HDU \"$ext\" has $(ndims(data)) dimensions, ",
+                    "whereas we expect $N or $(N+1) dimensions."))
             end
         end
     end
