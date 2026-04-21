@@ -11,7 +11,7 @@ function categorize_calib_files(
 
     # use can give a filepath to yaml file, or an already parsed yaml (as a Dict)
     if high_yml isa AbstractString
-        high_yml = YAML.load_file(high_yml)
+        high_yml = YAML.load_file(high_yml; dicttype=OrderedDict{String,Any})
     end
     
     low_yml = OrderedDict{String,Any}()
