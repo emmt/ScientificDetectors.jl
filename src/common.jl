@@ -1,29 +1,24 @@
 """
     R = DetectorAxis(len; off=0, bin=1, step=1)
 
-builds an instance `R` of `DetectorAxis` describing a detector axis with `len`
-pixels or macro-pixels corresponding to physical pixels starting at offset
-`off` with respect to the corresponding sensor edge and with a binning factor
-`bin`, and sampling `step`. The offset `off`, the binning factor `bin`, and the
-sampling `step` are in units of sensor samples (e.g., *pixels*), the length
-`len` is in units of macro-samples (i.e., `bin` sensor samples each). The
-binning factor `bin` is the number of physical pixels in a macro-pixel along
-the dimension.
+Return an object describing a detector axis with `len` (macro-)pixels. Along this axis, the
+(macro-)pixels start at offset `off` from the sensor edge, have a binning factor `bin`, and
+sampling `step`. Parameters `off`, `bin`, and `step` are in units of physical pixels.
 
-This is illustrated below with `x` and `y` denoting the physical pixels of
-respectively the 1st and 2nd macro-pixels for detector axis parameters `off =
-4`, `bin = 2`, and `stp = 3`:
+The layout is illustrated below for detector axis parameters `off = 4`, `bin = 2`, and `step
+= 3`. `[ ]` denote unused physical pixels while `[i]` denote physical pixels that are part
+of the `i`-th macro-pixel:
 
 ```
- [ ] [ ] [ ] [ ] [x] [x] [ ] [y] [y] [ ] [...]
-|<------------->|<----->|   |<----->|
-       off      |  bin  |   |  bin  |
-                |<--------->|
-                     stp
+ [ ] [ ] [ ] [ ] [1] [1] [ ] [2] [2] [ ] [3...
+|<─────────────>|<─────>|   |<─────>|   |
+       off      |  bin  |   |  bin  |   |
+                |<─────────>|<─────────>|
+                     step        step
 ```
 
-Basic methods (`R` is an instance of `DetectorAxis`, `ROI` is a tuple of
-`DetectorAxis`):
+Basic methods (`R` is an instance of `DetectorAxis`, `ROI` is an instance of
+`DetectorAxes`):
 
     length(R)    # the length `len`
     offset(R)    # the offset `off`
@@ -38,18 +33,16 @@ Other methods:
     get(Vector{DetectorAxis}, src) # all detector axes of `src`
     merge!(dst, ROI)               # set detector axes of `dst`
 
-here the source `src` and the destination `dst` can be instances of
-`FitsHeader` or of `FitsHDU`, `ROI` is a vector or a tuple of `DetectorAxis`.
+here the source `src` and the destination `dst` can be instances of `FitsHeader` or of
+`FitsHDU`, `ROI` is a vector or a tuple of `DetectorAxis`.
 
     DetectorAxes(B)
 
-yields the detector geometry settings for object `B` (note the plural) as an
-`N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
-detector.
+yields the detector geometry settings for object `B` (note the plural) as an `N`-tuple of
+`DetectorAxis`, `N` being the number of dimensions of the detector.
 
-Call the `range` function as follows to retrieve the indices along `k`-th
-dimension of array `A` of the first physical pixels for the macro-pixels
-defined by for detector axes `R`:
+Call the `range` function as follows to retrieve the indices along `k`-th dimension of array
+`A` of the first physical pixels for the macro-pixels defined by for detector axes `R`:
 
     range(A, R, k)
 
