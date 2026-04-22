@@ -1,7 +1,7 @@
 using Downloads, AstroFITS, ScientificDetectors
 
 """
-This function should be runned from the test/data/ folder since it will download
+This function should be run from the test/data/ folder since it will download
 the data files inside pwd()
 """
 function generate_data_files(
