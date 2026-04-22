@@ -135,6 +135,9 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
                       prm::Union{Tuple{Vararg{DetectorAxis}},
                                 AbstractVector{<:DetectorAxis}})
     n = length(prm)
+    # FIXME for i in 1:n
+    # FIXME     dst["NAXIS$i"] = (prm[i].len, "length of data axis $i")
+    # FIXME end
     for i in 1:n
         dst["OFF$i"] = (prm[i].off, "offset along axis $i")
     end
@@ -142,7 +145,7 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
         dst["BIN$i"] = (prm[i].bin, "binning factor of axis $i")
     end
     for i in 1:n
-        dst["STP$i"] = (prm[i].stp, "sampling step axis $i")
+        dst["STP$i"] = (prm[i].bin, "sampling step axis $i")
     end
     return dst
 end
