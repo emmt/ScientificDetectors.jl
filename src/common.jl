@@ -256,8 +256,7 @@ end
 """
     ScientificDetectors.Identifiers
 
-is the union of types acceptable for identifiers (strings, symbols, or
-integers).
+Union of types acceptable for identifiers (strings, symbols, or integers).
 
 """
 const Identifiers = Union{AbstractString,Symbol,Integer}
@@ -265,9 +264,9 @@ const Identifiers = Union{AbstractString,Symbol,Integer}
 """
     identifier(key) -> str
 
-converts `key` into a string identifier.  Argument `key` can be of any type
-part of the union `Identifiers` (a string, a symbol or an integer).  Also works
-if argument is a tuple or an array of identifiers.
+Converts `key` into a string identifier. Argument `key` can be of any type in union
+`Identifiers` (a string, a symbol or an integer). Argument can be a tuple or an array of
+identifiers.
 
 """
 identifier(key::String) = key
@@ -277,7 +276,7 @@ identifier(key::Symbol) = String(key)
 identifier(A::AbstractArray{String}) = A
 identifier(A::AbstractArray{<:Identifiers}) = map(identifier, A)
 identifier(A::Tuple{Vararg{String}}) = A
-identifier(A::Tuple{Vararg{T}}) where {T<:Identifiers} = map(identifier, A)
+identifier(A::Tuple{Vararg{<:Identifiers}}) = map(identifier, A)
 
 #------------------------------------------------------------------------------
 #
