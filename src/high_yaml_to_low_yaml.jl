@@ -61,7 +61,8 @@ function categorize_calib_files(
 
     # for each file, we put it in a category if it respects the category's conditions
     # these categories conditions are described in `high_yml["categories"]`
-    for fitspath in fitspaths
+    msg = "associating FITS files to calibration categories"
+    @showprogress msg for fitspath in fitspaths
         FitsFile(fitspath) do fits
             H = FitsHeader(fits[1])
             for (catname,cat) in high_yml["categories"]
