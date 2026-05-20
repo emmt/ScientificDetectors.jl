@@ -46,6 +46,7 @@ using ArrayTools, StructuredArrays
 using AstroFITS
 using AstroFITS: hduname, throw_file_already_exists
 import AstroFITS: readfits, writefits, writefits!
+using YAML
 
 function process end
 function process! end

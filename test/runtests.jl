@@ -258,5 +258,7 @@ DATA_DIR = artifact"SPHEREtestdata"
     end
 end
 
+include("test_CalibrationData_from_yaml.jl")
+
 end # @testset "runtests.jl"
 end # module

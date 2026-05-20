@@ -18,6 +18,8 @@ using TypeUtils, ArrayTools, StructuredArrays
 using OptimPackNextGen
 using OnlineSampleStatistics
 using StructuredArrays
+using AstroFITS
+using YAML
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,
@@ -44,6 +46,7 @@ include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
+include("CalibrationData_from_yaml.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 
