@@ -1,5 +1,9 @@
 # User visible changes in `ScientificDetectors` package
 
+## unreleased
+
+- Add I/O methods for `CalibrationData` to/from FITS files
+
 ## Version v0.3.7
 
 ### Changes
@@ -7,7 +11,6 @@
 - fix ROI writing
 - `EasyFITS` replaced by `AstroFITS`.
 - `MultivariateOnlineStatistics` replaced by `OnlineSampleStatistics`.
-- Add I/O methods for `CalibrationData` to/from FITS files
 
 ## Version v0.3.6
 
