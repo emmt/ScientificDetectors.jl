@@ -13,7 +13,8 @@ export
 
 using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
-using SimpleExpressions
+include("SimpleExpressions.jl")
+using .SimpleExpressions
 using TypeUtils, ArrayTools, StructuredArrays
 using OptimPackNextGen
 using OnlineSampleStatistics
