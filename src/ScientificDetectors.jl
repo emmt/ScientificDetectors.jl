@@ -47,6 +47,8 @@ using AstroFITS
 using AstroFITS: hduname, throw_file_already_exists
 import AstroFITS: readfits, writefits, writefits!
 
+using Base: @propagate_inbounds
+
 function process end
 function process! end
 
