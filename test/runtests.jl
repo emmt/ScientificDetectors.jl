@@ -50,7 +50,7 @@ end
 @testset "CalibrationData IO" begin
     # creating some test CalibrationData
     (W, H) = (10, 10)
-    roi = (DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
+    roi = DetectorAxes(DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
     dark_cat = CalibrationCategory("DARK", :(dark       ))
     flat_cat = CalibrationCategory("FLAT", :(dark + flat))
     calib = CalibrationData{Float32}(roi, [dark_cat, flat_cat])
