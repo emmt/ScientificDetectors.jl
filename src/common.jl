@@ -96,7 +96,6 @@ function Base.AbstractUnitRange(r::AbstractUnitRange{<:Integer}, x::DetectorAxis
     return start:step(x):stop
 end
 
-
 # Accessors.
 Base.length(A::DetectorAxis) = getfield(A, :len)
 offset(A::DetectorAxis) = getfield(A, :off)
