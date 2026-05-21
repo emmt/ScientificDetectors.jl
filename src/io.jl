@@ -139,7 +139,7 @@ function read(::Type{ReducedCalibration{T,N}},
     elseif version == 3
         n1 = 5 # number of fields before the sources
     else
-        n1 = 6 
+        n1 = 6
     end
     nsrc = dims[end] - n1
     nsrc ≥ 0 || dimension_mismatch("invalid last dimension")
@@ -156,7 +156,7 @@ function read(::Type{ReducedCalibration{T,N}},
     g = read(hdu, inds..., 3)
     σ = read(hdu, inds..., 4)
     σa = version > 3 ? read(hdu, inds..., 5) : FastUniformArray(zero(T), dims[1:end-1])
-    
+
     vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5 + (version > 3 ? 1 : 0))  :
         FastUniformArray(true, dims[1:end-1])
     s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
@@ -253,7 +253,7 @@ function read(::Type{SimpleCalibration{T,N}},
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(NTuple{N,DetectorAxis}, hdr)
+    roi = get(NTuple{N,DetectorAxis}, hdr) # TODO get->fetch, NTuple{N,DetectorAxis}->DetectorAxes{N}
     Δt = hdr["EXPTIME"].float
 
     # Read data and build instance.
@@ -341,7 +341,7 @@ function read(::Type{PreprocessingParameters{T,N}},
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(NTuple{N,DetectorAxis}, hdr)
+    roi = get(NTuple{N,DetectorAxis}, hdr) # TODO get->fetch, NTuple{N,DetectorAxis}->DetectorAxes{N}
     Δt = hdr["EXPTIME"].float
 
     # Read data and build instance.
@@ -492,7 +492,7 @@ function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
             off[d] = hdu["OFF$d"].integer
             bin[d] = hdu["BIN$d"].integer
         end
-        roi = ntuple(i -> DetectorAxis(dims[i]; off = off[i], bin = bin[i]), N)
+        roi = ntuple(i -> DetectorAxis(dims[i]; off = off[i], bin = bin[i]), N) # TODO wrap in DetectorAxes
         return samples, exptime, roi
     end
 
@@ -515,7 +515,7 @@ function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
         mesg == "" || error(mesg)
         exptime = Float64(exposure*1e-6)
         roi = (DetectorAxis(dims[1]; off = xoff, bin = 1),
-               DetectorAxis(dims[2]; off = yoff, bin = 1))
+               DetectorAxis(dims[2]; off = yoff, bin = 1)) # TODO wrap in DetectorAxes
         return samples, exptime, roi
     end
     if exposure isa AbstractFloat && xbin isa Int && ybin isa Int
@@ -523,7 +523,7 @@ function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
         mesg == "" || error(mesg)
         exptime = Float64(exposure)
         roi = (DetectorAxis(dims[1]; off = xoff, bin = xbin),
-               DetectorAxis(dims[2]; off = yoff, bin = ybin))
+               DetectorAxis(dims[2]; off = yoff, bin = ybin)) # TODO wrap in DetectorAxes
         return samples, exptime, roi
     end
     return nothing
@@ -531,7 +531,7 @@ end
 
 function _read2(T::Type{<:SampleStatistics}, hdu::FitsImageHDU,
                 samples::Integer, Δt::Float64,
-                roi::NTuple{N,DetectorAxis}) where {N}
+                roi::NTuple{N,DetectorAxis}) where {N} # TODO NTuple{N,DetectorAxis}->DetectorAxes{N}
     # Read data and build instance.
     inds = colons(N)
     avg = read(hdu, inds..., 1)
