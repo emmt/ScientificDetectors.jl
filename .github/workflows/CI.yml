@@ -67,8 +67,8 @@ jobs:
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - run: julia --color=yes -e 'using Pkg; Pkg.add("Aqua")'
-      - run: julia --project=@. --color=yes -e 'using Aqua, OnlineSampleStatistics;
-          Aqua.test_all(OnlineSampleStatistics, ambiguities=false)'
+      - run: julia --project=@. --color=yes -e 'using Aqua, ScientificDetectors;
+          Aqua.test_all(ScientificDetectors, ambiguities=false)'
   dependabot:
     needs: [ test, Aqua ]
     runs-on: ubuntu-latest
