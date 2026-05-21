@@ -146,7 +146,7 @@ function read(::Type{ReducedCalibration{T,N}},
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(DetectorAxes{N}, hdr)
+    roi = DetectorAxes{N}(hdr)
     src = [getvalue(String, hdr, "SRC$k", "") for k in 1:nsrc]
 
     # Read data and build instance.
@@ -253,7 +253,7 @@ function read(::Type{SimpleCalibration{T,N}},
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(NTuple{N,DetectorAxis}, hdr) # TODO get->fetch, NTuple{N,DetectorAxis}->DetectorAxes{N}
+    roi = DetectorAxes{N}(hdr)
     Δt = hdr["EXPTIME"].float
 
     # Read data and build instance.
@@ -341,7 +341,7 @@ function read(::Type{PreprocessingParameters{T,N}},
 
     # Read header and retrieve contents.
     hdr = FitsHeader(hdu)
-    roi = get(NTuple{N,DetectorAxis}, hdr) # TODO get->fetch, NTuple{N,DetectorAxis}->DetectorAxes{N}
+    roi = DetectorAxes{N}(hdr)
     Δt = hdr["EXPTIME"].float
 
     # Read data and build instance.
