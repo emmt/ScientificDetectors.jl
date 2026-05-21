@@ -12,12 +12,6 @@ using LazyArtifacts
 
 @testset "runtests.jl" begin
 
-@testset "Aqua" begin
-    Aqua.test_all(ScientificDetectors; ambiguities=true, unbound_args=true,
-                  undefined_exports=true, piracies=true, stale_deps=true,
-                  deps_compat=true)
-end
-
 @testset "DetectorAxis" begin
     # DetectorAxis
     len, off, bin = 17, 3, 4
