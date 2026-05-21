@@ -306,7 +306,7 @@ identifier(key::Symbol) = String(key)
 identifier(A::AbstractArray{String}) = A
 identifier(A::AbstractArray{<:Identifiers}) = map(identifier, A)
 identifier(A::Tuple{Vararg{String}}) = A
-identifier(A::Tuple{Vararg{<:Identifiers}}) = map(identifier, A)
+identifier(A::Tuple{Vararg{Identifiers}}) = map(identifier, A)
 
 #------------------------------------------------------------------------------
 #
