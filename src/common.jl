@@ -29,7 +29,7 @@ Basic methods (`R` is an instance of `DetectorAxis`, `ROI` is an instance of
 
 Other methods:
 
-    get(DetectorAxis, i, src)      # the i-th detector axis of `src`
+    get(DetectorAxis, i, src)      # the i-th detector axis of `src` # TODO get->fetch
     get(Vector{DetectorAxis}, src) # all detector axes of `src`
     merge!(dst, ROI)               # set detector axes of `dst`
 
@@ -49,13 +49,13 @@ end
     DetectorAxes(::NTuple{N,DetectorAxis})
     roi = DetectorAxes(B)
 
-yields the  region of interest (ROI) geometry of the detector for object `B` (note the plural) wrapping an
-`N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
+yields the region of interest (ROI) geometry of the detector for object `B` (note the
+plural) wrapping an `N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
 detector. `DetectorAxes{N}` stores an `N`-tuple of `DetectorAxis` values in a dedicated
 package type rather than extending `NTuple{N,DetectorAxis}` directly. This keeps methods
 such as `size`, `axes`, and FITS header conversions attached to a type owned by
-`ScientificDetectors` and avoids accidental method piracy on tuples, notably
-for the empty tuple when `N = 0`.
+`ScientificDetectors` and avoids accidental method piracy on tuples, notably for the empty
+tuple when `N = 0`.
 
 Use `Tuple(roi)` to recover the underlying tuple of detector axes when a tuple
 is required by another API.
@@ -181,7 +181,7 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
 end
 
 function Base.get(::Type{DetectorAxis}, i::Integer,
-                  src::Union{FitsHeader,FitsHDU})
+                  src::Union{FitsHeader,FitsHDU}) # TODO get->fetch
     i ≥ 1 || throw(ArgumentError("invalid axis number $i"))
     len = src["NAXIS$i"].integer
     off = getvalue(Int, src, "OFF$i", 0)
@@ -191,7 +191,7 @@ function Base.get(::Type{DetectorAxis}, i::Integer,
 end
 
 function Base.get(::Type{Vector{DetectorAxis}},
-                  src::Union{FitsHeader,FitsHDU})
+                  src::Union{FitsHeader,FitsHDU}) # TODO get->fetch
     n = src["NAXIS"].integer
     res = Vector{DetectorAxis}(undef, n)
     for i in 1:n
@@ -201,12 +201,12 @@ function Base.get(::Type{Vector{DetectorAxis}},
 end
 
 function Base.get(::Type{DetectorAxes{N}},
-                  src::Union{FitsHeader,FitsHDU}) where {N}
+                  src::Union{FitsHeader,FitsHDU}) where {N}# TODO get->fetch
     return DetectorAxes(ntuple(i -> get(DetectorAxis, i, src), Val(N)))
 end
 
 function Base.get(::Type{NTuple{N,DetectorAxis}},
-                  src::Union{FitsHeader,FitsHDU}) where {N}
+                  src::Union{FitsHeader,FitsHDU}) where {N}# TODO remove this method
     return Tuple(get(DetectorAxes{N}, src))
 end
 

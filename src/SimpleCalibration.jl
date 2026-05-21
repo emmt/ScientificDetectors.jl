@@ -21,7 +21,7 @@ struct SimpleCalibration{T<:AbstractFloat,N}
     σ::Array{T,N}
 
     # Inner constructor provided to force using outer constructors.
-    function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis},
+    function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis}, # TODO wrap in DetectorAxes
                                     Δt::Real,
                                     f::Array{T,N},
                                     a::Array{T,N},
@@ -48,7 +48,7 @@ end
 # Simple outer constructors for conversion.
 #
 SimpleCalibration(obj::SimpleCalibration) = obj
-function SimpleCalibration(roi::NTuple{N,DetectorAxis},
+function SimpleCalibration(roi::NTuple{N,DetectorAxis}, # TODO DetectorAxes
                            Δt::Real,
                            f::AbstractArray{<:Real,N},
                            a::AbstractArray{<:Real,N},
@@ -62,7 +62,7 @@ end
 SimpleCalibration{T}(obj::SimpleCalibration{T}) where {T} = obj
 SimpleCalibration{T}(obj::SimpleCalibration{<:Any,N}) where {T<:AbstractFloat,N} =
     SimpleCalibration{T}(obj.roi, obj.Δt, obj.f, obj.a, obj.b, obj.g, obj.σ)
-function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis},
+function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis}, # TODO DetectorAxes
                               Δt::Real,
                               f::AbstractArray{<:Real,N},
                               a::AbstractArray{<:Real,N},
@@ -81,7 +81,7 @@ end
 SimpleCalibration{T,N}(obj::SimpleCalibration{T,N}) where {T,N} = obj
 SimpleCalibration{T,N}(obj::SimpleCalibration{<:Any,N}) where {T,N} =
     SimpleCalibration{T}(obj)
-function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis},
+function SimpleCalibration{T,N}(roi::NTuple{N,DetectorAxis}, # TODO DetectorAxes
                                 Δt::Real,
                                 f::AbstractArray{<:Real,N},
                                 a::AbstractArray{<:Real,N},
@@ -128,7 +128,7 @@ images: "dark" (or "bias") images, "lamp" images with a stable illumination
 (although not necessarily uniform) and "flat" images with a uniform
 illumination.  Arguments are as follows:
 
-- `ROI` is a `N`-tuple of `DetectorAxis` describing the region of interest;
+- `ROI` is a `N`-tuple of `DetectorAxis` describing the region of interest; # TODO DetectorAxes
 - `Δt` is the exposure time (in seconds);
 - `NumDark` is the number of averaged "dark" images;
 - `AvgDark` is the sample mean of the "dark" images;
@@ -152,7 +152,7 @@ is computed as:
 See also [`ReducedCalibration`](@ref).
 
 """
-function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis},
+function SimpleCalibration{T}(roi::NTuple{N,DetectorAxis},# TODO DetectorAxes
                               Δt::Real,
                               NumDark::Integer,
                               AvgDark::AbstractArray{<:Real,N},
