@@ -29,12 +29,7 @@ Basic methods (`R` is an instance of `DetectorAxis`, `ROI` is an instance of
 
 Other methods:
 
-    get(DetectorAxis, i, src)      # the i-th detector axis of `src` # TODO get->fetch
-    get(Vector{DetectorAxis}, src) # all detector axes of `src`
-    merge!(dst, ROI)               # set detector axes of `dst`
-
-here the source `src` and the destination `dst` can be instances of
-`FitsHeader` or of `FitsHDU`, `ROI` is an instance of `DetectorAxes`.
+    DetectorAxis(A, i)      # the i-th detector axis of `A`
 
 """
 struct DetectorAxis
@@ -64,6 +59,11 @@ Call the `range` function as follows to retrieve the indices along `k`-th dimens
 `A` of the first physical pixels for the macro-pixels defined by for detector axes `R`:
 
     range(A, R, k)
+
+
+    get(Vector{DetectorAxis}, src) # all detector axes of `src`
+    merge!(dst, ROI)               # set detector axes of `dst`
+
 """
 struct DetectorAxes{N}
     data::NTuple{N,DetectorAxis}
@@ -84,7 +84,7 @@ DetectorAxis(R::OrdinalRange{<:Integer,<:Integer}) = begin
 end
 
 function Base.range(A::AbstractArray, R::DetectorAxis, k::Integer)
-   origin = as(Int, first(axes(A, k))) + offset(R)
+    origin = as(Int, first(axes(A, k))) + offset(R)
     return origin : step(R) : origin + step(R)*(length(R) - 1)
 end
 
@@ -109,9 +109,10 @@ binning(R::OrdinalRange{<:Integer,<:Integer}) = 1
 @doc @doc(DetectorAxis) offset
 @doc @doc(DetectorAxis) binning
 
-Base.eltype(::Type{DetectorAxes{N}}) where {N} = DetectorAxis
+# Make an instance of `DetectorAxes` behave as a n-tuple.
+Base.eltype(::Type{<:DetectorAxes}) = DetectorAxis
 Base.length(::DetectorAxes{N}) where {N} = N
-Base.getindex(roi::DetectorAxes, i::Integer) = getfield(roi, :data)[i]
+@propagate_inbounds Base.getindex(roi::DetectorAxes, i::Integer) = getindex(Tuple(roi), i)
 Base.iterate(roi::DetectorAxes, i::Integer = 1) =
     (1 ≤ i ≤ length(roi) ? (roi[i], i + 1) : nothing)
 Base.Tuple(roi::DetectorAxes) = getfield(roi, :data)
@@ -180,34 +181,27 @@ function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
     return dst
 end
 
-function Base.get(::Type{DetectorAxis}, i::Integer,
-                  src::Union{FitsHeader,FitsHDU}) # TODO get->fetch
+DetectorAxis(A::DetectorAxes, i::Integer) = A[i]
+
+function DetectorAxis(A::Union{FitsHeader,FitsImageHDU}, i::Integer)
     i ≥ 1 || throw(ArgumentError("invalid axis number $i"))
-    len = src["NAXIS$i"].integer
-    off = getvalue(Int, src, "OFF$i", 0)
-    bin = getvalue(Int, src, "BIN$i", 1)
-    stp = getvalue(Int, src, "STP$i", 1)
+    len = A["NAXIS$i"].integer
+    off = getvalue(Int, A, "OFF$i", 0)
+    bin = getvalue(Int, A, "BIN$i", 1)
+    stp = getvalue(Int, A, "STP$i", 1)
     return DetectorAxis(len, off, bin, stp)
 end
 
-function Base.get(::Type{Vector{DetectorAxis}},
-                  src::Union{FitsHeader,FitsHDU}) # TODO get->fetch
-    n = src["NAXIS"].integer
-    res = Vector{DetectorAxis}(undef, n)
-    for i in 1:n
-        res[i] = get(DetectorAxis, i, src)
-    end
-    return res
+function DetectorAxes(A::FitsHeader)
+    N = A["NAXIS"].integer
+    return DetectorAxes{N}(A)
+end
+function DetectorAxes(A::FitsImageHDU{T,N}) where {T,N}
+    return DetectorAxes{N}(A)
 end
 
-function Base.get(::Type{DetectorAxes{N}},
-                  src::Union{FitsHeader,FitsHDU}) where {N}# TODO get->fetch
-    return DetectorAxes(ntuple(i -> get(DetectorAxis, i, src), Val(N)))
-end
-
-function Base.get(::Type{NTuple{N,DetectorAxis}},
-                  src::Union{FitsHeader,FitsHDU}) where {N}# TODO remove this method
-    return Tuple(get(DetectorAxes{N}, src))
+function DetectorAxes{N}(A::Union{FitsHeader,FitsHDU}) where {N}
+    return DetectorAxes{N}(ntuple(i -> DetectorAxis(A, i), Val(N)))
 end
 
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
