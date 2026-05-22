@@ -6,6 +6,7 @@
 #
 
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
+                                CalibrationData{T,N},
                                 ReducedCalibration{T,N},
                                 SampleStatistics{T,N},
                                 SimpleCalibration{T,N}}
