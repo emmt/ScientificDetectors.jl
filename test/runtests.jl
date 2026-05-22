@@ -41,6 +41,70 @@ using LazyArtifacts
     @test DetectorAxes(A) == roi
 end
 
+@testset "CalibrationData IO" begin
+    # creating some test CalibrationData
+    T = Float32
+    (W, H) = (10, 10)
+    roi = DetectorAxes(DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
+    dark_cat = CalibrationCategory("DARK", :(dark       ))
+    flat_cat = CalibrationCategory("FLAT", :(dark + flat))
+    calib = CalibrationData{T}(roi, [dark_cat, flat_cat])
+    (Δt1, Δt2, Δt3) = (1.0, 2.0, 1.5)
+    (nf1, nf2, nf3) = (5, 6, 13)
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf1), dark_cat.name, Δt1; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf2), flat_cat.name, Δt2; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf3), flat_cat.name, Δt3; roi))
+    mktempdir() do dir
+        filepath = joinpath(dir, "test.fits")
+        FitsFile(filepath, "w!") do fitsfile
+            @test_nowarn write(fitsfile, FitsHeader("TEST" => true), calib)
+        end
+        FitsFile(filepath) do fitsfile
+            local calib2
+            @test_nowarn calib2 = read(CalibrationData, fitsfile)
+            @test calib.roi == calib2.roi
+            @test calib.stat_index == calib2.stat_index
+            @test calib.stat == calib2.stat
+            @test calib.null == calib2.null
+            @test calib.src_to_cat == calib2.src_to_cat
+            @test calib.cat_index == calib2.cat_index
+            @test calib.src_index == calib2.src_index
+        end
+    end
+end
+
+@testset "CalibrationData IO" begin
+    # creating some test CalibrationData
+    (W, H) = (10, 10)
+    roi = DetectorAxes(DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
+    dark_cat = CalibrationCategory("DARK", :(dark       ))
+    flat_cat = CalibrationCategory("FLAT", :(dark + flat))
+    T = Float32
+    calib = CalibrationData{T}(roi, [dark_cat, flat_cat])
+    (Δt1, Δt2, Δt3) = (1.0, 2.0, 1.5)
+    (nf1, nf2, nf3) = (5, 6, 13)
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf1), dark_cat.name, Δt1; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf2), flat_cat.name, Δt2; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf3), flat_cat.name, Δt3; roi))
+    mktempdir() do dir
+        filepath = joinpath(dir, "test.fits")
+        FitsFile(filepath, "w!") do fitsfile
+            @test_nowarn write(fitsfile, FitsHeader("TEST" => true), calib)
+        end
+        FitsFile(filepath) do fitsfile
+            local calib2
+            @test_nowarn calib2 = read(CalibrationData, fitsfile)
+            @test calib.roi == calib2.roi
+            @test calib.stat_index == calib2.stat_index
+            @test calib.stat == calib2.stat
+            @test calib.null == calib2.null
+            @test calib.src_to_cat == calib2.src_to_cat
+            @test calib.cat_index == calib2.cat_index
+            @test calib.src_index == calib2.src_index
+        end
+    end
+end
+
 @testset "ReducedCalibration constructors" begin
 
     #TODO some constructors are not tested yet, as the "more complex" ones in ReducedCalibration.jl
