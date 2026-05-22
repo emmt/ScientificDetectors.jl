@@ -198,7 +198,7 @@ DATA_DIR = artifact"SPHEREtestdata"
 
     science_path = joinpath(DATA_DIR, "science_96s_db_h23.fits.gz")
 
-    goal_reduced_calibdata_path = joinpath(DATA_DIR, "goal_reduced_calib.fits.gz")
+    goal_reduced_calibdata_path = joinpath(DATA_DIR, "goal_reduced_calib_data.fits.gz")
 
     goal_reduced_science_path = joinpath(DATA_DIR, "goal_reduced_science_96s_db_h23.fits.gz")
 
