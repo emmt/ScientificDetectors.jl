@@ -49,16 +49,17 @@ end
 
 @testset "CalibrationData IO" begin
     # creating some test CalibrationData
+    T = Float32
     (W, H) = (10, 10)
     roi = DetectorAxes(DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
     dark_cat = CalibrationCategory("DARK", :(dark       ))
     flat_cat = CalibrationCategory("FLAT", :(dark + flat))
-    calib = CalibrationData{Float32}(roi, [dark_cat, flat_cat])
+    calib = CalibrationData{T}(roi, [dark_cat, flat_cat])
     (Δt1, Δt2, Δt3) = (1.0, 2.0, 1.5)
     (nf1, nf2, nf3) = (5, 6, 13)
-    push!(calib, CalibrationFrameSampler(rand(W, H, nf1), dark_cat.name, Δt1; roi))
-    push!(calib, CalibrationFrameSampler(rand(W, H, nf2), flat_cat.name, Δt2; roi))
-    push!(calib, CalibrationFrameSampler(rand(W, H, nf3), flat_cat.name, Δt3; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf1), dark_cat.name, Δt1; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf2), flat_cat.name, Δt2; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf3), flat_cat.name, Δt3; roi))
     mktempdir() do dir
         filepath = joinpath(dir, "test.fits")
         FitsFile(filepath, "w!") do fitsfile
@@ -81,15 +82,16 @@ end
 @testset "CalibrationData IO" begin
     # creating some test CalibrationData
     (W, H) = (10, 10)
-    roi = (DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
+    roi = DetectorAxes(DetectorAxis(W; bin=2), DetectorAxis(H, off=3))
     dark_cat = CalibrationCategory("DARK", :(dark       ))
     flat_cat = CalibrationCategory("FLAT", :(dark + flat))
-    calib = CalibrationData{Float32}(roi, [dark_cat, flat_cat])
+    T = Float32
+    calib = CalibrationData{T}(roi, [dark_cat, flat_cat])
     (Δt1, Δt2, Δt3) = (1.0, 2.0, 1.5)
     (nf1, nf2, nf3) = (5, 6, 13)
-    push!(calib, CalibrationFrameSampler(rand(W, H, nf1), dark_cat.name, Δt1; roi))
-    push!(calib, CalibrationFrameSampler(rand(W, H, nf2), flat_cat.name, Δt2; roi))
-    push!(calib, CalibrationFrameSampler(rand(W, H, nf3), flat_cat.name, Δt3; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf1), dark_cat.name, Δt1; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf2), flat_cat.name, Δt2; roi))
+    push!(calib, CalibrationFrameSampler(rand(T, W, H, nf3), flat_cat.name, Δt3; roi))
     mktempdir() do dir
         filepath = joinpath(dir, "test.fits")
         FitsFile(filepath, "w!") do fitsfile
