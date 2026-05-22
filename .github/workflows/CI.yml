@@ -68,7 +68,11 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - run: julia --color=yes -e 'using Pkg; Pkg.add("Aqua")'
       - run: julia --project=@. --color=yes -e 'using Aqua, ScientificDetectors;
-          Aqua.test_all(ScientificDetectors)'
+          Aqua.test_all(ScientificDetectors) 
+          Aqua.test_piracies(ScientificDetectors.Calibration)
+          Aqua.test_piracies(ScientificDetectors.Preprocessing)
+          Aqua.test_piracies(ScientificDetectors.DetectorStatistics)
+          Aqua.test_piracies(ScientificDetectors.Calibration.SimpleExpressions)'
   dependabot:
     needs: [ test, Aqua ]
     runs-on: ubuntu-latest
