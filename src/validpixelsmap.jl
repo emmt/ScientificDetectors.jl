@@ -93,7 +93,7 @@ end
 
 function Chi2(::Val{:robust}, A::AbstractArray{T,2}) where {T<:AbstractFloat}
     m = median(A, dims=1)
-    s = [ max.(1, mad(A[:,i], center=m[i])) for i in 1:size(A,2)]'
+    s = [ max.(1, mad(A[:,i], center=m[i], normalize=true)) for i in 1:size(A,2)]'
     return sum(abs2, (A.-m) ./ s, dims=2)
 end
 
