@@ -186,7 +186,7 @@ end
 @testset "Test on small IRDIS FITS files" begin
 
     DATA_DIR = artifact"SPHEREtestdata"
-    @show DATA_DIR
+
     flats_paths = [ joinpath(DATA_DIR, "flat_1s_db_h23.fits.gz"),
                     joinpath(DATA_DIR, "flat_3s_db_h23.fits.gz"),
                     joinpath(DATA_DIR, "flat_5s_db_h23.fits.gz")]
