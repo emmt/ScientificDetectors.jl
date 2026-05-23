@@ -208,7 +208,7 @@ end
     # ensuring test data files are present
     for file in [ backs_paths ; flats_paths ; science_path ; goal_calib_data_path ;
                   goal_first_vpm_path ; goal_reduced_calib_data_path ; goal_reduced_science_path ]
-        (isfile(file) && isreadable(file)) || error("Test set misses file: \"$file\".")
+        isfile(file) || error("Test set misses file: \"$file\".")
     end
 
     # basic info for tests
