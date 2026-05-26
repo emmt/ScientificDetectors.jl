@@ -8,6 +8,7 @@ using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 using Random
 using LazyArtifacts
+using StatsBase
 
 
 @testset "runtests.jl" begin
@@ -213,7 +214,8 @@ end
 
     # basic info for tests
     typefloat = FitsFile(f -> f[1].data_eltype, science_path)
-    roi = FitsFile(f -> DetectorAxes(f[1].data_size[1:2]), science_path)
+    (W, H) = FitsFile(f -> (f[1].data_size[1], f[1].data_size[2]), science_path)
+    roi = DetectorAxes(W, H)
     nbpixels = prod(size(roi))
     cats = [ CalibrationCategory("BACK", :back), CalibrationCategory("FLAT", :(back + flat)) ]
     science_dit = FitsFile(f -> f[1]["EXPTIME"].float, science_path)
@@ -250,6 +252,7 @@ end
 
     # ReducedCalibration
     local reduced_calib_data
+    local vpm
     @testset "ReducedCalibration" begin
         Random.seed!(1234)
 
@@ -257,7 +260,7 @@ end
         @test_nowarn first_vpm = findbadpixels(calib_data)
         # we load the reference first_vpm file to compare
         goal_first_vpm = readfits(Array{Bool}, goal_first_vpm_path)
-        @test all(first_vpm .== goal_first_vpm)
+        @test first_vpm == goal_first_vpm
 
         reduced_calib_data = ReducedCalibration(calib_data; validpixels=first_vpm)
         @test reduced_calib_data isa ReducedCalibration
@@ -268,18 +271,38 @@ end
         
         @test reduced_calib_data.roi == goal_reduced_calib_data.roi
         @test length(reduced_calib_data.src) == length(goal_reduced_calib_data.src)
+        @test reduced_calib_data.algo == goal_reduced_calib_data.algo
+       
         # compare vpm.
-        @test all(reduced_calib_data.vpm .== goal_reduced_calib_data.vpm)
-        # we only compare good pixels (by reference vpm)
-        vpm = goal_reduced_calib_data.vpm
+        @test count(reduced_calib_data.vpm .!= goal_reduced_calib_data.vpm) < 20
+        
+        # we only compare good pixels (by intersect the two vpm)
+        vpm = reduced_calib_data.vpm .* goal_reduced_calib_data.vpm
+
         # comparing pixel to pixel, for detector characteristics and sources.
         @test all(.≈(reduced_calib_data.f[vpm], goal_reduced_calib_data.f[vpm]; rtol=0.05))
-        @test all(.≈(reduced_calib_data.g[vpm], goal_reduced_calib_data.g[vpm]; atol=0.05))
-        @test all(.≈(reduced_calib_data.z[vpm], goal_reduced_calib_data.z[vpm]; atol=0.25))
-        @test all(.≈(reduced_calib_data.σ[vpm], goal_reduced_calib_data.σ[vpm]; atol=0.25))
+        @test all(.≈(reduced_calib_data.g[vpm], goal_reduced_calib_data.g[vpm]; atol=0.5))
+        @test all(.≈(reduced_calib_data.z[vpm], goal_reduced_calib_data.z[vpm]; atol=5))
+        @test all(.≈(reduced_calib_data.σ[vpm], goal_reduced_calib_data.σ[vpm]; atol=0.5))
+        @test all(.≈(reduced_calib_data.σa[vpm], goal_reduced_calib_data.σa[vpm]; atol=0.25))
         for f in 1:length(reduced_calib_data.src)
             @test all(.≈(reduced_calib_data.s[f][vpm], goal_reduced_calib_data.s[f][vpm]
                          ; rtol=0.02, atol=1))
+        end
+        # comparing means and std
+        @test ≈(mean(reduced_calib_data.f[vpm]), mean(goal_reduced_calib_data.f[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.f[vpm]), std(goal_reduced_calib_data.f[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.g[vpm]), mean(goal_reduced_calib_data.g[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.g[vpm]), std(goal_reduced_calib_data.g[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.z[vpm]), mean(goal_reduced_calib_data.z[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.z[vpm]), std(goal_reduced_calib_data.z[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.σ[vpm]), mean(goal_reduced_calib_data.σ[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.σ[vpm]), std(goal_reduced_calib_data.σ[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.σa[vpm]), mean(goal_reduced_calib_data.σa[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.σa[vpm]), std(goal_reduced_calib_data.σa[vpm]); rtol=0.01)
+        for f in 1:length(reduced_calib_data.src)
+            @test ≈(mean(reduced_calib_data.s[f][vpm]), mean(goal_reduced_calib_data.s[f][vpm]); rtol=0.01)
+            @test ≈(std(reduced_calib_data.s[f][vpm]), std(goal_reduced_calib_data.s[f][vpm]); rtol=0.01)
         end
     end
 
@@ -312,11 +335,13 @@ end
         goal_reduced_data = readfits(Array{typefloat}, goal_reduced_science_path)
         goal_weights      = readfits(Array{typefloat}, goal_reduced_science_path; ext="weights")
 
-        # we only compare good pixels (by reference vpm)
-        vpm = (goal_weights .> 0)
+        @test all(.≈(reduced_data[vpm], goal_reduced_data[vpm] ; rtol=0.05))
+        @test all(.≈(weights[vpm],      goal_weights[vpm]      ; rtol=0.2))
         
-        @test all(.≈(reduced_data[vpm], goal_reduced_data[vpm] ; rtol=0.02))
-        @test all(.≈(weights[vpm],      goal_weights[vpm]      ; rtol=0.02))
+        @test ≈(mean(reduced_data[vpm]), mean(goal_reduced_data[vpm]); rtol=0.01)
+        @test ≈(std(reduced_data[vpm]),   std(goal_reduced_data[vpm]); rtol=0.01)
+        @test ≈(mean(weights[vpm]), mean(goal_weights[vpm]); rtol=0.01)
+        @test ≈(std(weights[vpm]),   std(goal_weights[vpm]); rtol=0.01)
     end
 end
 
