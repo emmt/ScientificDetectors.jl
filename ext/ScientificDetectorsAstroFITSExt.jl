@@ -8,6 +8,7 @@ methods for loading/saving calibration and pre-processing parameters from/to FIT
 module ScientificDetectorsAstroFITSExt
 
 using ScientificDetectors
+using ScientificDetectors: dimension_mismatch
 
 using AstroFITS
 using AstroFITS: hduname
@@ -45,7 +46,7 @@ function AstroFITS.writefits(filename::AbstractString, hdr::FitsHeader, data::Wr
     finally
         close(io)
     end
-    nothing
+    return nothing
 end
 
 function AstroFITS.writefits!(filename::AbstractString, data::WritableData; kwds...)
@@ -92,7 +93,7 @@ end
 
 #------------------------------------------------------------------------ FITS card values -
 
-# FIXME: The following methods should be provided by AstroFITS.
+# FIXME: The following methods should be provided by AstroFITS.fetch(...).
 
 """
     getvalue([T,] H, key)
@@ -148,7 +149,7 @@ matchvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, val) =
 """
     f = KeywordMatcher(key, val)
 
-yields a callable object `f` which can be called as:
+Build a callable object `f` which can be called as:
 
     f(H)
 
@@ -485,8 +486,7 @@ end
 
 #----------------------------------------------------------------------- Sample statistics -
 
-AstroFITS.hduname(::Type{<:SampleStatistics}) =
-    ("DETECTOR-SAMPLE-STATISTICS", 1)
+AstroFITS.hduname(::Type{<:SampleStatistics}) = ("DETECTOR-SAMPLE-STATISTICS", 1)
 
 """
 # Sample Statistics
@@ -593,7 +593,7 @@ function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
             off[d] = hdu["OFF$d"].integer
             bin[d] = hdu["BIN$d"].integer
         end
-        roi = ntuple(i -> DetectorAxis(dims[i]; off = off[i], bin = bin[i]), N) # TODO wrap in DetectorAxes
+        roi = DetectorAxes(ntuple(i -> DetectorAxis(dims[i]; off=off[i], bin=bin[i]), N))
         return samples, exptime, roi
     end
 
@@ -615,24 +615,23 @@ function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
         # Assume exposure time in microseconds.
         mesg == "" || error(mesg)
         exptime = Float64(exposure*1e-6)
-        roi = (DetectorAxis(dims[1]; off = xoff, bin = 1),
-               DetectorAxis(dims[2]; off = yoff, bin = 1)) # TODO wrap in DetectorAxes
+        roi = DetectorAxes(DetectorAxis(dims[1]; off=xoff, bin=1),
+                           DetectorAxis(dims[2]; off=yoff, bin=1))
         return samples, exptime, roi
     end
     if exposure isa AbstractFloat && xbin isa Int && ybin isa Int
         # Assume exposure time in seconds.
         mesg == "" || error(mesg)
         exptime = Float64(exposure)
-        roi = (DetectorAxis(dims[1]; off = xoff, bin = xbin),
-               DetectorAxis(dims[2]; off = yoff, bin = ybin)) # TODO wrap in DetectorAxes
+        roi = DetectorAxes(DetectorAxis(dims[1]; off=xoff, bin=xbin),
+                           DetectorAxis(dims[2]; off=yoff, bin=ybin))
         return samples, exptime, roi
     end
     return nothing
 end
 
-function _read2(T::Type{<:SampleStatistics}, hdu::FitsImageHDU,
-                samples::Integer, Δt::Float64,
-                roi::NTuple{N,DetectorAxis}) where {N} # TODO NTuple{N,DetectorAxis}->DetectorAxes{N}
+function _read2(::Type{T}, hdu::FitsImageHDU, samples::Integer, Δt::Float64,
+                roi::DetectorAxes{N}) where {N,T<:SampleStatistics}
     # Read data and build instance.
     inds = colons(N)
     avg = read(hdu, inds..., 1)
