@@ -7,18 +7,10 @@ methods for loading/saving calibration and pre-processing parameters from/to FIT
 """
 module ScientificDetectorsAstroFITSExt
 
-export
-    readfits,
-    writefits!,
-    writefits
-
 using ScientificDetectors
 
-import Base: read, write
-
 using AstroFITS
-using AstroFITS: hduname, throw_file_already_exists
-import AstroFITS: readfits, writefits, writefits!
+using AstroFITS: hduname
 
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 ReducedCalibration{T,N},
@@ -28,17 +20,12 @@ const WritableData{T,N} = Union{PreprocessingParameters{T,N},
 # HDU name and revision number only depend on the type of our objects..
 AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 
-@deprecate(Base.write(filename::AbstractString, hdr, data::WritableData; overwrite::Bool = false),
-    writefits(filename, hdr, data; overwrite = overwrite),false)
-@deprecate(Base.write(filename::AbstractString, data::WritableData; kwds...),
-    writefits(filename, data; kwds...), false)
-
 """
     writefits(dest, [hdr,] data; kwds...)
 
 Write reduced detector calibration or preprocessing parameters `data` in FITS file `dest`.
 Argument `hdr` is an optional header which can be `nothing` or have any form accepted by the
-`FitsHeader` constructor. If `hdr` is not specifed, the other keywords than `overwrite` are
+`FitsHeader` constructor. If `hdr` is not specified, the other keywords than `overwrite` are
 used to build a header.
 
 Argument `dest` may be a a FITS file instance or the name of a new FITS file to create. If
@@ -47,60 +34,61 @@ Argument `dest` may be a a FITS file instance or the name of a new FITS file to 
 overwrites existing files.
 
 """
-writefits!(filename::AbstractString, data::WritableData; kwds...) =
-    writefits(filename, data;  overwrite = true, kwds...)
-
-writefits!(filename::AbstractString, hdr, data::WritableData) =
-    writefits(filename, hdr, data; overwrite = true)
-
-function writefits(filename::AbstractString,
-                   data::WritableData; overwrite::Bool = false, kwds...)
-    writefits(filename, FitsHeader(; kwds...), data; overwrite = overwrite)
-end
-
-function writefits(filename::AbstractString, hdr::Nothing,
-                   data::WritableData; overwrite::Bool = false)
-    writefits(filename, FitsHeader(), data; overwrite = overwrite)
-end
-
-function writefits(filename::AbstractString, hdr,
-                   data::WritableData; overwrite::Bool = false)
-    writefits(filename, FitsHeader(hdr), data; overwrite = overwrite)
-end
-
-function writefits(filename::AbstractString, hdr::FitsHeader,
-                   data::WritableData; overwrite::Bool = false)
-    (overwrite == false && ispath(filename)) && throw_file_already_exists(
-        filename, "call `writefits!` or use `overwrite=true`")
-    FitsFile(filename, (overwrite ? "w!" : "w")) do io
-        write(io, filter(!is_structural, hdr), data)
+function AstroFITS.writefits(filename::AbstractString, hdr::FitsHeader, data::WritableData;
+                             overwrite::Bool=false)
+    !overwrite && ispath(filename) && error(
+        "file \"", escape_string(filename),
+        "already exists, call `writefits!` or use `overwrite=true`")
+    io = FitsFile(filename, (overwrite ? "w!" : "w"))
+    try
+        write(io, filter(!AstroFITS.is_structural, hdr), data)
+    finally
+        close(io)
     end
     nothing
 end
 
-write(io::FitsFile, data::WritableData; kwds...) =
+function AstroFITS.writefits!(filename::AbstractString, data::WritableData; kwds...)
+    return writefits(filename, data; kwds..., overwrite=true)
+end
+
+function AstroFITS.writefits!(filename::AbstractString, hdr, data::WritableData)
+    return writefits(filename, hdr, data; overwrite=true)
+end
+
+function AstroFITS.writefits(filename::AbstractString, data::WritableData;
+                             overwrite::Bool=false, kwds...)
+    return writefits(filename, FitsHeader(; kwds...), data; overwrite=overwrite)
+end
+
+function AstroFITS.writefits(filename::AbstractString, hdr, data::WritableData;
+                             overwrite::Bool=false)
+    return writefits(filename,
+                     (hdr isa Nothing ? FitsHeader() : FitsHeader(hdr))::FitsHeader, data;
+                     overwrite=overwrite)
+end
+
+Base.write(io::FitsFile, data::WritableData; kwds...) =
     write(io, FitsHeader(; kwds...), data)
 
-write(io::FitsFile, hdr::Nothing, data::WritableData) =
+Base.write(io::FitsFile, hdr::Nothing, data::WritableData) =
     write(io, FitsHeader(), data)
 
 """
-    read(ReducedCalibration, src)
-    readfits(ReducedCalibration, src)
-    read(PreprocessingParameters, src)
-    readfits(PreprocessingParameters, src)
+    readfits(T::Type{<:Union{ReducedCalibration,PreprocessingParameters}}, file)
 
-read detector calibration parameters or preprocessing parameters
-from source `src` (a file name or a FITS file instance).
+Read detector calibration parameters or pre-processing parameters of type `T` from FITS
+`file` (a file name or a FITS file instance).
 
 """
-read(T::Type{<:WritableData}, filename::AbstractString) =
-    readfits(T, filename)
-
-readfits(T::Type{<:WritableData}, filename::AbstractString) =
-    FitsFile(filename, "r") do io
-        read(T, io)
+function AstroFITS.readfits(::Type{T}, filename::AbstractString) where {T<:WritableData}
+    io = FitsFile(filename, "r")
+    try
+        return read(T, io)
+    finally
+        close(io)
     end
+end
 
 #------------------------------------------------------------------------ FITS card values -
 
@@ -224,7 +212,7 @@ end
 AstroFITS.hduname(::Type{<:ReducedCalibration}) =
     ("REDUCED-DETECTOR-CALIBRATION", 4)
 
-function read(T::Type{<:ReducedCalibration}, io::FitsFile)
+function Base.read(T::Type{<:ReducedCalibration}, io::FitsFile)
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
@@ -234,17 +222,17 @@ function read(T::Type{<:ReducedCalibration}, io::FitsFile)
     return read(T, hdu)
 end
 
-function read(::Type{ReducedCalibration}, hdu::FitsImageHDU{T}) where {T}
+function Base.read(::Type{ReducedCalibration}, hdu::FitsImageHDU{T}) where {T}
    return read(ReducedCalibration{float(T)}, hdu)
 end
 
-function read(::Type{ReducedCalibration{T}},
-              hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+function Base.read(::Type{ReducedCalibration{T}},
+                   hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
     return read(ReducedCalibration{T,N-1}, hdu)
 end
 
-function read(::Type{ReducedCalibration{T,N}},
-              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
+function Base.read(::Type{ReducedCalibration{T,N}},
+                   hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS, and BITPIX.
     name, _ = hduname(ReducedCalibration)
     matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
@@ -253,7 +241,7 @@ function read(::Type{ReducedCalibration{T,N}},
     bitpix = hdu["BITPIX"].integer
     bitpix == -32 || bitpix == -64 ||
         @warn("To avoid loss of precision, save reduced calibration data "*
-              "in floating point format, i.e. use BITPIX = -32 or -64.")
+              "in floating-point format, i.e. use BITPIX = -32 or -64.")
 
     # Check dimensions.
     Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
@@ -289,8 +277,8 @@ function read(::Type{ReducedCalibration{T,N}},
     return ReducedCalibration{T}(roi, f, z, g, σ, σa, s, src, vpm)
 end
 
-function write(io::FitsFile, hdr::FitsHeader,
-               data::ReducedCalibration{T,N}) where {T,N}
+function Base.write(io::FitsFile, hdr::FitsHeader,
+                    data::ReducedCalibration{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
     nsrc = length(data.s)
@@ -336,7 +324,7 @@ end
 AstroFITS.hduname(::Type{<:SimpleCalibration}) =
     ("SIMPLE-DETECTOR-CALIBRATION", 1)
 
-function read(T::Type{<:SimpleCalibration}, io::FitsFile)
+function Base.read(T::Type{<:SimpleCalibration}, io::FitsFile)
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
@@ -346,17 +334,17 @@ function read(T::Type{<:SimpleCalibration}, io::FitsFile)
     return read(T, hdu)
 end
 
-function read(::Type{SimpleCalibration}, hdu::FitsImageHDU{T}) where {T}
+function Base.read(::Type{SimpleCalibration}, hdu::FitsImageHDU{T}) where {T}
    return read(SimpleCalibration{float(T)}, hdu)
 end
 
-function read(::Type{SimpleCalibration{T}},
-              hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+function Base.read(::Type{SimpleCalibration{T}},
+                   hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
     return read(SimpleCalibration{T,N-1}, hdu)
 end
 
-function read(::Type{SimpleCalibration{T,N}},
-              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
+function Base.read(::Type{SimpleCalibration{T,N}},
+                   hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS and BITPIX.
     name, _ = hduname(SimpleCalibration)
     matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
@@ -389,8 +377,7 @@ function read(::Type{SimpleCalibration{T,N}},
     return SimpleCalibration{T,N}(roi, Δt, f, a, b, g, σ)
 end
 
-function write(io::FitsFile, hdr::FitsHeader,
-               data::SimpleCalibration{T,N}) where {T,N}
+function Base.write(io::FitsFile, hdr::FitsHeader, data::SimpleCalibration{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
     hdu = FitsImageHDU{T,N+1}(io, dims..., 5)
@@ -419,7 +406,7 @@ end
 AstroFITS.hduname(::Type{<:PreprocessingParameters}) =
     ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
 
-function read(T::Type{<:PreprocessingParameters}, io::FitsFile)
+function Base.read(T::Type{<:PreprocessingParameters}, io::FitsFile)
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(hdu -> matchvalue(hdu, "HDUNAME", name), io)
@@ -431,17 +418,17 @@ function read(T::Type{<:PreprocessingParameters}, io::FitsFile)
     return read(T, hdu)
 end
 
-function read(::Type{PreprocessingParameters}, hdu::FitsImageHDU{T}) where {T}
+function Base.read(::Type{PreprocessingParameters}, hdu::FitsImageHDU{T}) where {T}
    return read(PreprocessingParameters{float(T)}, hdu)
 end
 
-function read(::Type{PreprocessingParameters{T}},
-              hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+function Base.read(::Type{PreprocessingParameters{T}},
+                   hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
     return read(PreprocessingParameters{T,N-1}, hdu)
 end
 
-function read(::Type{PreprocessingParameters{T,N}},
-              hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
+function Base.read(::Type{PreprocessingParameters{T,N}},
+                   hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
     # Check HDUNAME, HDUVERS and BITPIX.
     name, _ = hduname(T)
     matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
@@ -473,8 +460,8 @@ function read(::Type{PreprocessingParameters{T,N}},
     return PreprocessingParameters{T}(roi, Δt, a, b, q, r)
 end
 
-function write(io::FitsFile, hdr::FitsHeader,
-               data::PreprocessingParameters{T,N}) where {T,N}
+function Base.write(io::FitsFile, hdr::FitsHeader,
+                    data::PreprocessingParameters{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
     hdu = FitsImageHDU{T,N+1}(io, dims..., 4)
@@ -558,7 +545,7 @@ gives an unbiased estimator of the variance.
 
 """ _read1
 
-function read(::Type{T}, io::FitsFile) where {T<:SampleStatistics}
+function Base.read(::Type{T}, io::FitsFile) where {T<:SampleStatistics}
     for i in 1:length(io)
         hdu = io[i]
         tup = _read1(T, hdu)
@@ -569,15 +556,14 @@ function read(::Type{T}, io::FitsFile) where {T<:SampleStatistics}
     error("no detector sample statistics found")
 end
 
-function read(::Type{SampleStatistics{T,N}},
-              hdu::FitsHDU) where {T<:AbstractFloat,N}
+function Base.read(::Type{SampleStatistics{T,N}}, hdu::FitsHDU) where {T<:AbstractFloat,N}
     tup = _read1(SampleStatistics, hdu)
     tup === nothing && error("HDU does not contain detector sample statistics")
     length(tup[3]) == N || dimension_mismatch("invalid number of dimensions")
     return _read2(SampleStatistics{T}, hdu, tup...)
 end
 
-function read(::Type{T}, hdu::FitsHDU) where {T<:SampleStatistics}
+function Base.read(::Type{T}, hdu::FitsHDU) where {T<:SampleStatistics}
     tup = _read1(SampleStatistics, hdu)
     tup === nothing && error("HDU does not contain detector sample statistics")
     return _read2(T, hdu, tup...)
@@ -654,8 +640,7 @@ function _read2(T::Type{<:SampleStatistics}, hdu::FitsImageHDU,
     return T(avg, std, samples, Δt, roi)
 end
 
-function write(io::FitsFile, hdr::FitsHeader,
-               data::SampleStatistics{T,N}) where {T,N}
+function Base.write(io::FitsFile, hdr::FitsHeader, data::SampleStatistics{T,N}) where {T,N}
     # Create HDU.
     dims = size(data)
     hdu = FitsImageHDU{T,N+1}(io, dims..., 2)
