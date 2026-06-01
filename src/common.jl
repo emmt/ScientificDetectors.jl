@@ -217,31 +217,6 @@ Base.iterate(A::Sampler, i = 1) =
     (1 ≤ i ≤ nobs(A) ? (view(A.data, A.inds..., i), i+1) : nothing)
 
 """
-    Ticker(start, stop) -> obj
-
-builds a callable object which yields `start`, `start + step`, `start +
-2*step`, ... each time it is called.
-
-"""
-mutable struct Ticker{T<:Number} <: Function
-    value::T
-    start::T
-    step::T
-end
-Ticker(start::Number, step::Number) = Ticker(promote(start, step)...)
-Ticker(start::T, step::T) where {T<:Number} = Ticker{T}(start, start, step)
-function (obj::Ticker)()
-    value = obj.value
-    obj.value = value + obj.step
-    return value
-end
-function Base.Iterators.reset!(obj::Ticker)
-    obj.value = obj.start
-    return obj
-end
-Base.take!(obj::Ticker) = obj()
-
-"""
     exposuretime(obj) -> Δt
 
 yields the exposure time of object `obj`.

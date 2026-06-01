@@ -404,12 +404,12 @@ function write(io::FitsFile, hdr::FitsHeader,
     merge!(hdu, hdr)
 
     # Write data.
-    tick = Ticker(1, prod(dims))
-    write(hdu, data.f; first = tick())
-    write(hdu, data.a; first = tick())
-    write(hdu, data.b; first = tick())
-    write(hdu, data.g; first = tick())
-    write(hdu, data.σ; first = tick())
+    n = prod(dims) # number of samples per slice
+    write(hdu, data.f; first = 1 + 0n)
+    write(hdu, data.a; first = 1 + 1n)
+    write(hdu, data.b; first = 1 + 2n)
+    write(hdu, data.g; first = 1 + 3n)
+    write(hdu, data.σ; first = 1 + 4n)
     return io
 end
 
@@ -488,11 +488,11 @@ function write(io::FitsFile, hdr::FitsHeader,
     merge!(hdu, hdr)
 
     # Write data.
-    tick = Ticker(1, prod(dims))
-    write(hdu, data.a; first = tick())
-    write(hdu, data.b; first = tick())
-    write(hdu, data.q; first = tick())
-    write(hdu, data.r; first = tick())
+    n = prod(dims) # number of samples per slice
+    write(hdu, data.a; first = 1 + 0n)
+    write(hdu, data.b; first = 1 + 1n)
+    write(hdu, data.q; first = 1 + 2n)
+    write(hdu, data.r; first = 1 + 3n)
     return io
 end
 
@@ -670,9 +670,9 @@ function write(io::FitsFile, hdr::FitsHeader,
     merge!(hdu, hdr)
 
     # Write data.
-    tick = Ticker(1, prod(dims))
-    write(hdu, mean(data); first = tick())
-    write(hdu, std( data); first = tick())
+    n = prod(dims) # number of samples per slice
+    write(hdu, mean(data); first = 1 + 0n)
+    write(hdu, std( data); first = 1 + 1n)
     return io
 end
 
