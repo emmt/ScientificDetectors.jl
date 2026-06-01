@@ -1,9 +1,24 @@
-#
-# io.jl -
-#
-# Input/output methods for loading/saving calibration and preprocessing
-# parameters from/to files.
-#
+"""
+
+Module `ScientificDetectorsAstroFITSExt` extends `ScientificDetectors` with input/output
+methods for loading/saving calibration and pre-processing parameters from/to FITS files when
+`AstroFITS` is loaded.
+
+"""
+module ScientificDetectorsAstroFITSExt
+
+export
+    readfits,
+    writefits!,
+    writefits
+
+using ScientificDetectors
+
+import Base: read, write
+
+using AstroFITS
+using AstroFITS: hduname, throw_file_already_exists
+import AstroFITS: readfits, writefits, writefits!
 
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 ReducedCalibration{T,N},
@@ -21,19 +36,17 @@ AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
 """
     writefits(dest, [hdr,] data; kwds...)
 
-Write reduced detector calibration or preprocessing parameters `data` in `dest` which may
-be a FITS file instance or the name of a new FITS file to create. Argument `hdr` is an
-optional header which can be `nothing` or have any form accepted by the `FitsHeader`
-constructor. If `hdr` is not specifed, the other keywords than `overwrite` are used to
-build a header.
+Write reduced detector calibration or preprocessing parameters `data` in FITS file `dest`.
+Argument `hdr` is an optional header which can be `nothing` or have any form accepted by the
+`FitsHeader` constructor. If `hdr` is not specifed, the other keywords than `overwrite` are
+used to build a header.
 
-If `dest` is the name of a file which already exists, an error is thrown unless keyword
+Argument `dest` may be a a FITS file instance or the name of a new FITS file to create. If
+`dest` is the name of a file which already exists, an error is thrown unless keyword
 `overwrite = true` is specified. An alternative is to call `writefits!` which silently
 overwrites existing files.
 
-Note: `write(filename::AbstractString, ...)` is deprecated in favor of `writefits(...)`.
 """
-
 writefits!(filename::AbstractString, data::WritableData; kwds...) =
     writefits(filename, data;  overwrite = true, kwds...)
 
@@ -89,10 +102,123 @@ readfits(T::Type{<:WritableData}, filename::AbstractString) =
         read(T, io)
     end
 
-#------------------------------------------------------------------------------
-#
-# I/O methods for `ReducedCalibration`.
-#
+#------------------------------------------------------------------------ FITS card values -
+
+# FIXME: The following methods should be provided by AstroFITS.
+
+"""
+    getvalue([T,] H, key)
+
+Return the value of FITS keyword `key` in `H` throwing an error if `key` does not exist. If
+`T` is specified, the keyword value is converted to type `T`.
+
+"""
+getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value()
+getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value(T)
+
+"""
+    getvalue([T,] H, key, def)
+
+Return the value of FITS keyword `key` in `H` or `def` if `key` does not exist. If `T` is
+specified and keyword `key` exists, the keyword value is converted to type `T`.
+
+"""
+getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
+    (card = get(H, key, nothing)) === nothing ? def : card.value()
+getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
+    (card = get(H, key, nothing)) === nothing ? def : card.value(T)
+
+"""
+    matchvalue(val, card)
+    matchvalue(card, val)
+
+yield whether `val` is equal to the value of the FITS card `card`.
+
+"""
+matchvalue(val, card::FitsCard) = matchvalue(card, val)
+matchvalue(::FitsCard, ::FitsCard) = false
+matchvalue(card::FitsCard, val::AstroFITS.Undefined) = card.type == FITS_UNDEFINED
+matchvalue(card::FitsCard, val::Nothing) = card.type == FITS_COMMENT
+matchvalue(card::FitsCard, val::AbstractString) =
+    card.type == FITS_STRING ? card.string == val : false
+matchvalue(card::FitsCard, val::Number) =
+    card.type == FITS_LOGICAL ? card.logical == val :
+    card.type == FITS_INTEGER ? card.integer == val :
+    card.type == FITS_FLOAT   ? card.float   == val :
+    card.type == FITS_COMPLEX ? card.complex == val : false
+matchvalue(card::FitsCard, val) = false
+
+"""
+    matchvalue(H, key, val)
+
+yields whether `H` has a FITS keyword `key` whose value is equal to `val`.
+
+"""
+matchvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, val) =
+    (card = get(H, key, nothing)) === nothing ? false : matchvalue(card, val)
+
+"""
+    f = KeywordMatcher(key, val)
+
+yields a callable object `f` which can be called as:
+
+    f(H)
+
+to yield whether `H` has a FITS keyword `key` whose value is equal to `val`.
+
+"""
+struct KeywordMatcher{V} <: Function
+    key::String
+    value::V
+end
+(obj::KeywordMatcher)(H::Union{FitsHDU,FitsHeader}) =
+    matchvalue(H, obj.key, obj.value)
+
+#--------------------------------------------------------------------------- Detector axes -
+
+function Base.merge!(A::Union{FitsHeader,FitsHDU},
+                     B::Union{DetectorAxes,
+                              Tuple{Vararg{DetectorAxis}},
+                              AbstractVector{<:DetectorAxis}})
+    n = length(B)
+    # FIXME for i in 1:n
+    # FIXME     A["NAXIS$i"] = (B[i].len, "length of data axis $i")
+    # FIXME end
+    for i in 1:n
+        A["OFF$i"] = (B[i].off, "offset along axis $i")
+    end
+    for i in 1:n
+        A["BIN$i"] = (B[i].bin, "binning factor of axis $i")
+    end
+    for i in 1:n
+        A["STP$i"] = (B[i].stp, "sampling step axis $i")
+    end
+    return A
+end
+
+function ScientificDetectors.DetectorAxis(A::Union{FitsHeader,FitsImageHDU}, i::Integer)
+    i ≥ 1 || throw(ArgumentError("invalid axis number $i"))
+    len = A["NAXIS$i"].integer
+    off = getvalue(Int, A, "OFF$i", 0)
+    bin = getvalue(Int, A, "BIN$i", 1)
+    stp = getvalue(Int, A, "STP$i", 1)
+    return DetectorAxis(len, off, bin, stp)
+end
+
+function ScientificDetectors.DetectorAxes(A::FitsHeader)
+    N = A["NAXIS"].integer
+    return DetectorAxes{N}(A)
+end
+
+function ScientificDetectors.DetectorAxes(A::FitsImageHDU{T,N}) where {T,N}
+    return DetectorAxes{N}(A)
+end
+
+function ScientificDetectors.DetectorAxes{N}(A::Union{FitsHeader,FitsHDU}) where {N}
+    return DetectorAxes{N}(ntuple(i -> DetectorAxis(A, i), Val(N)))
+end
+
+#--------------------------------------------------------------------- Reduced calibration -
 
 # Extend AstroFITS method to provide HDU name and revision number.
 AstroFITS.hduname(::Type{<:ReducedCalibration}) =
@@ -204,10 +330,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     return io
 end
 
-#------------------------------------------------------------------------------
-#
-# I/O methods for `SimpleCalibration`.
-#
+#---------------------------------------------------------------------- Simple calibration -
 
 # Extend AstroFITS method to provide HDU name and revision number.
 AstroFITS.hduname(::Type{<:SimpleCalibration}) =
@@ -290,10 +413,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     return io
 end
 
-#------------------------------------------------------------------------------
-#
-# I/O methods for `PreprocessingParameters`.
-#
+#--------------------------------------------------------------- Pre-processing parameters -
 
 # Extend AstroFITS method to provide HDU name and revision number.
 AstroFITS.hduname(::Type{<:PreprocessingParameters}) =
@@ -376,10 +496,7 @@ function write(io::FitsFile, hdr::FitsHeader,
     return io
 end
 
-#------------------------------------------------------------------------------
-#
-# I/O methods for `SampleStatistics`.
-#
+#----------------------------------------------------------------------- Sample statistics -
 
 AstroFITS.hduname(::Type{<:SampleStatistics}) =
     ("DETECTOR-SAMPLE-STATISTICS", 1)
@@ -387,9 +504,8 @@ AstroFITS.hduname(::Type{<:SampleStatistics}) =
 """
 # Sample Statistics
 
-There are 2 generations of FITS file with image statistics prior to the
-specification HDUNAME="DETECTOR-STATISTICS" (rev. 1). The different headers are
-summarized below.
+There are 2 generations of FITS file with image statistics prior to the specification
+HDUNAME="DETECTOR-STATISTICS" (rev. 1). The different headers are summarized below.
 
 | Keyword  | Type    | Description                                     |
 |:---------|:--------|:------------------------------------------------|
@@ -424,22 +540,21 @@ summarized below.
 | SAMPLES  | Integer | Number of averaged images                       |
 | CATEGORY | String  | Type of illumination source                     |
 
-See https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html for a list of
-commonly used FITS keywords.
+See https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html for a list of commonly used FITS
+keywords.
 
-The array data, say `arr`, stored in the FITS HDU (header data unit) has
-last dimension equal to 2 and consists in 2 packed arrays `arr[..,1]` and
-`arr[..,2]` which are respectively the mean and standard deviation of the
-sample.   These quantities are computed as follows:
+The array data, say `arr`, stored in the FITS HDU (header data unit) has last dimension
+equal to 2 and consists in 2 packed arrays `arr[..,1]` and `arr[..,2]` which are
+respectively the mean and standard deviation of the sample. These quantities are computed as
+follows:
 
     arr[i,1] = (dat1[i] + dat2[i] + ... + datn[i])/n
     arr[i,2] = sqrt(((dat1[i] - arr[i,1])^2 + ... +
                     (datn[i] - arr[i,1])^2)/(n - 1))
 
-with `i` the multi-dimensional index, `n` the number of data samples,
-`dat1` the first data sample, ..., and `datn` the last data sample.  Note
-that the square of the standard deviation gives an unbiased estimator of
-the variance.
+with `i` the multi-dimensional index, `n` the number of data samples, `dat1` the first data
+sample, ..., and `datn` the last data sample. Note that the square of the standard deviation
+gives an unbiased estimator of the variance.
 
 """ _read1
 
@@ -560,3 +675,5 @@ function write(io::FitsFile, hdr::FitsHeader,
     write(hdu, std( data); first = tick())
     return io
 end
+
+end # module

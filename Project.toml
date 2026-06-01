@@ -5,7 +5,6 @@ version = "0.3.7"
 
 [deps]
 ArrayTools = "1dc0ca97-c5ce-4e77-ac6d-c576ac9d7f27"
-AstroFITS = "34e54ef0-c5bf-48ab-9e5d-cca51f35ed77"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LazyAlgebra = "aeaa251e-9d76-11e9-311b-83636bf44738"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -32,6 +31,12 @@ StructuredArrays = "0.2.5"
 Test = "1"
 TypeUtils = "0.2, 0.3, 1"
 julia = "1.6"
+
+[weakdeps]
+AstroFITS = "34e54ef0-c5bf-48ab-9e5d-cca51f35ed77"
+
+[extensions]
+ScientificDetectorsAstroFITSExt = "AstroFITS"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

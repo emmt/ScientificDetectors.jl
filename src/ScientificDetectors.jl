@@ -32,20 +32,12 @@ export
     nobs,
     process!,
     process,
-    readfits,
-    writefits!,
-    writefits,
     findbadpixels!,
     findbadpixels
-
-import Base: read, write
 
 using Statistics, StatsBase, Distributions
 using OnlineSampleStatistics
 using ArrayTools, StructuredArrays
-using AstroFITS
-using AstroFITS: hduname, throw_file_already_exists
-import AstroFITS: readfits, writefits, writefits!
 
 using Base: @propagate_inbounds
 
@@ -75,9 +67,6 @@ import .Preprocessing:
     PreprocessingParameters,
     RealisticNoise,
     StaticNoise
-
-include("io.jl")
-
 
 @deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 @deprecate regionofinterest(A) DetectorAxes(A) false

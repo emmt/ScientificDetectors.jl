@@ -41,19 +41,28 @@ struct DetectorAxis
 end
 
 """
-    DetectorAxes(::NTuple{N,DetectorAxis})
-    roi = DetectorAxes(B)
+Instances of type `DetectorAxes{N}` (note the plural) store a `N`-tuple of `DetectorAxis`
+instances.
 
-yields the region of interest (ROI) geometry of the detector for object `B` (note the
-plural) wrapping an `N`-tuple of `DetectorAxis`, `N` being the number of dimensions of the
-detector. `DetectorAxes{N}` stores an `N`-tuple of `DetectorAxis` values in a dedicated
-package type rather than extending `NTuple{N,DetectorAxis}` directly. This keeps methods
-such as `size`, `axes`, and FITS header conversions attached to a type owned by
+Having a dedicated package type rather than extending `NTuple{N,DetectorAxis}` directly
+keeps basic methods such as `size`, `axes`, and conversions attached to a type owned by
 `ScientificDetectors` and avoids accidental method piracy on tuples, notably for the empty
 tuple when `N = 0`.
 
-Use `Tuple(roi)` to recover the underlying tuple of detector axes when a tuple
-is required by another API.
+"""
+struct DetectorAxes{N}
+    data::NTuple{N,DetectorAxis}
+end
+
+"""
+    roi = DetectorAxes(B)
+    roi = DetectorAxes{N}(B)
+
+Build an object representing by a `N`-tuple of `DetectorAxis` the region of interest (ROI)
+geometry of the detector for object `B`. Optional parameter `N` is the number of dimensions
+of the detector.
+
+Call `Tuple(roi)` to retrieve the `N`-tuple of `DetectoAxis` instances.
 
 Call the `range` function as follows to retrieve the indices along `k`-th dimension of array
 `A` of the first physical pixels for the macro-pixels defined by for detector axes `R`:
@@ -65,10 +74,6 @@ Call the `range` function as follows to retrieve the indices along `k`-th dimens
     merge!(dst, ROI)               # set detector axes of `dst`
 
 """
-struct DetectorAxes{N}
-    data::NTuple{N,DetectorAxis}
-end
-
 # Union of types that can be interpreted as DetectorAxis.
 const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
                                 <:OrdinalRange{<:Integer,<:Integer}}
@@ -141,144 +146,9 @@ DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
 DetectorAxes(I::NTuple{N,DetectorAxisTypes}) where {N} =
     DetectorAxes{N}(map(DetectorAxis, I))
 
-function Base.merge!(dst::FitsHeader,
-                     prm::DetectorAxes)
-    _merge_axes!(dst, prm)
-end
-
-function Base.merge!(dst::FitsHeader,
-                     prm::Union{Tuple{Vararg{DetectorAxis}},
-                                AbstractVector{<:DetectorAxis}})
-    _merge_axes!(dst, prm)
-end
-
-function Base.merge!(dst::FitsHDU,
-                     prm::DetectorAxes)
-    _merge_axes!(dst, prm)
-end
-
-function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
-                      prm::DetectorAxes)
-    _merge_axes!(dst, Tuple(prm))
-end
-
-function _merge_axes!(dst::Union{FitsHeader,FitsHDU},
-                      prm::Union{Tuple{Vararg{DetectorAxis}},
-                                AbstractVector{<:DetectorAxis}})
-    n = length(prm)
-    # FIXME for i in 1:n
-    # FIXME     dst["NAXIS$i"] = (prm[i].len, "length of data axis $i")
-    # FIXME end
-    for i in 1:n
-        dst["OFF$i"] = (prm[i].off, "offset along axis $i")
-    end
-    for i in 1:n
-        dst["BIN$i"] = (prm[i].bin, "binning factor of axis $i")
-    end
-    for i in 1:n
-        dst["STP$i"] = (prm[i].bin, "sampling step axis $i")
-    end
-    return dst
-end
-
 DetectorAxis(A::DetectorAxes, i::Integer) = A[i]
 
-function DetectorAxis(A::Union{FitsHeader,FitsImageHDU}, i::Integer)
-    i ≥ 1 || throw(ArgumentError("invalid axis number $i"))
-    len = A["NAXIS$i"].integer
-    off = getvalue(Int, A, "OFF$i", 0)
-    bin = getvalue(Int, A, "BIN$i", 1)
-    stp = getvalue(Int, A, "STP$i", 1)
-    return DetectorAxis(len, off, bin, stp)
-end
-
-function DetectorAxes(A::FitsHeader)
-    N = A["NAXIS"].integer
-    return DetectorAxes{N}(A)
-end
-function DetectorAxes(A::FitsImageHDU{T,N}) where {T,N}
-    return DetectorAxes{N}(A)
-end
-
-function DetectorAxes{N}(A::Union{FitsHeader,FitsHDU}) where {N}
-    return DetectorAxes{N}(ntuple(i -> DetectorAxis(A, i), Val(N)))
-end
-
 default_valid_pixels_map(roi::DetectorAxes) = FastUniformArray(true, size(roi))
-
-#------------------------------------------------------------------------------
-# FITS CARD VALUES
-
-# FIXME: The following methods should be provided by AstroFITS.
-
-"""
-    getvalue([T,] H, key)
-
-yields the value of FITS keyword `key` in `H` throwing an error if `key` does
-not exist. If `T` is specified, the keyword value is converted to type `T`.
-
-"""
-getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value()
-getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value(T)
-
-"""
-    getvalue([T,] H, key, def)
-
-yields the value of FITS keyword `key` in `H` or `def` if `key` does not exist.
-If `T` is specified and keyword `key` exists, the keyword value is converted to
-type `T`.
-
-"""
-getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
-    (card = get(H, key, nothing)) === nothing ? def : card.value()
-getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
-    (card = get(H, key, nothing)) === nothing ? def : card.value(T)
-
-"""
-    matchvalue(val, card)
-    matchvalue(card, val)
-
-yield whether `val` is equal to the value of the FITS card `card`.
-
-"""
-matchvalue(val, card::FitsCard) = matchvalue(card, val)
-matchvalue(::FitsCard, ::FitsCard) = false
-matchvalue(card::FitsCard, val::AstroFITS.Undefined) = card.type == FITS_UNDEFINED
-matchvalue(card::FitsCard, val::Nothing) = card.type == FITS_COMMENT
-matchvalue(card::FitsCard, val::AbstractString) =
-    card.type == FITS_STRING ? card.string == val : false
-matchvalue(card::FitsCard, val::Number) =
-    card.type == FITS_LOGICAL ? card.logical == val :
-    card.type == FITS_INTEGER ? card.integer == val :
-    card.type == FITS_FLOAT   ? card.float   == val :
-    card.type == FITS_COMPLEX ? card.complex == val : false
-matchvalue(card::FitsCard, val) = false
-
-"""
-    matchvalue(H, key, val)
-
-yields whether `H` has a FITS keyword `key` whose value is equal to `val`.
-
-"""
-matchvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, val) =
-    (card = get(H, key, nothing)) === nothing ? false : matchvalue(card, val)
-
-"""
-    f = KeywordMatcher(key, val)
-
-yields a callable object `f` which can be called as:
-
-    f(H)
-
-to yield whether `H` has a FITS keyword `key` whose value is equal to `val`.
-
-"""
-struct KeywordMatcher{V} <: Function
-    key::String
-    value::V
-end
-(obj::KeywordMatcher)(H::Union{FitsHDU,FitsHeader}) =
-    matchvalue(H, obj.key, obj.value)
 
 #------------------------------------------------------------------------------
 # IDENTIFIERS
