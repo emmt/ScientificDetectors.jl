@@ -44,6 +44,8 @@ using Base: @propagate_inbounds
 function process end
 function process! end
 
+include("types.jl")
+include("axes.jl")
 include("common.jl")
 
 include("statistics.jl")

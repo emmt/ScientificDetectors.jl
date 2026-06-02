@@ -10,59 +10,85 @@ using Random
 using LazyArtifacts
 
 
-@testset "runtests.jl" begin
+@testset "Scientific Detectors" begin
 
-@testset "DetectorAxis" begin
-    # DetectorAxis
+@testset "Detector Axes" begin
+    # Detector Axis.
     len, off, bin = 17, 3, 4
-    axis = DetectorAxis(len; off=off, bin=bin)
+    axis = @inferred DetectorAxis(len; off=off, bin=bin)
     @test length(axis) == len
     @test offset(axis) == off
     @test binning(axis) == bin
-    axis = DetectorAxis(len)
+    @test step(axis) == bin
+    @test @inferred(DetectorAxis(axis)) === axis
+    #
+    axis = @inferred DetectorAxis(len)
     @test length(axis) == len
     @test offset(axis) == 0
     @test binning(axis) == 1
+    @test step(axis) == 1
+    @test @inferred(DetectorAxis(axis)) === axis
+    #
+    @test @inferred(DetectorAxis(Base.OneTo(7))) === @inferred DetectorAxis(7)
+    @test @inferred(DetectorAxis(0x01:0x04)) === @inferred DetectorAxis(4)
+    @test @inferred(DetectorAxis(2:1:5)) === @inferred DetectorAxis(4; off=1, step=1, bin=1)
+    @test @inferred(DetectorAxis(3:2:5)) === @inferred DetectorAxis(2; off=2, step=2, bin=1)
 
-    # DetectorAxes
+    # Detector Axes.
     T = UInt8
     dims = (3, 4, 5)
-    roi = DetectorAxes(map(len -> DetectorAxis(len; off=0, bin=1), dims))
+    roi = @inferred DetectorAxes(dims)
+    @test @inferred(DetectorAxes(dims...)) === roi
+    @test @inferred(DetectorAxes{length(dims)}(dims)) === roi
+    @test @inferred(DetectorAxes{length(dims)}(dims...)) === roi
+    @test @inferred(DetectorAxes(map(DetectorAxis, dims))) === roi
+    @test eltype(roi) === DetectorAxis
+    @test length(roi) == length(dims)
+    #
     @test size(roi) == dims
     @test_throws ErrorException size(roi, 0)
     @test size(roi, 2) == dims[2]
     @test size(roi, 1+length(dims)) == 1
+    #
     @test axes(roi) == map(Base.OneTo, dims)
     @test_throws ErrorException axes(roi, 0)
     @test axes(roi, 2) == Base.OneTo(dims[2])
     @test axes(roi, 1+length(dims)) == Base.OneTo(1)
-    @test DetectorAxes(dims) == roi
+    #
     A = Array{T}(undef, dims)
-    @test DetectorAxes(A) == roi
+    @test @inferred(DetectorAxes(A)) === roi
+    @test @inferred(DetectorAxes{ndims(A)}(A)) === roi
+    #
+    t = @inferred Tuple(roi)
+    @test @inferred(roi[1]) === t[1]
+    @test @inferred(roi[2]) === t[2]
+    @test @inferred(roi[3]) === t[3]
+    @test @inferred(collect(roi)) == @inferred(collect(t))
 end
 
 @testset "ReducedCalibration constructors" begin
 
     #TODO some constructors are not tested yet, as the "more complex" ones in ReducedCalibration.jl
 
-    W = 2048
-    H = 1024
-    roi = DetectorAxes((1:W, 1:H))
 
-    # inner
-    @test ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}} == typeof(
-            ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}}(
-                roi,
-                ones(Float64, W, H),
-                Transpose(ones(Float64, H, W)), # test another subtype of AbstractArray
-                ones(Float64, W, H),
-                ones(Float64, W, H),
-                ones(Float64, W, H),
-                [ones(Float64, W, H), ones(Float64, W, H),],
-                ["TOTO", "TATA"],
-                trues(W, H),
-                :zgσs;
-                check = true))
+    # Inner constructor.
+    dims = (32, 24)
+    T = Float32
+    roi = @inferred DetectorAxes(dims)
+    A = @inferred ReducedCalibration{T,2,Array{Bool,2},Array{T,2}}(
+        roi,
+        ones(Float64, dims),
+        Transpose(ones(Float64, dims[2], dims[1])), # test another subtype of AbstractArray
+        ones(Float64, dims),
+        ones(Float64, dims),
+        ones(Float64, dims),
+        [ones(Float64, dims), ones(Float64, dims),],
+        ["TOTO", "TATA"],
+        trues(dims),
+        :zgσs;
+        check = true))
+    @test typeof(A) === ReducedCalibration{T,2,Array{Bool,2},Array{T,2}}
+
 
     # identity
     redcal = ReducedCalibration{Float64,2,Array{Bool,2},Array{Float64,2}}(
@@ -196,8 +222,8 @@ DATA_DIR = artifact"SPHEREtestdata"
 #        @test_nowarn findbadpixels!(reduced_calibdata)
 
         # we load the reference ReducedCalibration file to compare
-        goal_reduced_calibdata = read(ReducedCalibration, goal_reduced_calibdata_path)
-        
+        goal_reduced_calibdata = readfits(ReducedCalibration, goal_reduced_calibdata_path)
+
         @test reduced_calibdata.roi == goal_reduced_calibdata.roi
         @test length(reduced_calibdata.src) == length(goal_reduced_calibdata.src)
         # compare vpm.
@@ -222,7 +248,7 @@ DATA_DIR = artifact"SPHEREtestdata"
         @test_nowarn ppp = PreprocessingParameters(
             reduced_calibdata; flat="flat", bg="back", Δt=science_dit)
     end
-    
+
     # process science
     @testset "process science" begin
         Random.seed!(1234)
@@ -246,11 +272,12 @@ DATA_DIR = artifact"SPHEREtestdata"
 
         # we only compare good pixels (by reference vpm)
         vpm = (goal_weights .> 0)
-        
+
         @test all(.≈(reduced_data[vpm], goal_reduced_data[vpm] ; rtol=0.02))
         @test all(.≈(weights[vpm],      goal_weights[vpm]      ; rtol=0.02))
     end
 end
 
-end # @testset "runtests.jl"
+end # @testset "Scientific Detectors"
+
 end # module
