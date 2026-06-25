@@ -1,84 +1,93 @@
-using Test, ScientificDetectors, Distributions
+using Test, ScientificDetectors, Distributions, UnicodePlots
 
-function sim(z, σ, g, Δt, src...)
-    c = 0
-    for s in src
-        c += rand(Poisson(s * Δt))
+function compute_pixel_data(; z, g, σ, Δt, src_fluxes)
+    electrons = 0
+    for s in src_fluxes
+        electrons += rand(Poisson(s * Δt))
     end
-    x = (c * g) + rand(Normal(z,σ))
-    round(x, RoundNearestTiesUp)
+    readnoise = rand(Normal(0,σ))
+    adus = round((electrons / g) + z + readnoise, RoundNearestTiesUp)
 end
 
-T = Float32
-N = 1
+function new_calib_data(T, cats, srcs, files; z, g, σ)
+    roi = DetectorAxes(1)
+    calib_data_cats = CalibrationCategory[]
+    for (cat_name, src_names) in cats
+        src_expr = Meta.parse(join(src_names, " + "))
+        push!(calib_data_cats, CalibrationCategory(cat_name, src_expr))
+    end
+    calib_data = CalibrationData{T}(roi, calib_data_cats)
+    for (cat_name,Δt,nb_frames) in files
+        src_names = cats[cat_name]
+        src_fluxes = map(n -> srcs[n], src_names)
+        file_data = Array{T}(undef, 1, nb_frames)
+        for f in 1:nb_frames
+            pixel_data = compute_pixel_data(; z, g, σ, Δt, src_fluxes)
+            file_data[1,f] = pixel_data
+        end
+        push!(calib_data, CalibrationFrameSampler(file_data, cat_name, Δt; roi))
+    end
+    calib_data
+end
 
-src_dark = 1.0
-src_flat = 100.0
-src_lamp1 = 50.0
-src_lamp2 = 88.0
-src_lamp3 = 333.0
-src_lamp4 = 4.44
-g = 1.9
-σ = 4
-z = 10
-
-roi = DetectorAxes(1:1)
-
-nb_trials = 500
-
-l_z = Vector{Float32}(undef, nb_trials)
-l_g = Vector{Float32}(undef, nb_trials)
-l_σ = Vector{Float32}(undef, nb_trials)
-l_src_dark = Vector{Float32}(undef, nb_trials)
-l_src_flat = Vector{Float32}(undef, nb_trials)
-l_src_lamp1 = Vector{Float32}(undef, nb_trials)
-l_src_lamp2 = Vector{Float32}(undef, nb_trials)
-l_src_lamp3 = Vector{Float32}(undef, nb_trials)
-l_src_lamp4 = Vector{Float32}(undef, nb_trials)
-
-Threads.@threads for i in 1:nb_trials
-
-    calib_data = CalibrationData{T}(roi, [
-#            CalibrationCategory("FLAT", :(flat + dark)),
-#            CalibrationCategory("DARK", :(dark)),
-            CalibrationCategory("LAMP1", :(lamp1)),
-#            CalibrationCategory("LAMP2", :(lamp2)),
-#            CalibrationCategory("LAMP3", :(lamp3)),
-#            CalibrationCategory("LAMP4", :(lamp4))
-        ])
-
-    for Δt in T[ 1.0, 3.0, 7.0, 10.0, 30.0, 50.0, 100.0, 1000.0 ]
-        for f in 1:1000
-#            push!(calib_data, CalibrationDataFrame{T,N}("FLAT", Δt, [sim(Δt, σ, z, src_flat, src_dark)] ))
-#            push!(calib_data, CalibrationDataFrame{T,N}("DARK", Δt, [sim(Δt, σ, z, src_dark)] ))
-            push!(calib_data, CalibrationDataFrame{T,N}("LAMP1", Δt, [sim(z,σ,g,Δt, src_lamp1)] ))
-#            push!(calib_data, CalibrationDataFrame{T,N}("LAMP2", Δt, [sim(Δt, σ, z, src_lamp2)] ))
-#            push!(calib_data, CalibrationDataFrame{T,N}("LAMP3", Δt, [sim(Δt, σ, z, src_lamp3)] ))
-#            push!(calib_data, CalibrationDataFrame{T,N}("LAMP4", Δt, [sim(Δt, σ, z, src_lamp4)] ))
+function benchmrk(nb_trials, T, categories, srcs, files; z, g, σ)
+    result_z = zeros(T,nb_trials)
+    result_g = zeros(T,nb_trials)
+    result_σ = zeros(T,nb_trials)
+    result_src_fluxes_adus = Dict(src_name => zeros(T,nb_trials) for (src_name,_) in srcs)
+    Threads.@threads for i in 1:nb_trials
+        calib_data = new_calib_data(T, categories, srcs, files; z, g, σ)
+        r = ReducedCalibration(calib_data)
+        result_z[i] = r.z[1]
+        result_g[i] = r.g[1]
+        result_σ[i] = r.σ[1]
+        for (src_name,_) in srcs
+            result_src_fluxes_adus[src_name][i] = r.s[findfirst(==(src_name),r.src)][1]
         end
     end
 
-    r = ReducedCalibration(calib_data)
-    
-    l_z[i] = r.z[1]
-    l_g[i] = r.g[1]
-    l_σ[i] = r.σ[1]
-#    push!(l_src_dark, r.s[findfirst(==("dark"),r.src)][1])
-#    push!(l_src_flat, r.s[findfirst(==("flat"),r.src)][1])
-    l_src_lamp1[i] = r.s[findfirst(==("lamp1"),r.src)][1]
-#    l_src_lamp2[i] = r.s[findfirst(==("lamp2"),r.src)][1]
-#    l_src_lamp3[i] = r.s[findfirst(==("lamp3"),r.src)][1]
-#    l_src_lamp4[i] = r.s[findfirst(==("lamp4"),r.src)][1]
+    if nb_trials > 1
+        println("z:")
+        show(histogram(result_z; xlabel=""))
+        println()
+        println("g:")
+        show(histogram(result_g; xlabel=""))
+        println()
+        println("σ:")
+        show(histogram(result_σ; xlabel=""))
+        println()
+    end
+    println("z truth=$z, mean=$(mean(result_z)) std=$(std(result_z)) extrema=$(extrema(result_z))")
+    println("g truth=$g, mean=$(mean(result_g)) std=$(std(result_g)) extrema=$(extrema(result_g))")
+    println("σ truth=$σ, mean=$(mean(result_σ)) std=$(std(result_σ)) extrema=$(extrema(result_σ))")
+    nothing
 end
 
-@show z, mean(l_z), std(l_z);
-@show g, mean(l_g), std(l_g);
-@show σ, mean(l_σ), std(l_σ);
-#@show (src_dark * g), mean(l_src_dark), std(l_src_dark);
-#@show (src_flat * g), mean(l_src_flat), std(l_src_flat);
-@show (src_lamp1 * g), mean(l_src_lamp1), std(l_src_lamp1);
-#@show (src_lamp2 * g), mean(l_src_lamp2), std(l_src_lamp2);
-#@show (src_lamp3 * g), mean(l_src_lamp3), std(l_src_lamp3);
-#@show (src_lamp4 * g), mean(l_src_lamp4), std(l_src_lamp4);
+cats = Dict(
+    "FLAT" => ["flat", "dark"],
+    "DARK" => ["dark"],
+)
 
+srcs = Dict(
+    "flat" => 100.0,
+    "dark" => 10.0,
+)
 
+nb_frames_per_file = 50
+files = [
+    ("FLAT", 1.0, nb_frames_per_file),
+    ("FLAT", 5.0, nb_frames_per_file),
+    ("FLAT", 10.0, nb_frames_per_file),
+    ("DARK", 1.0, nb_frames_per_file),
+    ("DARK", 5.0, nb_frames_per_file),
+    ("DARK", 10.0, nb_frames_per_file),
+]
+
+z =  10.10
+g = 1.9
+σ = 4.4
+
+T = Float32
+nb_trials = 1000
+
+benchmrk(nb_trials, T, cats, srcs, files; z, σ, g)
