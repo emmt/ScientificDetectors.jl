@@ -30,7 +30,7 @@ function new_calib_data(T, cats, srcs, files; z, g, σ)
     calib_data
 end
 
-function benchmrk(nb_trials, T, categories, srcs, files; z, g, σ)
+function make_trials(nb_trials, T, categories, srcs, files; z, g, σ)
     result_z = zeros(T,nb_trials)
     result_g = zeros(T,nb_trials)
     result_σ = zeros(T,nb_trials)
@@ -45,7 +45,12 @@ function benchmrk(nb_trials, T, categories, srcs, files; z, g, σ)
             result_src_fluxes_adus[src_name][i] = r.s[findfirst(==(src_name),r.src)][1]
         end
     end
+    (result_z, result_g, result_σ, result_src_fluxes_adus)
+end
 
+function benchmrk(nb_trials, T, categories, srcs, files; z, g, σ)
+    (result_z, result_g, result_σ, result_src_fluxes_adus) = make_trials(
+        nb_trials, T, categories, srcs, files; z, g, σ)
     if nb_trials > 1
         println("z:")
         show(histogram(result_z; xlabel=""))
@@ -63,31 +68,83 @@ function benchmrk(nb_trials, T, categories, srcs, files; z, g, σ)
     nothing
 end
 
-cats = Dict(
-    "FLAT" => ["flat", "dark"],
-    "DARK" => ["dark"],
-)
+function test1()
+    cats = Dict(
+        "FLAT" => ["flat", "dark"],
+        "DARK" => ["dark"],
+    )
 
-srcs = Dict(
-    "flat" => 100.0,
-    "dark" => 10.0,
-)
+    srcs = Dict(
+        "flat" => 100.0,
+        "dark" => 10.0,
+    )
 
-nb_frames_per_file = 50
-files = [
-    ("FLAT", 1.0, nb_frames_per_file),
-    ("FLAT", 5.0, nb_frames_per_file),
-    ("FLAT", 10.0, nb_frames_per_file),
-    ("DARK", 1.0, nb_frames_per_file),
-    ("DARK", 5.0, nb_frames_per_file),
-    ("DARK", 10.0, nb_frames_per_file),
-]
+    nb_frames_per_file = 50
+    files = [
+        ("FLAT", 1.0, nb_frames_per_file),
+        ("FLAT", 5.0, nb_frames_per_file),
+        ("FLAT", 10.0, nb_frames_per_file),
+        ("DARK", 1.0, nb_frames_per_file),
+        ("DARK", 5.0, nb_frames_per_file),
+        ("DARK", 10.0, nb_frames_per_file),
+    ]
 
-z =  10.10
-g = 1.9
-σ = 4.4
+    z =  10.10
+    g = 1.9
+    σ = 4.4
 
-T = Float32
-nb_trials = 1000
+    T = Float32
+    nb_trials = 1000
 
-benchmrk(nb_trials, T, cats, srcs, files; z, σ, g)
+    benchmrk(nb_trials, T, cats, srcs, files; z, σ, g)
+end
+
+
+function test_gain_relative_to_flux()
+    function subtest(flux_flat)
+        cats = Dict(
+            "FLAT" => ["flat", "dark"],
+            "DARK" => ["dark"],
+        )
+
+        srcs = Dict(
+            "flat" => flux_flat,
+            "dark" => 10.0,
+        )
+
+        nb_frames_per_file = 50
+        files = [
+            ("FLAT", 1.0, nb_frames_per_file),
+            ("FLAT", 5.0, nb_frames_per_file),
+            ("FLAT", 10.0, nb_frames_per_file),
+            ("DARK", 1.0, nb_frames_per_file),
+            ("DARK", 5.0, nb_frames_per_file),
+            ("DARK", 10.0, nb_frames_per_file),
+        ]
+
+        z =  10.10
+        g = 1.9
+        σ = 4.4
+
+        T = Float32
+        nb_trials = 1000
+
+        (result_z, result_g, result_σ, result_src_fluxes_adus) = make_trials(
+            nb_trials, T, cats, srcs, files; z, σ, g)
+        
+        (mean(result_g), std(result_g))
+    end
+    fluxes_flat = rand(300) .* 200 .+ 50
+    means = []
+    stds = []
+    for flux_flat in fluxes_flat
+        (m,s) = subtest(flux_flat)
+        push!(means, m)
+        push!(stds, s)
+    end
+    p = scatter(fluxes_flat, means)
+#    scatterplot!(p, fluxes_flat, stds)
+end
+
+
+
