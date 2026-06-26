@@ -1,4 +1,4 @@
-using Test, ScientificDetectors, Distributions, UnicodePlots
+using Test, ScientificDetectors, Distributions, UnicodePlots, Plots
 
 function compute_pixel_data(; z, g, σ, Δt, src_fluxes)
     electrons = 0
