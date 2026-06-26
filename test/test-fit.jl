@@ -53,13 +53,13 @@ function benchmrk(nb_trials, T, categories, srcs, files; z, g, σ)
         nb_trials, T, categories, srcs, files; z, g, σ)
     if nb_trials > 1
         println("z:")
-        show(histogram(result_z; xlabel=""))
+        show(UnicodePlots.histogram(result_z; xlabel=""))
         println()
         println("g:")
-        show(histogram(result_g; xlabel=""))
+        show(UnicodePlots.histogram(result_g; xlabel=""))
         println()
         println("σ:")
-        show(histogram(result_σ; xlabel=""))
+        show(UnicodePlots.histogram(result_σ; xlabel=""))
         println()
     end
     println("z truth=$z, mean=$(mean(result_z)) std=$(std(result_z)) extrema=$(extrema(result_z))")
@@ -109,7 +109,7 @@ function test_gain_relative_to_flux()
 
         srcs = Dict(
             "flat" => flux_flat,
-            "dark" => 10.0,
+            "dark" => 1.0,
         )
 
         nb_frames_per_file = 50
@@ -134,7 +134,7 @@ function test_gain_relative_to_flux()
         
         (mean(result_g), std(result_g))
     end
-    fluxes_flat = rand(300) .* 200 .+ 50
+    fluxes_flat = rand(100) .* 3000 .+ 10000
     means = []
     stds = []
     for flux_flat in fluxes_flat
@@ -142,8 +142,7 @@ function test_gain_relative_to_flux()
         push!(means, m)
         push!(stds, s)
     end
-    p = scatter(fluxes_flat, means)
-#    scatterplot!(p, fluxes_flat, stds)
+    p = scatter(fluxes_flat, means; yerror=stds)
 end
 
 
