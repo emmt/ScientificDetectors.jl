@@ -32,25 +32,20 @@ export
     nobs,
     process!,
     process,
-    readfits,
-    writefits!,
-    writefits,
     findbadpixels!,
-    findbadpixels,
-    categorize_calib_files
-
-import Base: read, write
+    findbadpixels
 
 using Statistics, StatsBase, Distributions
 using OnlineSampleStatistics
 using ArrayTools, StructuredArrays
-using AstroFITS
-using AstroFITS: hduname, throw_file_already_exists, FitsImageHDU
-import AstroFITS: hduname, readfits, writefits, writefits!
+
+using Base: @propagate_inbounds
 
 function process end
 function process! end
 
+include("types.jl")
+include("axes.jl")
 include("common.jl")
 
 include("statistics.jl")
@@ -66,7 +61,6 @@ import .Calibration:
     SimpleCalibration,
     findbadpixels,
     findbadpixels!,
-    categorize_calib_files
 
 include("preprocessing.jl")
 import .Preprocessing:
@@ -75,8 +69,6 @@ import .Preprocessing:
     PreprocessingParameters,
     RealisticNoise,
     StaticNoise
-
-include("io.jl")
 
 @deprecate numberofsamples(A::SampleStatistics) nobs(A) false
 @deprecate regionofinterest(A) DetectorAxes(A) false

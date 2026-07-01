@@ -2,11 +2,28 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `AstroFITS` is no longer a direct dependency. Reading/writing calibration data,
+  pre-processing parameters, sample statistics, etc., from/to FITS file with `readfits`,
+  `writefits`, or `writefits!` is now an extension automatically loaded when the
+  `AstroFITS` package is loaded.
+
+- Reading/writing calibration data, pre-processing parameters, sample statistics, etc.,
+  from/to a FITS file with `Base.read` and `Base.write` has been removed (such a use of
+  `write` was previously deprecated). It is now needed to load `AstroFITS` and call
+  `readfits`, `writefits`, or `writefits!`.
+
+
+## Version v0.3.7
+
 ### Changes
 
 - fix ROI writing
 - `EasyFITS` replaced by `AstroFITS`.
 - `MultivariateOnlineStatistics` replaced by `OnlineSampleStatistics`.
+
+## Version v0.3.6
 
 ## Version v0.3.5
 

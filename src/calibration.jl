@@ -13,16 +13,12 @@ export
 
 using ProgressMeter, Distributions
 using StatsBase, Statistics, LinearAlgebra
-using SimpleExpressions
+include("SimpleExpressions.jl")
+using .SimpleExpressions
 using TypeUtils, ArrayTools, StructuredArrays
 using OptimPackNextGen
 using OnlineSampleStatistics
-using YAML
 using StructuredArrays
-using OrderedCollections
-using Dates
-using AstroFITS
-using AstroFITS: hduname
 using ..ScientificDetectors
 using ..ScientificDetectors:
     DetectorAxisTypes,
@@ -32,7 +28,6 @@ using ..ScientificDetectors:
     identifier,
     nth,
     offset
-    
 import ..ScientificDetectors:
     DetectorAxes,
     argument_error,
@@ -53,8 +48,6 @@ include("CalibrationDataStat.jl")
 include("CalibrationFrameSampler.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
-include("CalibrationDataFromYAML.jl")
-include("high_yaml_to_low_yaml.jl")
 
 #------------------------------------------------------------------------------
 # FIXME: Only needed by ReducedCalibration.
@@ -125,7 +118,6 @@ end
 
 
 numberofparameters(::ObjectiveFunction{S}) where S  =  (((S === :zgσas)||(S === :zgσbs)) ? 4 : 3 )
- 
 
 
 """
@@ -517,7 +509,7 @@ function form_normal_equations!(obj::ObjectiveFunction{S,T},
     nsub, ncat, nsrc = size(obj, :checkindices)
     numberofparameters(obj)+nsrc == length(x) || error(
         "variables must have ", numberofparameters(obj) + nsrc, " elements")
-        
+
     s = view(x, 4:length(x))
     n = nsrc + 1 # bias z is the last source
     J = Base.OneTo(nsrc)   # only index over the sources
@@ -972,7 +964,7 @@ function (obj::ObjectiveFunction{:zgσas, T})(x::AbstractVector{T}) where {T}
         return f
     else
         # Non mutating version of the loop to compute the objective function
-        function computef(i) 
+        function computef(i)
             n = T(obj.n[i])          # number of samples in subset
             u = cΔt[i]               # contribution of sources
             r = (u + z) - obj.avg[i] # residuals = model - sample mean
@@ -982,7 +974,7 @@ function (obj::ObjectiveFunction{:zgσas, T})(x::AbstractVector{T}) where {T}
             χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
             return (log(v) + χ²) * n      # objective function
         end
-        return mapreduce(computef, +, 1:nsub) 
+        return mapreduce(computef, +, 1:nsub)
     end
 end
 
@@ -1065,7 +1057,7 @@ function (obj::ObjectiveFunction{:zgσbs, T})(x::AbstractVector{T}) where {T}
         return f
     else
         # Non mutating version of the loop to compute the objective function
-        function computef(i) 
+        function computef(i)
             n = T(obj.n[i])          # number of samples in subset
             u = cΔt[i]               # contribution of sources
             r = (u + z) - obj.avg[i] # residuals = model - sample mean
@@ -1075,7 +1067,7 @@ function (obj::ObjectiveFunction{:zgσbs, T})(x::AbstractVector{T}) where {T}
             χ² = (r^2 + obj.var[i]) / v # χ² per sample of the sub-set
             return (log(v) + χ²) * n      # objective function
         end
-        return mapreduce(computef, +, 1:nsub) 
+        return mapreduce(computef, +, 1:nsub)
     end
 end
 
@@ -1350,9 +1342,9 @@ function compute_cΔt!(cΔt::AbstractVector{T},
             Δt     = obj.Δt[i] # exposure time
             l      = obj.l[i]  # category index
             cΔt[i] = c[l]*Δt   # contribution of sources
-        end 
+        end
     else
-        cΔt = obj.Δt .* view(c, obj.l) # same but without mutation 
+        cΔt = obj.Δt .* view(c, obj.l) # same but without mutation
     end
     return cΔt
 end
@@ -1361,7 +1353,7 @@ default_valid_pixels_map(dat::CalibrationData) = default_valid_pixels_map(Detect
 
 ReducedCalibration(dat::CalibrationData; kwds...) =
     ReducedCalibration(:zgσs, dat; kwds...)
-    
+
 """
     ReducedCalibration(alg, dat; kwds...)
 
@@ -1448,7 +1440,7 @@ function ReducedCalibration(alg::Val{S},
     Threads.@threads for k in 1:npixels
         validpixels[k] || continue
         reduce_calibration_data!(alg, out, k, dat, key; nonnegative=nonnegative,
-                                 maxval=maxval, gmin=gmin, gmax=gmax, g=g, σ=σ, σa=σa)   
+                                 maxval=maxval, gmin=gmin, gmax=gmax, g=g, σ=σ, σa=σa)
         quiet || next!(p)
     end
     return out
@@ -1487,10 +1479,10 @@ function reduce_calibration_data!(alg::Val{S},
         xmin[2] = gmin
         xmin[3] = 1e-6
         ((S ===   :zgσas) || (S === :zgσbs)) && (xmin[4] = 0)
-        nonnegative && fill!(view(xmin, (nx+1):n), 0) 
+        nonnegative && fill!(view(xmin, (nx+1):n), 0)
         fill!(xmax, +Inf)
         xmax[2] = gmax
-        fill!(view(xmax, (nx+1):n), maxval) 
+        fill!(view(xmax, (nx+1):n), maxval)
         # Store task local data.
         tls[key] = (objfun, x, xmin, xmax)
         # Call worker.

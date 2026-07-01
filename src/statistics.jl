@@ -14,8 +14,6 @@ import ..ScientificDetectors:
     DetectorAxes,
     exposuretime
 
-using AstroFITS
-
 using ArrayTools
 using Statistics, StatsBase
 using OnlineSampleStatistics
@@ -23,33 +21,40 @@ using OnlineSampleStatistics
 """
     A = SampleStatistics(stat, Δt, roi)
 
-yields an object `A` collecting pixel-wise detector statistics `stat`, each
-sample having the same exposure time `Δt` (in seconds) and corresponding to the
-detector geometrical settings in `roi` (for "Region of Interest").
+Build an object `A` collecting pixel-wise detector statistics `stat`, each sample having the
+same exposure time `Δt` (in seconds) and corresponding to the detector geometrical settings
+in `roi` (for "Region of Interest").
 
-An instance may be built from the sample mean `avg` and standard deviation
-`std` computed from `n` independent samples:
+An instance may be built from the sample mean `avg` and standard deviation `std` computed
+from `n` independent samples:
 
     A = SampleStatistics(avg, std, n, Δt, roi=DetectorAxes(avg); corrected=true)
 
-unbiased standard deviation is assumed by default, use keyword
-`corrected=false` otherwise.
+unbiased standard deviation is assumed by default, use keyword `corrected=false` otherwise.
 
-Detector sample statistics can be read from a FITS file by one of:
+Detector sample statistics can be read from a FITS file by:
 
-    A = SampleStatistics(filename)
-    A = read(SampleStatistics, filename)
-    A = readfits(SampleStatistics, filename)
+```julia
+using AstroFITS, ScientificDetectors
+A = readfits(SampleStatistics, filename)
+```
 
 Detector sample statistics can also be written to a FITS file by:
 
-    write(filename, A; overwrite=false)
-    writefits(filename, A; overwrite=false)
-    writefits!(filename, A)
+```julia
+using AstroFITS, ScientificDetectors
+writefits(filename, A)
+```
 
-Type parameters `T` (the floating-point type for computed statistics) and `N`
-(the number of dimensions of the samples) may be specified in most constructor
-calls:
+To silently overwrite `filename` if it already exists, call one of:
+
+```julia
+writefits(filename, A; overwrite=true)
+writefits!(filename, A)
+```
+
+Type parameters `T` (the floating-point type for computed statistics) and `N` (the number of
+dimensions of the samples) may be specified in most constructor calls:
 
     A = SampleStatistics{T}(...)
     A = SampleStatistics{T,N}(...)
@@ -58,11 +63,10 @@ The statistics can be updated on-line by calling:
 
     push!(A, x...) -> A
 
-where each argument in `x...` is an idependent sample of detector measurements
-under the same conditions (i.e exposure time and geometrical settings).
+where each argument in `x...` is an independent sample of detector measurements under the
+same conditions (i.e exposure time and geometrical settings).
 
-If `itr` is an iterable object or a `Channel` instance producing measurements,
-then:
+If `itr` is an iterable object or a `Channel` instance producing measurements, then:
 
     merge!(A, itr) -> A
 
@@ -74,8 +78,8 @@ It is also possible to merge the statistics from `B` into `A` by calling:
 
     merge!(A, B) -> A
 
-provided both statistics are for the same exposure time and detector
-geometrical settings (and the samples used in `A` and `B` are independent).
+provided both statistics are for the same exposure time and detector geometrical settings
+(and the samples used in `A` and `B` are independent).
 
 Basic methods:
 
@@ -140,14 +144,6 @@ SampleStatistics{T}(A::SampleStatistics{<:Any,N}) where {T,N} =
         DetectorAxes(A))
 SampleStatistics{T,N}(A::SampleStatistics{<:Any,N}) where {T,N} =
     SampleStatistics{T}(A)
-
-# Constructors that read data from a file.
-# FIXME: Add keyword `ext=...` to select the FITS extension.
-SampleStatistics(path::AbstractString) = read(SampleStatistics, path)
-SampleStatistics{T}(path::AbstractString) where {T} =
-    read(SampleStatistics{T}, path)
-SampleStatistics{T,N}(path::AbstractString) where {T,N} =
-    read(SampleStatistics{T,N}, path)
 
 # Constructors from given statistics.
 function SampleStatistics(avg::AbstractArray{<:AbstractFloat,N},

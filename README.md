@@ -1,5 +1,18 @@
 # Julia package for working with scientific detectors
 
+[![License][license-img]][license-url] [![Build Status][github-ci-img]][github-ci-url] [![Coverage][codecov-img]][codecov-url] [![Aqua QA][aqua-img]][aqua-url]
+
+[license-url]: ./LICENSE.md
+[license-img]: http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat
+[github-ci-img]: https://github.com/emmt/ScientificDetectors.jl/actions/workflows/CI.yml/badge.svg?branch=master
+[github-ci-url]: https://github.com/emmt/ScientificDetectors.jl/actions/workflows/CI.yml?query=branch%3Amaster
+[codecov-img]: http://codecov.io/github/emmt/ScientificDetectors.jl/coverage.svg?branch=master
+[codecov-url]: http://codecov.io/github/emmt/ScientificDetectors.jl?branch=master
+[aqua-img]: https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg
+[aqua-url]: https://github.com/JuliaTesting/Aqua.jl
+[doc-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[doc-url]: https://ferreols.github.io/OnlineSampleStatistics.jl/dev/
+
 `ScientificDetectors` is a [Julia][julia-url] package for calibrating and
 pre-processing data from scientific detectors.
 

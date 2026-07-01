@@ -1,0 +1,663 @@
+"""
+
+Module `ScientificDetectorsAstroFITSExt` extends `ScientificDetectors` with input/output
+methods for loading/saving calibration and pre-processing parameters from/to FITS files when
+`AstroFITS` is loaded.
+
+"""
+module ScientificDetectorsAstroFITSExt
+
+using ScientificDetectors
+using ScientificDetectors: dimension_mismatch
+
+using AstroFITS
+using AstroFITS: hduname
+
+const WritableData{T,N} = Union{PreprocessingParameters{T,N},
+                                ReducedCalibration{T,N},
+                                SampleStatistics{T,N},
+                                SimpleCalibration{T,N}}
+
+# HDU name and revision number only depend on the type of our objects..
+AstroFITS.hduname(data::WritableData) = hduname(typeof(data))
+
+"""
+    writefits(dest, [hdr,] data; kwds...)
+
+Write reduced detector calibration or preprocessing parameters `data` in FITS file `dest`.
+Argument `hdr` is an optional header which can be `nothing` or have any form accepted by the
+`FitsHeader` constructor. If `hdr` is not specified, the other keywords than `overwrite` are
+used to build a header.
+
+Argument `dest` may be a a FITS file instance or the name of a new FITS file to create. If
+`dest` is the name of a file which already exists, an error is thrown unless keyword
+`overwrite = true` is specified. An alternative is to call `writefits!` which silently
+overwrites existing files.
+
+"""
+function AstroFITS.writefits(filename::AbstractString, hdr::FitsHeader, data::WritableData;
+                             overwrite::Bool=false)
+    !overwrite && ispath(filename) && error(
+        "file \"", escape_string(filename),
+        "already exists, call `writefits!` or use `overwrite=true`")
+    io = FitsFile(filename, (overwrite ? "w!" : "w"))
+    try
+        write(io, filter(!AstroFITS.is_structural, hdr), data)
+    finally
+        close(io)
+    end
+    return nothing
+end
+
+function AstroFITS.writefits!(filename::AbstractString, data::WritableData; kwds...)
+    return writefits(filename, data; kwds..., overwrite=true)
+end
+
+function AstroFITS.writefits!(filename::AbstractString, hdr, data::WritableData)
+    return writefits(filename, hdr, data; overwrite=true)
+end
+
+function AstroFITS.writefits(filename::AbstractString, data::WritableData;
+                             overwrite::Bool=false, kwds...)
+    return writefits(filename, FitsHeader(; kwds...), data; overwrite=overwrite)
+end
+
+function AstroFITS.writefits(filename::AbstractString, hdr, data::WritableData;
+                             overwrite::Bool=false)
+    return writefits(filename,
+                     (hdr isa Nothing ? FitsHeader() : FitsHeader(hdr))::FitsHeader, data;
+                     overwrite=overwrite)
+end
+
+Base.write(io::FitsFile, data::WritableData; kwds...) =
+    write(io, FitsHeader(; kwds...), data)
+
+Base.write(io::FitsFile, hdr::Nothing, data::WritableData) =
+    write(io, FitsHeader(), data)
+
+"""
+    readfits(T::Type{<:Union{ReducedCalibration,PreprocessingParameters}}, file)
+
+Read detector calibration parameters or pre-processing parameters of type `T` from FITS
+`file` (a file name or a FITS file instance).
+
+"""
+function AstroFITS.readfits(::Type{T}, filename::AbstractString) where {T<:WritableData}
+    io = FitsFile(filename, "r")
+    try
+        return read(T, io)
+    finally
+        close(io)
+    end
+end
+
+#------------------------------------------------------------------------ FITS card values -
+
+# FIXME: The following methods should be provided by AstroFITS.fetch(...).
+
+"""
+    getvalue([T,] H, key)
+
+Return the value of FITS keyword `key` in `H` throwing an error if `key` does not exist. If
+`T` is specified, the keyword value is converted to type `T`.
+
+"""
+getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value()
+getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString) = H[key].value(T)
+
+"""
+    getvalue([T,] H, key, def)
+
+Return the value of FITS keyword `key` in `H` or `def` if `key` does not exist. If `T` is
+specified and keyword `key` exists, the keyword value is converted to type `T`.
+
+"""
+getvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
+    (card = get(H, key, nothing)) === nothing ? def : card.value()
+getvalue(T::Type, H::Union{FitsHDU,FitsHeader}, key::AbstractString, def) =
+    (card = get(H, key, nothing)) === nothing ? def : card.value(T)
+
+"""
+    matchvalue(val, card)
+    matchvalue(card, val)
+
+yield whether `val` is equal to the value of the FITS card `card`.
+
+"""
+matchvalue(val, card::FitsCard) = matchvalue(card, val)
+matchvalue(::FitsCard, ::FitsCard) = false
+matchvalue(card::FitsCard, val::AstroFITS.Undefined) = card.type == FITS_UNDEFINED
+matchvalue(card::FitsCard, val::Nothing) = card.type == FITS_COMMENT
+matchvalue(card::FitsCard, val::AbstractString) =
+    card.type == FITS_STRING ? card.string == val : false
+matchvalue(card::FitsCard, val::Number) =
+    card.type == FITS_LOGICAL ? card.logical == val :
+    card.type == FITS_INTEGER ? card.integer == val :
+    card.type == FITS_FLOAT   ? card.float   == val :
+    card.type == FITS_COMPLEX ? card.complex == val : false
+matchvalue(card::FitsCard, val) = false
+
+"""
+    matchvalue(H, key, val)
+
+yields whether `H` has a FITS keyword `key` whose value is equal to `val`.
+
+"""
+matchvalue(H::Union{FitsHDU,FitsHeader}, key::AbstractString, val) =
+    (card = get(H, key, nothing)) === nothing ? false : matchvalue(card, val)
+
+"""
+    f = KeywordMatcher(key, val)
+
+Build a callable object `f` which can be called as:
+
+    f(H)
+
+to yield whether `H` has a FITS keyword `key` whose value is equal to `val`.
+
+"""
+struct KeywordMatcher{V} <: Function
+    key::String
+    value::V
+end
+(obj::KeywordMatcher)(H::Union{FitsHDU,FitsHeader}) =
+    matchvalue(H, obj.key, obj.value)
+
+#--------------------------------------------------------------------------- Detector axes -
+
+function Base.merge!(A::Union{FitsHeader,FitsHDU},
+                     B::Union{DetectorAxes,
+                              Tuple{Vararg{DetectorAxis}},
+                              AbstractVector{<:DetectorAxis}})
+    n = length(B)
+    # FIXME for i in 1:n
+    # FIXME     A["NAXIS$i"] = (B[i].len, "length of data axis $i")
+    # FIXME end
+    for i in 1:n
+        A["OFF$i"] = (B[i].off, "offset along axis $i")
+    end
+    for i in 1:n
+        A["BIN$i"] = (B[i].bin, "binning factor of axis $i")
+    end
+    for i in 1:n
+        A["STP$i"] = (B[i].stp, "sampling step axis $i")
+    end
+    return A
+end
+
+function ScientificDetectors.DetectorAxis(A::Union{FitsHeader,FitsImageHDU}, i::Integer)
+    i ≥ 1 || throw(ArgumentError("invalid axis number $i"))
+    len = A["NAXIS$i"].integer
+    off = getvalue(Int, A, "OFF$i", 0)
+    bin = getvalue(Int, A, "BIN$i", 1)
+    stp = getvalue(Int, A, "STP$i", 1)
+    return DetectorAxis(len, off, bin, stp)
+end
+
+function ScientificDetectors.DetectorAxes(A::FitsHeader)
+    N = A["NAXIS"].integer
+    return DetectorAxes{N}(A)
+end
+
+function ScientificDetectors.DetectorAxes(A::FitsImageHDU{T,N}) where {T,N}
+    return DetectorAxes{N}(A)
+end
+
+function ScientificDetectors.DetectorAxes{N}(A::Union{FitsHeader,FitsHDU}) where {N}
+    return DetectorAxes{N}(ntuple(i -> DetectorAxis(A, i), Val(N)))
+end
+
+#--------------------------------------------------------------------- Reduced calibration -
+
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:ReducedCalibration}) =
+    ("REDUCED-DETECTOR-CALIBRATION", 4)
+
+function Base.read(T::Type{<:ReducedCalibration}, io::FitsFile)
+    # Find HDU with calibration parameters.
+    name, vers = hduname(T)
+    k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
+    k === nothing && error("no reduced detector calibration found")
+    hdu = io[k]
+    isa(hdu, FitsImageHDU) || error("unexpected non-IMAGE HDU")
+    return read(T, hdu)
+end
+
+function Base.read(::Type{ReducedCalibration}, hdu::FitsImageHDU{T}) where {T}
+   return read(ReducedCalibration{float(T)}, hdu)
+end
+
+function Base.read(::Type{ReducedCalibration{T}},
+                   hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+    return read(ReducedCalibration{T,N-1}, hdu)
+end
+
+function Base.read(::Type{ReducedCalibration{T,N}},
+                   hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
+    # Check HDUNAME, HDUVERS, and BITPIX.
+    name, _ = hduname(ReducedCalibration)
+    matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
+    version = getvalue(Int, hdu, "HDUVERS", 0)
+    1 ≤ version ≤ 4 || error("unsupported format revision $version")
+    bitpix = hdu["BITPIX"].integer
+    bitpix == -32 || bitpix == -64 ||
+        @warn("To avoid loss of precision, save reduced calibration data "*
+              "in floating-point format, i.e. use BITPIX = -32 or -64.")
+
+    # Check dimensions.
+    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
+    N ≥ 1 || dimension_mismatch("invalid number of dimensions")
+    dims = hdu.data_size
+    @assert length(dims) == Np1
+    if version ≤ 2
+        n1 = 4 # number of fields before the sources
+    elseif version == 3
+        n1 = 5 # number of fields before the sources
+    else
+        n1 = 6
+    end
+    nsrc = dims[end] - n1
+    nsrc ≥ 0 || dimension_mismatch("invalid last dimension")
+
+    # Read header and retrieve contents.
+    hdr = FitsHeader(hdu)
+    roi = DetectorAxes{N}(hdr)
+    src = [getvalue(String, hdr, "SRC$k", "") for k in 1:nsrc]
+
+    # Read data and build instance.
+    inds = colons(N)
+    f = read(hdu, inds..., 1)
+    z = read(hdu, inds..., 2)
+    g = read(hdu, inds..., 3)
+    σ = read(hdu, inds..., 4)
+    σa = version > 3 ? read(hdu, inds..., 5) : FastUniformArray(zero(T), dims[1:end-1])
+
+    vpm = n1 ≥ 5 ? read(Array{Bool,N}, hdu, inds..., 5 + (version > 3 ? 1 : 0))  :
+        FastUniformArray(true, dims[1:end-1])
+    s = [read(hdu, inds..., n1 + k) for k in 1:nsrc]
+    return ReducedCalibration{T}(roi, f, z, g, σ, σa, s, src, vpm)
+end
+
+function Base.write(io::FitsFile, hdr::FitsHeader,
+                    data::ReducedCalibration{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    nsrc = length(data.s)
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 6 + nsrc)
+
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "reduced detector calibration")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["algo"] = ("$(data.algo)", "algorithm in this calibration")
+    merge!(hdu, DetectorAxes(data))
+    hdu["FRAME1"] = ("score", "co-log-likelihood (f)")
+    hdu["FRAME2"] = ("bias", "[ADU] constant bias (z)")
+    hdu["FRAME3"] = ("gain", "[electron/ADU] detector gain (g)")
+    hdu["FRAME4"] = ("ron", "[ADU] readout-noise (sigma)")
+    hdu["FRAME5"] = ("DITron", "[ADU/√s] DIT dependent readout-noise (sigma)")
+    hdu["FRAME6"] = ("valid", "valid pixels map (vpm) (1=validpixel)")
+    for k ∈ eachindex(data.src)
+        hdu["FRAME$(6+k)"] = (data.src[k], "[ADU/s]")
+    end
+    for k ∈ 1:nsrc
+        hdu["SRC$k"] = data.src[k]
+    end
+    merge!(hdu, hdr)
+
+    # Write data array.
+    tick = Ticker(1, prod(dims))
+    write(hdu, data.f; first = tick())
+    write(hdu, data.z; first = tick())
+    write(hdu, data.g; first = tick())
+    write(hdu, data.σ; first = tick())
+    write(hdu, data.σa; first = tick())
+    write(hdu, data.vpm; first = tick())
+    for arr ∈ data.s
+        write(hdu, arr; first = tick())
+    end
+    return io
+end
+
+#---------------------------------------------------------------------- Simple calibration -
+
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:SimpleCalibration}) =
+    ("SIMPLE-DETECTOR-CALIBRATION", 1)
+
+function Base.read(T::Type{<:SimpleCalibration}, io::FitsFile)
+    # Find HDU with calibration parameters.
+    name, vers = hduname(T)
+    k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
+    k === nothing && error("no simple detector calibration found")
+    hdu = io[k]
+    isa(hdu, FitsImageHDU) || error("unexpected non-IMAGE HDU")
+    return read(T, hdu)
+end
+
+function Base.read(::Type{SimpleCalibration}, hdu::FitsImageHDU{T}) where {T}
+   return read(SimpleCalibration{float(T)}, hdu)
+end
+
+function Base.read(::Type{SimpleCalibration{T}},
+                   hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+    return read(SimpleCalibration{T,N-1}, hdu)
+end
+
+function Base.read(::Type{SimpleCalibration{T,N}},
+                   hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
+    # Check HDUNAME, HDUVERS and BITPIX.
+    name, _ = hduname(SimpleCalibration)
+    matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
+    version = getvalue(Int, hdu, "HDUVERS", 0)
+    version == 1 || error("unsupported format revision $version")
+    bitpix = hdu["BITPIX"].integer
+    bitpix == -32 || bitpix == -64 ||
+        @warn("To avoid loss of precision, save simple calibration data "*
+              "in floating point format, i.e. use BITPIX = -32 or -64.")
+
+    # Check dimensions.
+    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
+    N ≥ 1 || dimension_mismatch("invalid number of dimensions")
+    dims = hdu.data_size
+    @assert length(dims) == Np1
+    dims[end] == 5 || dimension_mismatch("invalid last dimension")
+
+    # Read header and retrieve contents.
+    hdr = FitsHeader(hdu)
+    roi = DetectorAxes{N}(hdr)
+    Δt = hdr["EXPTIME"].float
+
+    # Read data and build instance.
+    inds = colons(N)
+    f = read(hdu, inds..., 1)
+    a = read(hdu, inds..., 2)
+    b = read(hdu, inds..., 3)
+    g = read(hdu, inds..., 4)
+    σ = read(hdu, inds..., 5)
+    return SimpleCalibration{T,N}(roi, Δt, f, a, b, g, σ)
+end
+
+function Base.write(io::FitsFile, hdr::FitsHeader, data::SimpleCalibration{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 5)
+
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "simple detector calibration")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["EXPTIME"] = (exposuretime(data), "[s] exposure time")
+    merge!(hdu, DetectorAxes(data))
+    merge!(hdu, hdr)
+
+    # Write data.
+    n = prod(dims) # number of samples per slice
+    write(hdu, data.f; first = 1 + 0n)
+    write(hdu, data.a; first = 1 + 1n)
+    write(hdu, data.b; first = 1 + 2n)
+    write(hdu, data.g; first = 1 + 3n)
+    write(hdu, data.σ; first = 1 + 4n)
+    return io
+end
+
+#--------------------------------------------------------------- Pre-processing parameters -
+
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:PreprocessingParameters}) =
+    ("DETECTOR-PREPROCESSING-PARAMETERS", 1)
+
+function Base.read(T::Type{<:PreprocessingParameters}, io::FitsFile)
+    # Find HDU with calibration parameters.
+    name, vers = hduname(T)
+    k = findfirst(hdu -> matchvalue(hdu, "HDUNAME", name), io)
+    k === nothing && error("no detector pre-processing parameters found")
+    hdu = io[k]
+    isa(hdu, FitsImageHDU) || error("unexpected non-IMAGE HDU")
+    version = getvalue(Int, hdu, "HDUVERS", 0)
+    version == 1 || error(string("unsupported format revision ", version))
+    return read(T, hdu)
+end
+
+function Base.read(::Type{PreprocessingParameters}, hdu::FitsImageHDU{T}) where {T}
+   return read(PreprocessingParameters{float(T)}, hdu)
+end
+
+function Base.read(::Type{PreprocessingParameters{T}},
+                   hdu::FitsImageHDU{<:Any,N}) where {T<:AbstractFloat,N}
+    return read(PreprocessingParameters{T,N-1}, hdu)
+end
+
+function Base.read(::Type{PreprocessingParameters{T,N}},
+                   hdu::FitsImageHDU{<:Any,Np1}) where {T<:AbstractFloat,N,Np1}
+    # Check HDUNAME, HDUVERS and BITPIX.
+    name, _ = hduname(T)
+    matchvalue(hdu, "HDUNAME", name) || error("bad HDUNAME, should be \"$name\"")
+    version = getvalue(Int, hdu, "HDUVERS", 0)
+    version == 1 || error(string("unsupported format revision ", version))
+    bitpix = hdu["BITPIX"].integer
+    bitpix == -32 || bitpix == -64 ||
+        @warn("To avoid loss of precision, save reduced calibration data "*
+              "in floating point format, i.e. use BITPIX = -32 or -64.")
+
+    # Check dimensions.
+    Np1 == N + 1 || dimension_mismatch("incompatible number of dimensions")
+    N ≥ 1 || dimension_mismatch("invalid number of dimensions")
+    dims = hdu.data_size
+    @assert length(dims) == Np1
+    dims[end] == 4 || dimension_mismatch("invalid last dimension")
+
+    # Read header and retrieve contents.
+    hdr = FitsHeader(hdu)
+    roi = DetectorAxes{N}(hdr)
+    Δt = hdr["EXPTIME"].float
+
+    # Read data and build instance.
+    inds = colons(N)
+    a = read(hdu, inds..., 1)
+    b = read(hdu, inds..., 2)
+    q = read(hdu, inds..., 3)
+    r = read(hdu, inds..., 4)
+    return PreprocessingParameters{T}(roi, Δt, a, b, q, r)
+end
+
+function Base.write(io::FitsFile, hdr::FitsHeader,
+                    data::PreprocessingParameters{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 4)
+
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "pre-processing parameters")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["EXPTIME"] = (exposuretime(data), "[s] exposure time")
+    merge!(hdu, DetectorAxes(data))
+    merge!(hdu, hdr)
+
+    # Write data.
+    n = prod(dims) # number of samples per slice
+    write(hdu, data.a; first = 1 + 0n)
+    write(hdu, data.b; first = 1 + 1n)
+    write(hdu, data.q; first = 1 + 2n)
+    write(hdu, data.r; first = 1 + 3n)
+    return io
+end
+
+#----------------------------------------------------------------------- Sample statistics -
+
+AstroFITS.hduname(::Type{<:SampleStatistics}) = ("DETECTOR-SAMPLE-STATISTICS", 1)
+
+"""
+# Sample Statistics
+
+There are 2 generations of FITS file with image statistics prior to the specification
+HDUNAME="DETECTOR-STATISTICS" (rev. 1). The different headers are summarized below.
+
+| Keyword  | Type    | Description                                     |
+|:---------|:--------|:------------------------------------------------|
+| XOFFSET  | Integer | Offset of region of interest along first axis   |
+| YOFFSET  | Integer | Offset of region of interest along second axis  |
+| DEPTH    | Integer | Bits per pixel                                  |
+| GAIN     | Integer | Detector gain                                   |
+| BIAS     | Integer | Detector black level                            |
+| EXPOSURE | Integer | Exposure time [microsec]                        |
+| RATE     | Integer | Frames per second [Hz]                          |
+| SAMPLES  | Integer | Number of averaged images                       |
+
+| Keyword  | Type    | Description                                     |
+|:---------|:--------|:------------------------------------------------|
+| XBIN     | Integer | Pixel binning factor along first axis           |
+| YBIN     | Integer | Pixel binning factor along second axis          |
+| XOFFSET  | Integer | Offset of region of interest along first axis   |
+| YOFFSET  | Integer | Offset of region of interest along second axis  |
+| EXPOSURE | Real    | Exposure time [seconds]                         |
+| RATE     | Integer | Frames per second [Hz]                          |
+| SAMPLES  | Integer | Number of averaged images                       |
+
+| Keyword  | Type    | Value/Description                               |
+|:---------|:--------|:------------------------------------------------|
+| HDUNAME  | String  | "DETECTOR-SAMPLE-STATISTICS"                    |
+| HDUVERS  | Integer | 1                                               |
+| BIN1     | Integer | Pixel binning factor along axis 1               |
+| BIN2     | Integer | Pixel binning factor along axis 2               |
+| OFF1     | Integer | Offset of region of interest along axis 1       |
+| OFF2     | Integer | Offset of region of interest along axis 2       |
+| EXPTIME  | Real    | [s] Exposure time                               |
+| SAMPLES  | Integer | Number of averaged images                       |
+| CATEGORY | String  | Type of illumination source                     |
+
+See https://heasarc.gsfc.nasa.gov/docs/fcg/common_dict.html for a list of commonly used FITS
+keywords.
+
+The array data, say `arr`, stored in the FITS HDU (header data unit) has last dimension
+equal to 2 and consists in 2 packed arrays `arr[..,1]` and `arr[..,2]` which are
+respectively the mean and standard deviation of the sample. These quantities are computed as
+follows:
+
+    arr[i,1] = (dat1[i] + dat2[i] + ... + datn[i])/n
+    arr[i,2] = sqrt(((dat1[i] - arr[i,1])^2 + ... +
+                    (datn[i] - arr[i,1])^2)/(n - 1))
+
+with `i` the multi-dimensional index, `n` the number of data samples, `dat1` the first data
+sample, ..., and `datn` the last data sample. Note that the square of the standard deviation
+gives an unbiased estimator of the variance.
+
+""" _read1
+
+function Base.read(::Type{T}, io::FitsFile) where {T<:SampleStatistics}
+    for i in 1:length(io)
+        hdu = io[i]
+        tup = _read1(T, hdu)
+        if tup !== nothing
+            return _read2(T, hdu, tup...)
+        end
+    end
+    error("no detector sample statistics found")
+end
+
+function Base.read(::Type{SampleStatistics{T,N}}, hdu::FitsHDU) where {T<:AbstractFloat,N}
+    tup = _read1(SampleStatistics, hdu)
+    tup === nothing && error("HDU does not contain detector sample statistics")
+    length(tup[3]) == N || dimension_mismatch("invalid number of dimensions")
+    return _read2(SampleStatistics{T}, hdu, tup...)
+end
+
+function Base.read(::Type{T}, hdu::FitsHDU) where {T<:SampleStatistics}
+    tup = _read1(SampleStatistics, hdu)
+    tup === nothing && error("HDU does not contain detector sample statistics")
+    return _read2(T, hdu, tup...)
+end
+
+function _read1(T::Type{<:SampleStatistics}, hdu::FitsHDU)
+    # First try to extract information from new format.
+    name, lastvers = hduname(T)
+    if matchvalue(hdu, "HDUNAME", name)
+        # New format.
+        hdu isa FitsImageHDU || error("expecting FITS Image HDU")
+        thisvers = getvalue(hdu, "HDUVERS", 0)
+        thisvers == lastvers || error(
+            "unsupported version = $thisvers for HDUNAME = \"$name\"")
+        exptime = hdu["EXPTIME"].float
+        samples = hdu["SAMPLES"].integer
+        dims = hdu.data_size
+        if length(dims) < 2
+            error("invalid number of dimensions for sample statistics")
+        elseif dims[end] != 2
+            error("invalid last dimension for sample statistics")
+        end
+        N = length(dims) - 1
+        off = Vector{Int}(undef, N)
+        bin = Vector{Int}(undef, N)
+        for d in 1:N
+            off[d] = hdu["OFF$d"].integer
+            bin[d] = hdu["BIN$d"].integer
+        end
+        roi = DetectorAxes(ntuple(i -> DetectorAxis(dims[i]; off=off[i], bin=bin[i]), N))
+        return samples, exptime, roi
+    end
+
+    # Maybe old format, only in primary HDU.
+    hdu.number == 1 || return nothing
+    (samples = getvalue(Int, hdu, "SAMPLES", nothing)) === nothing && return nothing
+    (exposure = getvalue(hdu, "EXPOSURE", nothing)) === nothing && return nothing
+    (xoff = getvalue(Int, hdu, "XOFFSET", nothing)) === nothing && return nothing
+    (yoff = getvalue(Int, hdu, "YOFFSET", nothing)) === nothing && return nothing
+    xbin = getvalue(Int, hdu, "XBIN", nothing)
+    ybin = getvalue(Int, hdu, "YBIN", nothing)
+    dims = hdu.data_size
+    mesg = (
+        length(dims) != 3 ?
+        "invalid number of dimensions for sample statistics" :
+        dims[end] != 2 ?
+        "invalid last dimension for sample statistics" : "")
+    if exposure isa Integer && xbin === nothing && ybin === nothing
+        # Assume exposure time in microseconds.
+        mesg == "" || error(mesg)
+        exptime = Float64(exposure*1e-6)
+        roi = DetectorAxes(DetectorAxis(dims[1]; off=xoff, bin=1),
+                           DetectorAxis(dims[2]; off=yoff, bin=1))
+        return samples, exptime, roi
+    end
+    if exposure isa AbstractFloat && xbin isa Int && ybin isa Int
+        # Assume exposure time in seconds.
+        mesg == "" || error(mesg)
+        exptime = Float64(exposure)
+        roi = DetectorAxes(DetectorAxis(dims[1]; off=xoff, bin=xbin),
+                           DetectorAxis(dims[2]; off=yoff, bin=ybin))
+        return samples, exptime, roi
+    end
+    return nothing
+end
+
+function _read2(::Type{T}, hdu::FitsImageHDU, samples::Integer, Δt::Float64,
+                roi::DetectorAxes{N}) where {N,T<:SampleStatistics}
+    # Read data and build instance.
+    inds = colons(N)
+    avg = read(hdu, inds..., 1)
+    std = read(hdu, inds..., 2)
+    return T(avg, std, samples, Δt, roi)
+end
+
+function Base.write(io::FitsFile, hdr::FitsHeader, data::SampleStatistics{T,N}) where {T,N}
+    # Create HDU.
+    dims = size(data)
+    hdu = FitsImageHDU{T,N+1}(io, dims..., 2)
+
+    # Write header.
+    name, vers = hduname(data)
+    hdu["HDUNAME"] = (name, "detector sample statistics")
+    hdu["HDUVERS"] = (vers, "version of this format")
+    hdu["EXPTIME"] = (exposuretime(data), "[s] exposure time")
+    hdu["SAMPLES"] = (nobs(data), "number of samples")
+    merge!(hdu, DetectorAxes(data))
+    merge!(hdu, hdr)
+
+    # Write data.
+    n = prod(dims) # number of samples per slice
+    write(hdu, mean(data); first = 1 + 0n)
+    write(hdu, std( data); first = 1 + 1n)
+    return io
+end
+
+end # module

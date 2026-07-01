@@ -248,7 +248,6 @@ end
 CalibrationData(args...; kwds...) = CalibrationData{Float64}(args...; kwds...)
 
 # Convert ROI.
-#FIXME: seeems to loop in some cases
 function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
                             args...; kwds...) where {T<:AbstractFloat,N}
     return CalibrationData{T}(DetectorAxes(roi), args...; kwds...)
@@ -396,7 +395,7 @@ function prunecalibration(A::CalibrationData{T,N}) where {T,N}
             if (A.src_to_cat[c,s] ≠ 0)
                 for (key, i) ∈ A.stat_index
                     if cat == key[1]             # category name
-                        src_nobs[s] += nobs(A.stat[i])
+                        src_nobs[s] += maximum(nobs(A.stat[i]))
                         existing_cat[c] |= true
                         new_src[src] = s
                         new_cat[cat] = c
