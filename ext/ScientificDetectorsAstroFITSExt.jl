@@ -10,10 +10,15 @@ module ScientificDetectorsAstroFITSExt
 using ScientificDetectors
 using ScientificDetectors: dimension_mismatch
 
+using OnlineSampleStatistics
+
 using AstroFITS
 using AstroFITS: hduname
 
+import Base: write, read
+
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
+                                CalibrationData{T,N},
                                 ReducedCalibration{T,N},
                                 SampleStatistics{T,N},
                                 SimpleCalibration{T,N}}
@@ -165,7 +170,9 @@ end
 
 #--------------------------------------------------------------------------- Detector axes -
 
-function Base.merge!(A::Union{FitsHeader,FitsHDU},
+
+
+function merge_detectoraxes_into_fitsheader(A::Union{FitsHDU,FitsHeader},
                      B::Union{DetectorAxes,
                               Tuple{Vararg{DetectorAxis}},
                               AbstractVector{<:DetectorAxis}})
@@ -183,6 +190,20 @@ function Base.merge!(A::Union{FitsHeader,FitsHDU},
         A["STP$i"] = (B[i].stp, "sampling step axis $i")
     end
     return A
+end
+
+function Base.merge!(A::FitsHeader,
+                     B::Union{DetectorAxes,
+                              Tuple{Vararg{DetectorAxis}},
+                              AbstractVector{<:DetectorAxis}})
+    merge_detectoraxes_into_fitsheader(A, B)
+end
+
+function Base.merge!(A::FitsHDU,
+                     B::Union{DetectorAxes,
+                              Tuple{Vararg{DetectorAxis}},
+                              AbstractVector{<:DetectorAxis}})
+    merge_detectoraxes_into_fitsheader(A, B)
 end
 
 function ScientificDetectors.DetectorAxis(A::Union{FitsHeader,FitsImageHDU}, i::Integer)
@@ -205,6 +226,104 @@ end
 
 function ScientificDetectors.DetectorAxes{N}(A::Union{FitsHeader,FitsHDU}) where {N}
     return DetectorAxes{N}(ntuple(i -> DetectorAxis(A, i), Val(N)))
+end
+
+
+#--------------------------------------------------------------------- CalibrationData
+
+# Extend AstroFITS method to provide HDU name and revision number.
+AstroFITS.hduname(::Type{<:CalibrationData}) = ("DETECTOR-CALIBRATION-DATA", 1)
+
+# type of float and number of axes are found in the header keywords
+function Base.read(::Type{CalibrationData}, io::FitsFile)
+
+    # roi
+    hdu_stat1_moment1 = OnlineSampleStatistics.find_stat_hdus(io, "1")[1][1]
+    roi = Tuple(get(Vector{DetectorAxis}, hdu_stat1_moment1))
+
+    T = hdu_stat1_moment1.data_eltype
+    N = length(roi)
+
+    # stat_index
+    D = read(io["stat_index"])
+    stat_index = Dict( (c,t) => i for (c,t,i) in zip(D["CAT"], D["TIME"], D["INDEX"]))
+
+    # stat
+    nb_stats = length(stat_index)
+    stat = Vector{IndependentStatistic{T,N,2}}(undef, nb_stats)
+    for i in 1:nb_stats
+        group_id = string(i)
+        stat[i] = read(IndependentStatistic, io, group_id)
+    end
+
+    # null
+    null = zeros(T, size(roi))
+
+    # src_to_cat
+    src_to_cat = read(io["src_to_cat"])
+
+    # cat_index
+    D = read(io["cat_index"])
+    cat_index = Dict( c => i for (c,i) in zip(D["CAT"], D["INDEX"]))
+
+    # src_index
+    D = read(io["src_index"])
+    src_index = Dict( s => i for (s,i) in zip(D["SRC"], D["INDEX"]))
+
+    return CalibrationData{T,N}(roi, stat_index, stat, null, src_to_cat, cat_index, src_index)
+end
+
+function Base.write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) where {T,N}
+
+    # we write `stat` first because it is an image HDU, so it can be primary
+    # we merge `roi` in its header
+    # we merge `hdr` also, we do this only in the primary HDU
+
+    # first stat (remember, data.stat is a vector of statistics)
+    name, vers = ("DETECTOR-CALIBRATION-DATA-STAT", 1)
+    H = FitsHeader(
+        "EXTNAME" => hduname(CalibrationData)[1],
+        "HDUNAME" => hduname(CalibrationData)[1],
+        "HDUVERS" => hduname(CalibrationData)[2])
+    merge!(H, data.roi)
+    merge!(H, hdr)
+    filter!(!is_structural, H)
+    group_id = string(1)
+    Base.write(io, H, data.stat[1], group_id)
+
+    # other stats
+    for i in 2:length(data.stat)
+        group_id = string(i)
+        Base.write(io, FitsHeader(), data.stat[i], group_id)
+    end
+
+    # stat_index
+    H = FitsHeader("EXTNAME" => "stat_index", "HDUNAME" => "stat_index")
+    entries = collect(data.stat_index)
+    write(io, H, [
+        "CAT" => map(e -> e[1][1], entries),
+        "TIME" => map(e -> e[1][2], entries),
+        "INDEX" => map(e -> e[2], entries) ])
+
+    # src_to_cat
+    H = FitsHeader("EXTNAME" => "src_to_cat", "HDUNAME" => "src_to_cat")
+    write(io, H, data.src_to_cat)
+
+    # cat_index
+    H = FitsHeader("EXTNAME" => "cat_index", "HDUNAME" => "cat_index")
+    entries = collect(data.cat_index)
+    write(io, H, [
+        "CAT" => map(e -> e[1], entries),
+        "INDEX" => map(e -> e[2], entries) ])
+
+    # src_index
+    H = FitsHeader("EXTNAME" => "src_index", "HDUNAME" => "src_index")
+    entries = collect(data.src_index)
+    write(io, H, [
+        "SRC" => map(e -> e[1], entries),
+        "INDEX" => map(e -> e[2], entries) ])
+
+    return io
 end
 
 #--------------------------------------------------------------------- Reduced calibration -
@@ -265,7 +384,7 @@ function Base.read(::Type{ReducedCalibration{T,N}},
     src = [getvalue(String, hdr, "SRC$k", "") for k in 1:nsrc]
 
     # Read data and build instance.
-    inds = colons(N)
+    inds =  ntuple(i -> Colon(), N)
     f = read(hdu, inds..., 1)
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
@@ -306,15 +425,15 @@ function Base.write(io::FitsFile, hdr::FitsHeader,
     merge!(hdu, hdr)
 
     # Write data array.
-    tick = Ticker(1, prod(dims))
-    write(hdu, data.f; first = tick())
-    write(hdu, data.z; first = tick())
-    write(hdu, data.g; first = tick())
-    write(hdu, data.σ; first = tick())
-    write(hdu, data.σa; first = tick())
-    write(hdu, data.vpm; first = tick())
+    i = 1
+    write(hdu, data.f; first=i); i += prod(dims)
+    write(hdu, data.z; first=i); i += prod(dims)
+    write(hdu, data.g; first=i); i += prod(dims)
+    write(hdu, data.σ; first=i); i += prod(dims)
+    write(hdu, data.σa; first=i); i += prod(dims)
+    write(hdu, data.vpm; first=i); i += prod(dims)
     for arr ∈ data.s
-        write(hdu, arr; first = tick())
+        write(hdu, arr; first=i); i += prod(dims)
     end
     return io
 end

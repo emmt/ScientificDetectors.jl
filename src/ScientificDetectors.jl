@@ -19,6 +19,7 @@ export
     CalibrationData,
     CalibrationDataFrame,
     CalibrationFrameSampler,
+    CalibrationDataStat,
     DetectorAxes,
     DetectorAxis,
     IndependentIdenticallyDistributedNoise,
@@ -57,10 +58,11 @@ import .Calibration:
     CalibrationData,
     CalibrationDataFrame,
     CalibrationFrameSampler,
+    CalibrationDataStat,
     ReducedCalibration,
     SimpleCalibration,
     findbadpixels,
-    findbadpixels!,
+    findbadpixels!
 
 include("preprocessing.jl")
 import .Preprocessing:
