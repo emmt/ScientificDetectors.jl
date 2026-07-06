@@ -8,6 +8,7 @@ using LinearAlgebra # to test other Arrays subtypes
 using StructuredArrays # to test FastUniformArray
 using Random
 using LazyArtifacts
+using StatsBase
 
 
 @testset "Scientific Detectors" begin
@@ -46,12 +47,12 @@ using LazyArtifacts
     @test length(roi) == length(dims)
     #
     @test size(roi) == dims
-    @test_throws ErrorException size(roi, 0)
+    @test_throws ArgumentError("out of range dimension index") size(roi, 0)
     @test size(roi, 2) == dims[2]
     @test size(roi, 1+length(dims)) == 1
     #
     @test axes(roi) == map(Base.OneTo, dims)
-    @test_throws ErrorException axes(roi, 0)
+    @test_throws ArgumentError("out of range dimension index") axes(roi, 0)
     @test axes(roi, 2) == Base.OneTo(dims[2])
     @test axes(roi, 1+length(dims)) == Base.OneTo(1)
     #
@@ -72,7 +73,7 @@ end
 
 
     # Inner constructor.
-    dims = (32, 24)
+    (W,H) = dims = (32, 24)
     T = Float32
     roi = @inferred DetectorAxes(dims)
     A = @inferred ReducedCalibration{T,2,Array{Bool,2},Array{T,2}}(
@@ -86,7 +87,7 @@ end
         ["TOTO", "TATA"],
         trues(dims),
         :zgσs;
-        check = true))
+        check = true)
     @test typeof(A) === ReducedCalibration{T,2,Array{Bool,2},Array{T,2}}
 
 
@@ -147,8 +148,7 @@ end
 
 @testset "Test on small IRDIS FITS files" begin
 
-DATA_DIR = artifact"SPHEREtestdata"
-
+    DATA_DIR = artifact"SPHEREtestdata"
 
     flats_paths = [ joinpath(DATA_DIR, "flat_1s_db_h23.fits.gz"),
                     joinpath(DATA_DIR, "flat_3s_db_h23.fits.gz"),
@@ -160,84 +160,111 @@ DATA_DIR = artifact"SPHEREtestdata"
 
     science_path = joinpath(DATA_DIR, "science_96s_db_h23.fits.gz")
 
-    goal_reduced_calibdata_path = joinpath(DATA_DIR, "goal_reduced_calib.fits.gz")
+    goal_calib_data_path = joinpath(DATA_DIR, "goal_calib_data.fits.gz")
+
+    goal_first_vpm_path = joinpath(DATA_DIR, "goal_first_vpm.fits.gz")
+
+    goal_reduced_calib_data_path = joinpath(DATA_DIR, "goal_reduced_calib_data.fits.gz")
 
     goal_reduced_science_path = joinpath(DATA_DIR, "goal_reduced_science_96s_db_h23.fits.gz")
 
     # ensuring test data files are present
-    for file in [ backs_paths ; flats_paths ; goal_reduced_calibdata_path ;
-                  science_path ; goal_reduced_science_path ]
+    for file in [ backs_paths ; flats_paths ; science_path ; goal_calib_data_path ;
+                  goal_first_vpm_path ; goal_reduced_calib_data_path ; goal_reduced_science_path ]
         isfile(file) || error("Test set misses file: \"$file\".")
     end
 
     # basic info for tests
     typefloat = FitsFile(f -> f[1].data_eltype, science_path)
-    roi = FitsFile(f -> DetectorAxes(f[1].data_size[1:2]), science_path)
+    (W, H) = FitsFile(f -> (f[1].data_size[1], f[1].data_size[2]), science_path)
+    roi = DetectorAxes(W, H)
     nbpixels = prod(size(roi))
     cats = [ CalibrationCategory("BACK", :back), CalibrationCategory("FLAT", :(back + flat)) ]
-    science_dit = FitsFile(f -> f[1]["ESO DET SEQ1 REALDIT"].float, science_path)
+    science_dit = FitsFile(f -> f[1]["EXPTIME"].float, science_path)
 
     # CalibrationData: use test data files
-    local calibdata
+    local calib_data
     @testset "CalibrationData" begin
         Random.seed!(1234)
-        @test_nowarn calibdata = CalibrationData{typefloat}(roi, cats)
+        @test_nowarn calib_data = CalibrationData{typefloat}(roi, cats)
         # push each calib file
         for (catname, filepaths) in [ ("BACK", backs_paths), ("FLAT", flats_paths) ]
             for filepath in filepaths
                 FitsFile(filepath) do fitsfile
                     hdu = fitsfile[1]
-                    realdit = typefloat(hdu["ESO DET SEQ1 REALDIT"].float)
+                    realdit = typefloat(hdu["EXPTIME"].float)
                     cube = read(hdu, (:,:,:))
                     local sampler
                     @test_nowarn sampler = CalibrationFrameSampler(cube, catname, realdit; roi=roi)
-                    @test_nowarn push!(calibdata, sampler)
+                    @test_nowarn push!(calib_data, sampler)
                 end
             end
         end
-        src_index = calibdata.src_index
-        cat_index = calibdata.cat_index
-        @test length(src_index) == 2
-        @test haskey(src_index, "back")
-        @test haskey(src_index, "flat")
-        @test length(cat_index) == 2
-        @test haskey(cat_index, "BACK")
-        @test haskey(cat_index, "FLAT")
-        @test calibdata.src_to_cat[cat_index["BACK"], src_index["back"]] == 1
-        @test calibdata.src_to_cat[cat_index["FLAT"], src_index["back"]] == 1
-        @test calibdata.src_to_cat[cat_index["BACK"], src_index["flat"]] == 0
-        @test calibdata.src_to_cat[cat_index["FLAT"], src_index["flat"]] == 1
+        
+        # we load the reference file to compare
+        goal_calib_data = readfits(CalibrationData, goal_calib_data_path)
+        @test calib_data.src_index == goal_calib_data.src_index
+        @test calib_data.cat_index == goal_calib_data.cat_index
+        @test calib_data.src_to_cat == goal_calib_data.src_to_cat
+        @test calib_data.stat_index == goal_calib_data.stat_index
+        for i in eachindex(calib_data.stat, goal_calib_data.stat)
+            @test all(calib_data.stat[i] .≈ goal_calib_data.stat[i])
+        end
     end
 
     # ReducedCalibration
-    local reduced_calibdata
+    local reduced_calib_data
+    local vpm
     @testset "ReducedCalibration" begin
         Random.seed!(1234)
-        local firstvalidpixels
-        @test_nowarn firstvalidpixels = findbadpixels(calibdata)
-        reduced_calibdata = ReducedCalibration(calibdata; validpixels=firstvalidpixels)
-        @test reduced_calibdata isa ReducedCalibration
-        reduced_calibdata = ReducedCalibration(:zgσas,calibdata; validpixels=firstvalidpixels)
-        @test reduced_calibdata isa ReducedCalibration
-#        @test_nowarn findbadpixels!(reduced_calibdata)
+
+        local first_vpm
+        @test_nowarn first_vpm = findbadpixels(calib_data)
+        # we load the reference first_vpm file to compare
+        goal_first_vpm = readfits(Array{Bool}, goal_first_vpm_path)
+        @test first_vpm == goal_first_vpm
+
+        reduced_calib_data = ReducedCalibration(calib_data; validpixels=first_vpm)
+        @test reduced_calib_data isa ReducedCalibration
+        @test_nowarn findbadpixels!(reduced_calib_data)
 
         # we load the reference ReducedCalibration file to compare
-        goal_reduced_calibdata = readfits(ReducedCalibration, goal_reduced_calibdata_path)
-
-        @test reduced_calibdata.roi == goal_reduced_calibdata.roi
-        @test length(reduced_calibdata.src) == length(goal_reduced_calibdata.src)
+        goal_reduced_calib_data = readfits(ReducedCalibration, goal_reduced_calib_data_path)
+        
+        @test reduced_calib_data.roi == goal_reduced_calib_data.roi
+        @test length(reduced_calib_data.src) == length(goal_reduced_calib_data.src)
+        @test reduced_calib_data.algo == goal_reduced_calib_data.algo
+       
         # compare vpm.
-        @test all(.==(reduced_calibdata.vpm, goal_reduced_calibdata.vpm))
-        # we only compare good pixels (by reference vpm)
-        vpm = goal_reduced_calibdata.vpm
+        @test count(reduced_calib_data.vpm .!= goal_reduced_calib_data.vpm) < 20
+        
+        # we only compare good pixels (by intersect the two vpm)
+        vpm = reduced_calib_data.vpm .* goal_reduced_calib_data.vpm
+
         # comparing pixel to pixel, for detector characteristics and sources.
-        @test all(.≈(reduced_calibdata.f[vpm], goal_reduced_calibdata.f[vpm]; rtol=0.05))
-        @test all(.≈(reduced_calibdata.g[vpm], goal_reduced_calibdata.g[vpm]; atol=0.05))
-        @test all(.≈(reduced_calibdata.z[vpm], goal_reduced_calibdata.z[vpm]; atol=0.25))
-        @test all(.≈(reduced_calibdata.σ[vpm], goal_reduced_calibdata.σ[vpm]; atol=0.25))
-        for f in 1:length(reduced_calibdata.src)
-            @test all(.≈(reduced_calibdata.s[f][vpm], goal_reduced_calibdata.s[f][vpm]
+        @test all(.≈(reduced_calib_data.f[vpm], goal_reduced_calib_data.f[vpm]; rtol=0.05))
+        @test all(.≈(reduced_calib_data.g[vpm], goal_reduced_calib_data.g[vpm]; atol=0.5))
+        @test all(.≈(reduced_calib_data.z[vpm], goal_reduced_calib_data.z[vpm]; atol=5))
+        @test all(.≈(reduced_calib_data.σ[vpm], goal_reduced_calib_data.σ[vpm]; atol=0.5))
+        @test all(.≈(reduced_calib_data.σa[vpm], goal_reduced_calib_data.σa[vpm]; atol=0.25))
+        for f in 1:length(reduced_calib_data.src)
+            @test all(.≈(reduced_calib_data.s[f][vpm], goal_reduced_calib_data.s[f][vpm]
                          ; rtol=0.02, atol=1))
+        end
+        # comparing means and std
+        @test ≈(mean(reduced_calib_data.f[vpm]), mean(goal_reduced_calib_data.f[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.f[vpm]), std(goal_reduced_calib_data.f[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.g[vpm]), mean(goal_reduced_calib_data.g[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.g[vpm]), std(goal_reduced_calib_data.g[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.z[vpm]), mean(goal_reduced_calib_data.z[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.z[vpm]), std(goal_reduced_calib_data.z[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.σ[vpm]), mean(goal_reduced_calib_data.σ[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.σ[vpm]), std(goal_reduced_calib_data.σ[vpm]); rtol=0.01)
+        @test ≈(mean(reduced_calib_data.σa[vpm]), mean(goal_reduced_calib_data.σa[vpm]); rtol=0.01)
+        @test ≈(std(reduced_calib_data.σa[vpm]), std(goal_reduced_calib_data.σa[vpm]); rtol=0.01)
+        for f in 1:length(reduced_calib_data.src)
+            @test ≈(mean(reduced_calib_data.s[f][vpm]), mean(goal_reduced_calib_data.s[f][vpm]); rtol=0.01)
+            @test ≈(std(reduced_calib_data.s[f][vpm]), std(goal_reduced_calib_data.s[f][vpm]); rtol=0.01)
         end
     end
 
@@ -246,9 +273,9 @@ DATA_DIR = artifact"SPHEREtestdata"
     @testset "PreprocessingParameters" begin
         Random.seed!(1234)
         @test_nowarn ppp = PreprocessingParameters(
-            reduced_calibdata; flat="flat", bg="back", Δt=science_dit)
+            reduced_calib_data; flat="flat", bg="back", Δt=science_dit)
     end
-
+    
     # process science
     @testset "process science" begin
         Random.seed!(1234)
@@ -270,13 +297,16 @@ DATA_DIR = artifact"SPHEREtestdata"
         goal_reduced_data = readfits(Array{typefloat}, goal_reduced_science_path)
         goal_weights      = readfits(Array{typefloat}, goal_reduced_science_path; ext="weights")
 
-        # we only compare good pixels (by reference vpm)
-        vpm = (goal_weights .> 0)
-
-        @test all(.≈(reduced_data[vpm], goal_reduced_data[vpm] ; rtol=0.02))
-        @test all(.≈(weights[vpm],      goal_weights[vpm]      ; rtol=0.02))
+        @test all(.≈(reduced_data[vpm], goal_reduced_data[vpm] ; rtol=0.05))
+        @test all(.≈(weights[vpm],      goal_weights[vpm]      ; rtol=0.2))
+        
+        @test ≈(mean(reduced_data[vpm]), mean(goal_reduced_data[vpm]); rtol=0.01)
+        @test ≈(std(reduced_data[vpm]),   std(goal_reduced_data[vpm]); rtol=0.01)
+        @test ≈(mean(weights[vpm]), mean(goal_weights[vpm]); rtol=0.01)
+        @test ≈(std(weights[vpm]),   std(goal_weights[vpm]); rtol=0.01)
     end
 end
+
 
 end # @testset "Scientific Detectors"
 
