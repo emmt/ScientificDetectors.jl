@@ -46,6 +46,7 @@ include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
 include("CalibrationFrameSampler.jl")
+include("CalibrationDataStat.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 
