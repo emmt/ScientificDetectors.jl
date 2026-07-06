@@ -165,7 +165,9 @@ end
 
 #--------------------------------------------------------------------------- Detector axes -
 
-function Base.merge!(A::Union{FitsHeader,FitsHDU},
+
+
+function merge_detectoraxes_into_fitsheader(A::Union{FitsHDU,FitsHeader},
                      B::Union{DetectorAxes,
                               Tuple{Vararg{DetectorAxis}},
                               AbstractVector{<:DetectorAxis}})
@@ -183,6 +185,20 @@ function Base.merge!(A::Union{FitsHeader,FitsHDU},
         A["STP$i"] = (B[i].stp, "sampling step axis $i")
     end
     return A
+end
+
+function Base.merge!(A::FitsHeader,
+                     B::Union{DetectorAxes,
+                              Tuple{Vararg{DetectorAxis}},
+                              AbstractVector{<:DetectorAxis}})
+    merge_detectoraxes_into_fitsheader(A, B)
+end
+
+function Base.merge!(A::FitsHDU,
+                     B::Union{DetectorAxes,
+                              Tuple{Vararg{DetectorAxis}},
+                              AbstractVector{<:DetectorAxis}})
+    merge_detectoraxes_into_fitsheader(A, B)
 end
 
 function ScientificDetectors.DetectorAxis(A::Union{FitsHeader,FitsImageHDU}, i::Integer)
