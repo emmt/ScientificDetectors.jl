@@ -281,7 +281,7 @@ function Base.read(::Type{ReducedCalibration{T,N}},
     src = [getvalue(String, hdr, "SRC$k", "") for k in 1:nsrc]
 
     # Read data and build instance.
-    inds = colons(N)
+    inds =  ntuple(i -> Colon(), N)
     f = read(hdu, inds..., 1)
     z = read(hdu, inds..., 2)
     g = read(hdu, inds..., 3)
@@ -322,15 +322,15 @@ function Base.write(io::FitsFile, hdr::FitsHeader,
     merge!(hdu, hdr)
 
     # Write data array.
-    tick = Ticker(1, prod(dims))
-    write(hdu, data.f; first = tick())
-    write(hdu, data.z; first = tick())
-    write(hdu, data.g; first = tick())
-    write(hdu, data.σ; first = tick())
-    write(hdu, data.σa; first = tick())
-    write(hdu, data.vpm; first = tick())
+    i = 1
+    write(hdu, data.f; first=i); i += prod(dims)
+    write(hdu, data.z; first=i); i += prod(dims)
+    write(hdu, data.g; first=i); i += prod(dims)
+    write(hdu, data.σ; first=i); i += prod(dims)
+    write(hdu, data.σa; first=i); i += prod(dims)
+    write(hdu, data.vpm; first=i); i += prod(dims)
     for arr ∈ data.s
-        write(hdu, arr; first = tick())
+        write(hdu, arr; first=i); i += prod(dims)
     end
     return io
 end
