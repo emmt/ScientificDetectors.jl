@@ -36,6 +36,7 @@ import ..ScientificDetectors:
     exposuretime
 import Base: push!, merge!
 
+
 const Category = Union{AbstractString,Symbol}
 
 const Colons{N} = NTuple{N,Colon}
@@ -44,8 +45,8 @@ const Colons{N} = NTuple{N,Colon}
 include("ReducedCalibration.jl")
 include("CalibrationDataFrame.jl")
 include("CalibrationData.jl")
-include("CalibrationDataStat.jl")
 include("CalibrationFrameSampler.jl")
+include("CalibrationDataStat.jl")
 include("SimpleCalibration.jl")
 include("validpixelsmap.jl")
 
@@ -118,6 +119,7 @@ end
 
 
 numberofparameters(::ObjectiveFunction{S}) where S  =  (((S === :zgσas)||(S === :zgσbs)) ? 4 : 3 )
+
 
 
 """

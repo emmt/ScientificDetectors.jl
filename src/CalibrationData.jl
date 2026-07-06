@@ -345,7 +345,7 @@ function Base.push!(A::CalibrationData{T,N},
         "detector ROI settings must be identical for all calibration data")
 
     # Update statistics for given category and exposure time.
-    key = (cat, T(Δt))
+    key = (cat, Δt)
     if !haskey(A.stat_index, key)
         # Create new instance of statistics
         push!(A.stat, IndependentStatistic(T, 2, dims)) # 2 statistical moments

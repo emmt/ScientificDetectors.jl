@@ -11,6 +11,7 @@ using ScientificDetectors
 using ScientificDetectors: dimension_mismatch
 
 using OnlineSampleStatistics
+using StructuredArrays
 
 using AstroFITS
 using AstroFITS: hduname
@@ -239,7 +240,7 @@ function Base.read(::Type{CalibrationData}, io::FitsFile)
 
     # roi
     hdu_stat1_moment1 = OnlineSampleStatistics.find_stat_hdus(io, "1")[1][1]
-    roi = Tuple(get(Vector{DetectorAxis}, hdu_stat1_moment1))
+    roi = DetectorAxes(hdu_stat1_moment1)
 
     T = hdu_stat1_moment1.data_eltype
     N = length(roi)
