@@ -37,7 +37,7 @@ function download_artifact_raw_data()
         FitsFile(filename) do fitsfile
             hdu = fitsfile[1]
             header = FitsHeader(hdu)
-            data = read(Array{ARTIFACT_T,3}, hdu, ARTIFACT_RANGE_X, ARTIFACT_RANGE_Y, range_z)
+            data = read(Array{ARTIFACT_T}, hdu, ARTIFACT_RANGE_X, ARTIFACT_RANGE_Y, range_z)
             filename_no_z = filename[1:end-2]
             writefits!(filename_no_z, filter(!is_structural, header), data)
             run(`gzip -f "$(filename_no_z)"`)
@@ -53,7 +53,7 @@ function download_artifact_raw_data()
     crop("flat_3s_db_h23.fits.Z", 1:10)
     crop("flat_5s_db_h23.fits.Z", 1:10)
 
-    crop("science_96s_db_h23.fits.Z", 1:1)
+    crop("science_96s_db_h23.fits.Z", 1)
 end
 
 function compute_artifact_data()
