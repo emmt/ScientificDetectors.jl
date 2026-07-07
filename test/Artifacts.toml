@@ -1,7 +1,7 @@
 [SPHEREtestdata]
-git-tree-sha1 = "31f98a427b3818ebd797c441efe13abb22d32a91"
+git-tree-sha1 = "76d5a3b38f5fce0e858ee80ef86f4cf85a3e5712"
 lazy = true
 
     [[SPHEREtestdata.download]]
     url = "https://github.com/emmt/ScientificDetectors.jl/raw/refs/heads/artifact-data/artifact.tar.gz"
-    sha256 = "ecce0cae8744ee426df0608fd16c9ac955fff0effbbcbc3111f8373ae4882d12"
+    sha256 = "8a1b6e06429240863529e304b31059f305b5850f99b9cefac865264b8ef02361"
