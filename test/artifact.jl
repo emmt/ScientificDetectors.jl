@@ -88,7 +88,7 @@ function compute_artifact_data()
     push!(calib_data,
         CalibrationFrameSampler(readfits("flat_5s_db_h23.fits.gz"), "FLAT", 5.0; roi))
 
-    first_vpm = findbadpixels(calib_data)
+    first_vpm = findbadpixels(calib_data; init_vpm=trues(length(ARTIFACT_RANGE_X), length(ARTIFACT_RANGE_Y)))
     
     reduced_calib_data = ReducedCalibration(calib_data; validpixels=first_vpm)
 
