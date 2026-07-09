@@ -301,6 +301,7 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
                                     flat::Union{Nothing,Integer,String} = nothing,
                                     flatbg::Union{Nothing,Integer,String} = nothing,
                                     bg::Union{Nothing,Integer,String} = nothing,
+                                    manualbg::Union{Nothing,AbstractArray{R,N}} = nothing,
                                     Δt::Real=0) where {T<:AbstractFloat,R,N}
 
     # Get index of flat term and its background.
@@ -310,6 +311,15 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
     jflatbg = find(cal, flatbg)
     (flatbg !== nothing && jflatbg == 0 ) &&
         error("invalid identifier/index of background source for the flat")
+
+    # `bg` and `manualbg` cannot be used together
+    (bg !== nothing && manualbg !== nothing) && error(
+        "Cannot specified both a background source name and a background source manual array")
+
+    # check axes of `manualbg`
+    if manualbg !== nothing
+        axes(cal) == axes(manualbg) || error("background source manual array axes are wrong")
+    end
 
     # Get index of background term.
     jbg = find(cal, bg)
@@ -363,6 +373,23 @@ function PreprocessingParameters{T}(cal::ReducedCalibration{R,N};
             b_i = z[i] + sdt
             q_i = g[i]/a[i]
             r_i = a[i]*(g[i]*(σ[i] + σa[i] * isdt )^2 + sdt)
+            if validpixels[i] & ispositive(a[i]) & isfinite(b_i) & isnonnegative(q_i) & ispositive(r_i)
+                b[i] = b_i
+                q[i] = q_i
+                r[i] = r_i
+            else
+                a[i] = zero(T)
+                b[i] = zero(T)
+                q[i] = zero(T)
+                r[i] = one(T)
+            end
+        end
+    elseif manualbg !== nothing
+        @inbounds for i in all_indices(validpixels, a, b, g, q, r, σ)
+            sdt = manualbg[i] - z[i]
+            b_i = manualbg[i]
+            q_i = g[i]/a[i]
+            r_i = a[i]*(g[i]*σ[i]^2 + sdt)
             if validpixels[i] & ispositive(a[i]) & isfinite(b_i) & isnonnegative(q_i) & ispositive(r_i)
                 b[i] = b_i
                 q[i] = q_i
