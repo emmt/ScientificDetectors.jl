@@ -1,3 +1,5 @@
+using OnlineSampleStatistics: get_rawmoments, build_from_rawmoments
+
 struct CalibrationDataStat{T<:Real,N}
     cat::String                 # Category.
     Δt::Float64                 # Exposure time.
