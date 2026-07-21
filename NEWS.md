@@ -1,6 +1,6 @@
 # User visible changes in `ScientificDetectors` package
 
-## Unreleased
+## Version 0.4.0 (2026-07-21)
 
 ### Breaking changes
 
@@ -14,8 +14,19 @@
   `write` was previously deprecated). It is now needed to load `AstroFITS` and call
   `readfits`, `writefits`, or `writefits!`.
 
-### Non-breaking changes
+- `DetectorAxes{N}` is now a thin wrapper on top of `NTuple{N,DetectorAxis}` not an alias
+  to `NTuple{N,DetectorAxis}`.
 
+### Fixed
+
+- Avoid confusion between `stp` and `bin` in writing FITS headers.
+
+### Added
+
+- New structure `CalibrationDataStat`.
+
+- Many tests on extracts of real data stored as an artifact. For now, not all numerical tests
+  pass.
 
 ## Version v0.3.7
 
