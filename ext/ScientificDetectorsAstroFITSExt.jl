@@ -7,8 +7,7 @@ methods for loading/saving calibration and pre-processing parameters from/to FIT
 """
 module ScientificDetectorsAstroFITSExt
 
-using ScientificDetectors
-using ScientificDetectors: dimension_mismatch
+using ArrayTools
 
 using OnlineSampleStatistics
 using StructuredArrays
@@ -16,7 +15,11 @@ using StructuredArrays
 using AstroFITS
 using AstroFITS: hduname
 
-import Base: write, read
+using ScientificDetectors
+using ScientificDetectors: dimension_mismatch
+
+using StructuredArrays
+
 
 const WritableData{T,N} = Union{PreprocessingParameters{T,N},
                                 CalibrationData{T,N},
@@ -290,12 +293,12 @@ function Base.write(io::FitsFile, hdr::FitsHeader, data::CalibrationData{T,N}) w
     merge!(H, hdr)
     filter!(!is_structural, H)
     group_id = string(1)
-    Base.write(io, H, data.stat[1], group_id)
+    write(io, H, data.stat[1], group_id)
 
     # other stats
     for i in 2:length(data.stat)
         group_id = string(i)
-        Base.write(io, FitsHeader(), data.stat[i], group_id)
+        write(io, FitsHeader(), data.stat[i], group_id)
     end
 
     # stat_index

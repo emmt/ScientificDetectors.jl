@@ -183,7 +183,7 @@ PreprocessingParameters{T,N}(obj::PreprocessingParameters{<:Any,N}) where {T,N} 
     PreprocessingParameters{T}(obj)
 
 #
-# Getters.
+# Accessors.
 #
 DetectorAxes(obj::PreprocessingParameters) = obj.roi
 exposuretime(obj::PreprocessingParameters) = obj.Δt
@@ -191,13 +191,14 @@ exposuretime(obj::PreprocessingParameters) = obj.Δt
 #
 # Basic operations on PreprocessingParameters structure.
 #
-Base.eltype(::PreprocessingParameters{T}) where {T} = T
-Base.size(obj::PreprocessingParameters) = size(DetectorAxes(obj))
-Base.size(obj::PreprocessingParameters, i) = size(DetectorAxes(obj), i)
-Base.length(obj::PreprocessingParameters) = prod(size(obj))
-Base.convert(::Type{T}, obj::T) where {T<:PreprocessingParameters} = obj
-Base.convert(::Type{T}, obj::PreprocessingParameters) where {T<:PreprocessingParameters} =
-    T(obj)
+Base.eltype(::Type{<:PreprocessingParameters{T,N}}) where {T,N} = T
+Base.ndims(A::PreprocessingParameters) = ndims(typeof(A))
+Base.ndims(::Type{<:PreprocessingParameters{T,N}}) where {T,N} = N
+Base.size(A::PreprocessingParameters) = size(DetectorAxes(A))
+Base.size(A::PreprocessingParameters, i) = size(DetectorAxes(A), i)
+Base.length(A::PreprocessingParameters) = prod(size(A))
+Base.convert(::Type{T}, A::T) where {T<:PreprocessingParameters} = A
+Base.convert(::Type{T}, A::Any) where {T<:PreprocessingParameters} = T(A)::T
 
 # Allow for `T.(obj)` to work with `T` a floating-point type.
 Broadcast.broadcasted(::Type{T}, obj::PreprocessingParameters) where {T<:AbstractFloat} =

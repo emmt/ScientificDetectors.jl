@@ -3,17 +3,17 @@
 #
 # Calibration and pre-processing of data from scientific detectors.
 #
-#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------
 #
 # This file is part of the ScientificDetector software
-# (https://github.com/emmt/ScientificDetector.jl) licensed under the MIT
-# license.
+# (https://github.com/emmt/ScientificDetector.jl) licensed under the MIT license.
 #
-# Copyright (C) 2018-2019, Éric Thiébaut.
+# Copyright (C) 2018-2026, Éric Thiébaut et al.
 #
 
 module ScientificDetectors
 
+# Exported public symbols.
 export
     CalibrationCategory,
     CalibrationData,
@@ -35,6 +35,12 @@ export
     process,
     findbadpixels!,
     findbadpixels
+
+# Non-exported public symbols.
+using TypeUtils: @public
+@public(
+    offset,
+    binning)
 
 using Statistics, StatsBase, Distributions
 using OnlineSampleStatistics

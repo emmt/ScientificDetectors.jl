@@ -21,9 +21,9 @@ using OnlineSampleStatistics
 """
     A = SampleStatistics(stat, Δt, roi)
 
-Build an object `A` collecting pixel-wise detector statistics `stat`, each sample having the
-same exposure time `Δt` (in seconds) and corresponding to the detector geometrical settings
-in `roi` (for "Region of Interest").
+Build an object `A` collecting pixel-wise detector statistics `stat`, each sample has the
+same exposure time `Δt` (in seconds) and corresponds to the same detector region of interest
+`roi`.
 
 An instance may be built from the sample mean `avg` and standard deviation `std` computed
 from `n` independent samples:
@@ -108,18 +108,16 @@ struct SampleStatistics{T<:AbstractFloat,N}
 
     # This inner constructor is needed to avoid ambiguities and to check
     # compatibility of arguments.
-    function SampleStatistics{T,N}(stat::IndependentStatistic{T,N,2},
-                                   Δt::Real,
+    function SampleStatistics{T,N}(stat::IndependentStatistic{T,N,2}, Δt::Real,
                                    roi::DetectorAxes{N}) where {T<:AbstractFloat,N}
         size(roi) == size(stat) || dimension_mismatch(
             "statistics and region of interest have different dimensions")
-        new{T,N}(stat, Δt, roi)
+        return new{T,N}(stat, Δt, roi)
     end
 end
 
 # Regular constructors (just provide missing type parameter).
-function SampleStatistics{T}(A::IndependentStatistic{<:AbstractFloat,N},
-                             Δt::Real,
+function SampleStatistics{T}(A::IndependentStatistic{<:AbstractFloat,N}, Δt::Real,
                              roi::DetectorAxes{N} = DetectorAxes(size(A))
                              ) where {T<:AbstractFloat,N}
     SampleStatistics{T,N}(A, Δt, roi)
@@ -286,19 +284,19 @@ Base.size(A::SampleStatistics, i) = size(DetectorAxes(A), i)
 
 Base.convert(::Type{T}, obj::SampleStatistics) where {T<:SampleStatistics} = T(obj)
 
-Base.push!(A::SampleStatistics, x) = begin
+function Base.push!(A::SampleStatistics, x)
     push!(A.stat, x)
-    A
+    return A
 end
 
-Base.merge!(A::SampleStatistics, itr) = begin
+function Base.merge!(A::SampleStatistics, itr)
     for x in itr
         push!(A, x)
     end
-    A
+    return A
 end
 
-Base.merge!(A::SampleStatistics, B::SampleStatistics) = begin
+function Base.merge!(A::SampleStatistics, B::SampleStatistics)
     size(B) == size(A) || dimension_mismatch(
         "statistics must have the same dimensions")
     DetectorAxes(B) == DetectorAxes(A) || dimension_mismatch(
@@ -312,7 +310,7 @@ end
 Broadcast.broadcasted(::Type{T}, obj::SampleStatistics) where {T<:AbstractFloat} =
     SampleStatistics{T}(obj)
 
-Base.show(io::IO, obj::SampleStatistics{T,N}) where {T,N} = begin
+function Base.show(io::IO, obj::SampleStatistics{T,N}) where {T,N}
     join(io, size(obj), "×")
     print(io, " SampleStatistics{$T,$N}: samples = ",
           nobs(obj), ", Δt = ", exposuretime(obj), " s")

@@ -53,36 +53,37 @@ Other implemented methods (must be imported or prefixed by `Calibration.`):
 
 """
 struct ReducedCalibration{T<:AbstractFloat,N,V<:AbstractArray{Bool,N},A<:AbstractArray{T, N}}
-    # Dimensions, offsets and binning factors of the "Region Of Interest".
+    # Dimensions, offsets, and binning factors of the "Region Of Interest".
     roi::DetectorAxes{N}
 
     # Co-log-likelihood.
     f::Array{T,N}
 
-    # Zero-level (constant bias in ADU):
+    # Detector bias (in ADU).
     z::Array{T,N}
 
-    # Detector gain (in electrons per ADU):
+    # Detector gain (in e⁻/ADU).
     g::Array{T,N}
 
-    # Standard deviation of the readout noise (in ADU/frame):
+    # Standard deviation of the readout noise (in ADU/frame).
     σ::Array{T,N}
 
-    # DIT dependent Standard deviation of the readout noise (in ADU/frame/√second):
+    # Exposure time dependent standard deviation of the readout noise (in ADU⋅√second/frame).
     σa::A
 
-    # Time dependent source, e.g. dark current and background flux, (in
-    # ADU/second), may be empty or zero-filled:
+    # Time dependent source, e.g. dark current and background flux, (in ADU/second), may be
+    # empty or zero-filled.
     s::Vector{Array{T,N}}
 
-    # Identifiers of the different sources responsible of the different
-    # time-dependent bias terms.
+    # Identifiers of the different sources responsible of the different time-dependent bias
+    # terms.
     src::Vector{String}
 
-    # valid pixels map (true = valid pixel)
+    # Valid pixels map (true = valid pixel).
     vpm::V
 
-    algo::Symbol # name of the algorithm used to compute the reduced calibration data   
+    # Name of the algorithm used to compute the reduced calibration data.
+    algo::Symbol
 
     # Inner constructor provided to force using outer constructors.
     function ReducedCalibration{T,N,V,A}(roi::DetectorAxes{N},

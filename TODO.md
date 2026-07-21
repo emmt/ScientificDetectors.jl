@@ -1,5 +1,13 @@
 # List of wishes
 
+- In `ReducedCalibration` constructor: specify all fields by keyword (to limit the risk of
+  confusing fields): `f` -> `objfun`, `z` -> `bias`, `g` -> `gain`, `σ` -> `ron`, (and `(σ,
+  σa)` -> `ron`, if exposure-time dependent readout-noise) `roi` is automatically guessed
+  from the axes of the array arguments.
+
+- Use `adapt_precision` to convert floating-point type and reduce the number of constructors.
+
+
 - In `affinecorrection` where `y = (x - b)*a` divide by the median of `a` to have `y` in
   ADU, optionally, divide by `Δt` to be in ADU/s. cf. line 340 in `preprocessing.jl`.
 

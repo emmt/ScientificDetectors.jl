@@ -14,6 +14,8 @@
   `write` was previously deprecated). It is now needed to load `AstroFITS` and call
   `readfits`, `writefits`, or `writefits!`.
 
+### Non-breaking changes
+
 
 ## Version v0.3.7
 
