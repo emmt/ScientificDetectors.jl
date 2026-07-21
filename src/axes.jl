@@ -41,13 +41,16 @@ function DetectorAxis(len::Integer; off::Integer=0, bin::Integer=1, step::Intege
     return DetectorAxis(len, off, bin, step)
 end
 
-# Copy-constructor for `DetectorAxis` yields argument (as this type is immutable).
-DetectorAxis(A::DetectorAxis) = A
-
 function DetectorAxis(R::AbstractRange{<:Integer})
     step(R) > 0 || argument_error("step must be positive")
     return DetectorAxis(length(R); off=offset(R), bin=binning(R), step=step(R))
 end
+
+DetectorAxis(A::DetectorAxis) = A
+
+# For each type of the `DetectorAxisLike` union, conversion to `DetectorAxis` must be implemented.
+Base.convert(::Type{DetectorAxis}, x::DetectorAxis) = x
+Base.convert(::Type{DetectorAxis}, x::DetectorAxisLike) = DetectorAxis(x)::DetectorAxis
 
 DetectorAxis(A::DetectorAxes, i::Integer) = A[i]
 
@@ -111,11 +114,11 @@ function DetectorAxes(A::AbstractArray)
     return DetectorAxes(map(DetectorAxis, size(A)))
 end
 
-DetectorAxes{N}(I::DetectorAxisTypes...) where {N} = DetectorAxes{N}(I)
-DetectorAxes{N}(I::NTuple{N,DetectorAxisTypes}) where {N} = DetectorAxes(I)
-DetectorAxes(I::DetectorAxisTypes...) = DetectorAxes(I)
-function DetectorAxes(I::NTuple{N,DetectorAxisTypes}) where {N}
-    return DetectorAxes{N}(map(DetectorAxis, I))
+DetectorAxes{N}(I::DetectorAxisLike...) where {N} = DetectorAxes{N}(I)
+DetectorAxes{N}(I::NTuple{N,DetectorAxisLike}) where {N} = DetectorAxes(I)
+DetectorAxes(I::DetectorAxisLike...) = DetectorAxes(I)
+function DetectorAxes(I::NTuple{N,DetectorAxisLike}) where {N}
+    return DetectorAxes(map(DetectorAxis, I))
 end
 
 DetectorAxes{N}(A::DetectorAxes{N}) where {N} = A

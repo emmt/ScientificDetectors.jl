@@ -21,7 +21,7 @@ using OnlineSampleStatistics
 using StructuredArrays
 using ..ScientificDetectors
 using ..ScientificDetectors:
-    DetectorAxisTypes,
+    DetectorAxisLike,
     Identifiers,
     binning,
     getfields,

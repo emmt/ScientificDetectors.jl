@@ -248,7 +248,7 @@ end
 CalibrationData(args...; kwds...) = CalibrationData{Float64}(args...; kwds...)
 
 # Convert ROI.
-function CalibrationData{T}(roi::NTuple{N,DetectorAxisTypes},
+function CalibrationData{T}(roi::NTuple{N,DetectorAxisLike},
                             args...; kwds...) where {T<:AbstractFloat,N}
     return CalibrationData{T}(DetectorAxes(roi), args...; kwds...)
 end

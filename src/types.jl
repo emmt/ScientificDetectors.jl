@@ -6,8 +6,8 @@ struct DetectorAxis
 end
 
 # Union of types that can be interpreted as a `DetectorAxis`.
-const DetectorAxisTypes = Union{<:Integer,DetectorAxis,
-                                <:OrdinalRange{<:Integer,<:Integer}}
+const DetectorAxisLike = Union{<:Integer, DetectorAxis,
+                               <:OrdinalRange{<:Integer,<:Integer}}
 
 """
 Instances of type `DetectorAxes{N}` (note the plural) store a `N`-tuple of `DetectorAxis`
