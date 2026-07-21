@@ -19,4 +19,5 @@ Having `DetectorAxes{N}` a distinctive type rather than an alias for
 """
 struct DetectorAxes{N}
     axes::NTuple{N,DetectorAxis}
+    DetectorAxes(axes::NTuple{N,DetectorAxis}) where {N} = new{N}(axes)
 end
