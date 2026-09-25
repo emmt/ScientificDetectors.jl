@@ -336,7 +336,7 @@ end
 AstroFITS.hduname(::Type{<:ReducedCalibration}) =
     ("REDUCED-DETECTOR-CALIBRATION", 4)
 
-function Base.read(T::Type{<:ReducedCalibration}, io::FitsFile)
+function Base.read(::Type{T}, io::FitsFile) where {T<:ReducedCalibration}
     # Find HDU with calibration parameters.
     name, vers = hduname(T)
     k = findfirst(H -> matchvalue(H, "HDUNAME", name), io)
